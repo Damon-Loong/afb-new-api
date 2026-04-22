@@ -37,7 +37,7 @@ const AnnouncementsPanel = ({
   return (
     <Card
       {...CARD_PROPS}
-      className='shadow-sm !rounded-2xl lg:col-span-2'
+      className='dashboard-section-card !rounded-[24px] lg:col-span-2'
       title={
         <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 w-full'>
           <div className='flex items-center gap-2'>
@@ -68,7 +68,7 @@ const AnnouncementsPanel = ({
                                 : '#8b9aa7',
                   }}
                 />
-                <span className='text-gray-600'>{legend.label}</span>
+                <span className='dashboard-section-card__muted'>{legend.label}</span>
               </div>
             ))}
           </div>
@@ -89,7 +89,7 @@ const AnnouncementsPanel = ({
                   extra={
                     item.extra ? (
                       <div
-                        className='text-xs text-gray-500'
+                        className='text-xs dashboard-section-card__muted'
                         dangerouslySetInnerHTML={{ __html: htmlExtra }}
                       />
                     ) : null

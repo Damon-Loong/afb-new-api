@@ -70,7 +70,24 @@ const PageLayout = () => {
     location.pathname !== '/console/playground';
 
   const isConsoleRoute = location.pathname.startsWith('/console');
+  const isPricingRoute = location.pathname === '/pricing';
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
+  const desktopSidebarTop = 88;
+  const mobileSidebarTop = 12;
+  const sidebarTopOffset = isMobile ? mobileSidebarTop : desktopSidebarTop;
+  const consoleTopInset = isMobile ? '80px' : '80px';
+  const contentPadding = isConsoleRoute
+    ? shouldInnerPadding
+      ? isMobile
+        ? `${consoleTopInset} 5px 5px`
+        : `${consoleTopInset} 24px 24px`
+      : `${consoleTopInset} 0 0`
+    : '0';
+  const contentShellClassName = isPricingRoute
+    ? 'app-shell-content app-shell-content--wide'
+    : isConsoleRoute
+      ? 'app-shell-content app-shell-content--console'
+      : 'app-shell-content';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -174,6 +191,7 @@ const PageLayout = () => {
           overflow: isMobile ? 'visible' : 'auto',
           display: 'flex',
           flexDirection: 'column',
+          background: 'transparent',
         }}
       >
         {showSider && (
@@ -182,11 +200,12 @@ const PageLayout = () => {
             style={{
               position: 'fixed',
               left: 0,
-              top: '64px',
+              top: `${sidebarTopOffset}px`,
               zIndex: 99,
               border: 'none',
               paddingRight: '0',
               width: 'var(--sidebar-current-width)',
+              height: `calc(100dvh - ${sidebarTopOffset}px)`,
             }}
           >
             <SiderBar
@@ -206,20 +225,26 @@ const PageLayout = () => {
             flex: '1 1 auto',
             display: 'flex',
             flexDirection: 'column',
+            background: 'transparent',
           }}
         >
           <Content
+            className={isConsoleRoute ? 'console-shell' : undefined}
             style={{
               flex: '1 0 auto',
               overflowY: isMobile ? 'visible' : 'hidden',
               WebkitOverflowScrolling: 'touch',
-              padding: shouldInnerPadding ? (isMobile ? '5px' : '24px') : '0',
+              padding: contentPadding,
               position: 'relative',
             }}
           >
-            <ErrorBoundary>
-              <App />
-            </ErrorBoundary>
+            <div className={contentShellClassName}>
+              <div className={shouldInnerPadding ? 'console-page-shell' : ''}>
+                <ErrorBoundary>
+                  <App />
+                </ErrorBoundary>
+              </div>
+            </div>
           </Content>
           {!shouldHideFooter && (
             <Layout.Footer

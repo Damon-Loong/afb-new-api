@@ -391,6 +391,8 @@ const SiderBar = ({ onNavigate = () => {} }) => {
       className='sidebar-container'
       style={{
         width: 'var(--sidebar-current-width)',
+        borderTopRightRadius: collapsed ? '18px' : '24px',
+        borderBottomRightRadius: collapsed ? '18px' : '24px',
       }}
     >
       <SkeletonWrapper
@@ -455,7 +457,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               <Divider className='sidebar-divider' />
               <div>
                 {!collapsed && (
-                  <div className='sidebar-group-label'>{t('控制台')}</div>
+                <div className='sidebar-group-label'>{t('控制台')}</div>
                 )}
                 {workspaceItems.map((item) => renderNavItem(item))}
               </div>
@@ -468,7 +470,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               <Divider className='sidebar-divider' />
               <div>
                 {!collapsed && (
-                  <div className='sidebar-group-label'>{t('个人中心')}</div>
+                <div className='sidebar-group-label'>{t('个人中心')}</div>
                 )}
                 {financeItems.map((item) => renderNavItem(item))}
               </div>
@@ -481,7 +483,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
               <Divider className='sidebar-divider' />
               <div>
                 {!collapsed && (
-                  <div className='sidebar-group-label'>{t('管理员')}</div>
+                <div className='sidebar-group-label'>{t('管理员')}</div>
                 )}
                 {adminItems.map((item) => renderNavItem(item))}
               </div>

@@ -269,16 +269,19 @@ const SetupWizard = () => {
   };
 
   return (
-    <div className='min-h-screen flex items-center justify-center px-4'>
-      <div className='w-full max-w-4xl'>
-        <Card className='!rounded-2xl shadow-sm border-0'>
-          <div className='mb-4'>
-            <div className='text-xl font-semibold'>{t('系统初始化')}</div>
-            <div className='text-xs text-gray-600'>
+    <div className='setup-shell'>
+      <div className='setup-shell__panel'>
+        <div className='setup-shell__header'>
+          <div>
+            <div className='setup-shell__title'>{t('系统初始化')}</div>
+            <div className='setup-shell__description'>
               {t('欢迎使用，请完成以下设置以开始使用系统')}
             </div>
           </div>
+          <div className='setup-shell__badge'>Onboarding</div>
+        </div>
 
+        <Card className='auth-form-card'>
           <div className='px-2 py-2'>
             <Steps type='basic' current={currentStep}>
               {steps.map((item, index) => (

@@ -59,6 +59,7 @@ import {
 import OIDCIcon from '../common/logo/OIDCIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
+import AuthShell from '../common/ui/AuthShell';
 import TelegramLoginButton from 'react-telegram-login/src';
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
@@ -402,7 +403,7 @@ const RegisterForm = () => {
             </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-form-card'>
             <div className='flex justify-center pt-6 pb-2'>
               <Title heading={3} className='text-gray-800 dark:text-gray-200'>
                 {t('注 册')}
@@ -565,7 +566,7 @@ const RegisterForm = () => {
             </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-form-card'>
             <div className='flex justify-center pt-6 pb-2'>
               <Title heading={3} className='text-gray-800 dark:text-gray-200'>
                 {t('注 册')}
@@ -770,25 +771,17 @@ const RegisterForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailRegister ||
-        !hasOAuthRegisterOptions
-          ? renderEmailRegisterForm()
-          : renderOAuthOptions()}
-        {renderWeChatLoginModal()}
-
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
+    <AuthShell
+      logo={logo}
+      systemName={systemName}
+      eyebrow='New Account'
+      title={t('创建 AfB API 账户')}
+      description={t(
+        '保持现有注册逻辑与校验流程不变，以更清晰的结构完成首次接入。',
+      )}
+      footer={
+        turnstileEnabled ? (
+          <div className='flex justify-center mt-2'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {
@@ -796,9 +789,14 @@ const RegisterForm = () => {
               }}
             />
           </div>
-        )}
-      </div>
-    </div>
+        ) : null
+      }
+    >
+      {showEmailRegister || !hasOAuthRegisterOptions
+        ? renderEmailRegisterForm()
+        : renderOAuthOptions()}
+      {renderWeChatLoginModal()}
+    </AuthShell>
   );
 };
 

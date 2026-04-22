@@ -157,68 +157,68 @@ const Home = () => {
       />
       {homePageContentLoaded && homePageContent === '' ? (
         <div className='w-full overflow-x-hidden'>
-          {/* Banner 部分 */}
-          <div className='w-full border-b border-semi-color-border min-h-[500px] md:min-h-[600px] lg:min-h-[700px] relative overflow-x-hidden'>
-            {/* 背景模糊晕染球 */}
-            <div className='blur-ball blur-ball-indigo' />
-            <div className='blur-ball blur-ball-teal' />
-            <div className='flex items-center justify-center h-full px-4 py-20 md:py-24 lg:py-32 mt-10'>
-              {/* 居中内容区 */}
-              <div className='flex flex-col items-center justify-center text-center max-w-4xl mx-auto'>
-                <div className='flex flex-col items-center justify-center mb-6 md:mb-8'>
-                  <h1
-                    className={`text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-bold text-semi-color-text-0 leading-tight ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
-                  >
-                    <>
-                      {t('统一的')}
-                      <br />
-                      <span className='shine-text'>{t('大模型接口网关')}</span>
-                    </>
-                  </h1>
-                  <p className='text-base md:text-lg lg:text-xl text-semi-color-text-1 mt-4 md:mt-6 max-w-xl'>
-                    {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
-                  </p>
-                  {/* BASE URL 与端点选择 */}
-                  <div className='flex flex-col md:flex-row items-center justify-center gap-4 w-full mt-4 md:mt-6 max-w-md'>
-                    <Input
-                      readonly
-                      value={serverAddress}
-                      className='flex-1 !rounded-full'
-                      size={isMobile ? 'default' : 'large'}
-                      suffix={
-                        <div className='flex items-center gap-2'>
-                          <ScrollList
-                            bodyHeight={32}
-                            style={{ border: 'unset', boxShadow: 'unset' }}
-                          >
-                            <ScrollItem
-                              mode='wheel'
-                              cycled={true}
-                              list={endpointItems}
-                              selectedIndex={endpointIndex}
-                              onSelect={({ index }) => setEndpointIndex(index)}
-                            />
-                          </ScrollList>
-                          <Button
-                            type='primary'
-                            onClick={handleCopyBaseURL}
-                            icon={<IconCopy />}
-                            className='!rounded-full'
-                          />
-                        </div>
-                      }
-                    />
-                  </div>
+          <section className='home-hero'>
+            <div className='home-hero__grid'>
+              <div>
+                <div className='home-hero__eyebrow'>
+                  <span>AfB API</span>
+                  <span>AI Gateway</span>
                 </div>
-
-                {/* 操作按钮 */}
-                <div className='flex flex-row gap-4 justify-center items-center'>
+                <h1
+                  className={`home-hero__title ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
+                >
+                  <span className='shine-text'>
+                    {t('企业级大模型接口网关')}
+                  </span>
+                </h1>
+                <p className='home-hero__lead'>
+                  {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
+                </p>
+                <div className='home-hero__chips mt-6'>
+                  <span className='home-hero__chip'>OpenAI Compatible</span>
+                  <span className='home-hero__chip'>Claude / Gemini / MJ</span>
+                  <span className='home-hero__chip'>Routing & Billing</span>
+                </div>
+                <div className='home-hero__input-card mt-6 max-w-2xl'>
+                  <Text type='tertiary' className='mb-3 block'>
+                    {t('统一入口')}
+                  </Text>
+                  <Input
+                    readonly
+                    value={serverAddress}
+                    className='flex-1 !rounded-[16px]'
+                    size={isMobile ? 'default' : 'large'}
+                    suffix={
+                      <div className='flex items-center gap-2'>
+                        <ScrollList
+                          bodyHeight={32}
+                          style={{ border: 'unset', boxShadow: 'unset' }}
+                        >
+                          <ScrollItem
+                            mode='wheel'
+                            cycled={true}
+                            list={endpointItems}
+                            selectedIndex={endpointIndex}
+                            onSelect={({ index }) => setEndpointIndex(index)}
+                          />
+                        </ScrollList>
+                        <Button
+                          type='primary'
+                          onClick={handleCopyBaseURL}
+                          icon={<IconCopy />}
+                          className='!rounded-[14px]'
+                        />
+                      </div>
+                    }
+                  />
+                </div>
+                <div className='flex flex-row gap-4 justify-start items-center mt-6 flex-wrap'>
                   <Link to='/console'>
                     <Button
                       theme='solid'
                       type='primary'
                       size={isMobile ? 'default' : 'large'}
-                      className='!rounded-3xl px-8 py-2'
+                      className='!rounded-[16px] px-8 py-2'
                       icon={<IconPlay />}
                     >
                       {t('获取密钥')}
@@ -227,7 +227,7 @@ const Home = () => {
                   {isDemoSiteMode && statusState?.status?.version ? (
                     <Button
                       size={isMobile ? 'default' : 'large'}
-                      className='flex items-center !rounded-3xl px-6 py-2'
+                      className='flex items-center !rounded-[16px] px-6 py-2'
                       icon={<IconGithubLogo />}
                       onClick={() =>
                         window.open(
@@ -242,7 +242,7 @@ const Home = () => {
                     docsLink && (
                       <Button
                         size={isMobile ? 'default' : 'large'}
-                        className='flex items-center !rounded-3xl px-6 py-2'
+                        className='flex items-center !rounded-[16px] px-6 py-2'
                         icon={<IconFile />}
                         onClick={() => window.open(docsLink, '_blank')}
                       >
@@ -251,18 +251,45 @@ const Home = () => {
                     )
                   )}
                 </div>
+              </div>
 
-                {/* 框架兼容性图标 */}
-                <div className='mt-12 md:mt-16 lg:mt-20 w-full'>
-                  <div className='flex items-center mb-6 md:mb-8 justify-center'>
-                    <Text
-                      type='tertiary'
-                      className='text-lg md:text-xl lg:text-2xl font-light'
-                    >
-                      {t('支持众多的大模型供应商')}
-                    </Text>
+              <div className='home-hero__stats-card'>
+                <div>
+                  <Text type='tertiary'>{t('运行概览')}</Text>
+                  <div className='home-hero__provider-strip mt-4'>
+                    <span className='home-hero__provider-pill'>OpenAI</span>
+                    <span className='home-hero__provider-pill'>Claude</span>
+                    <span className='home-hero__provider-pill'>Gemini</span>
+                    <span className='home-hero__provider-pill'>DeepSeek</span>
                   </div>
-                  <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
+                </div>
+                <div className='home-hero__stats-row'>
+                  <span>{t('接入能力')}</span>
+                  <strong>Chat / Image / Audio / Realtime</strong>
+                </div>
+                <div className='home-hero__stats-row'>
+                  <span>{t('支持供应商')}</span>
+                  <strong>30+</strong>
+                </div>
+                <div className='home-hero__stats-row'>
+                  <span>{t('适用场景')}</span>
+                  <strong>{t('聚合、鉴权、计费、控制台')}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className='home-section-card'>
+            <div className='flex items-center mb-6 md:mb-8 justify-between gap-4 flex-wrap'>
+              <Text
+                type='tertiary'
+                className='text-lg md:text-xl lg:text-2xl font-light'
+              >
+                {t('支持众多的大模型供应商')}
+              </Text>
+              <div className='home-hero__provider-pill'>{t('统一网关 / 更稳定')}</div>
+            </div>
+            <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
                     <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
                       <Moonshot size={40} />
                     </div>
@@ -328,14 +355,11 @@ const Home = () => {
                         30+
                       </Typography.Text>
                     </div>
-                  </div>
-                </div>
-              </div>
             </div>
-          </div>
+          </section>
         </div>
       ) : (
-        <div className='overflow-x-hidden w-full'>
+        <div className='overflow-x-hidden w-full home-section-card'>
           {homePageContent.startsWith('https://') ? (
             <iframe
               src={homePageContent}

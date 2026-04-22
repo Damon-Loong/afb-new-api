@@ -65,7 +65,7 @@ const SearchActions = memo(
     }, [tokenUnit, setTokenUnit]);
 
     return (
-      <div className='flex items-center gap-2 w-full'>
+      <div className='pricing-toolbar'>
         <div className='flex-1'>
           <Input
             prefix={<IconSearch />}
@@ -84,7 +84,7 @@ const SearchActions = memo(
           icon={<IconCopy />}
           onClick={handleCopyClick}
           disabled={selectedRowKeys.length === 0}
-          className='!bg-blue-500 hover:!bg-blue-600 !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
+          className='pricing-copy-button !text-white disabled:!bg-gray-300 disabled:!text-gray-500'
         >
           {t('复制')}
         </Button>
@@ -96,7 +96,7 @@ const SearchActions = memo(
             {/* 充值价格显示开关 */}
             {supportsCurrencyDisplay && (
               <div className='flex items-center gap-2'>
-                <span className='text-sm text-gray-600'>{t('充值价格显示')}</span>
+                <span className='pricing-toolbar__label'>{t('充值价格显示')}</span>
                 <Switch
                   checked={showWithRecharge}
                   onChange={setShowWithRecharge}
@@ -119,7 +119,7 @@ const SearchActions = memo(
 
             {/* 显示倍率开关 */}
             <div className='flex items-center gap-2'>
-              <span className='text-sm text-gray-600'>{t('倍率')}</span>
+              <span className='pricing-toolbar__label'>{t('倍率')}</span>
               <Switch checked={showRatio} onChange={setShowRatio} />
             </div>
 
@@ -128,6 +128,7 @@ const SearchActions = memo(
               theme={viewMode === 'table' ? 'solid' : 'outline'}
               type={viewMode === 'table' ? 'primary' : 'tertiary'}
               onClick={handleViewModeToggle}
+              className='pricing-mode-button'
             >
               {t('表格视图')}
             </Button>
@@ -137,6 +138,7 @@ const SearchActions = memo(
               theme={tokenUnit === 'K' ? 'solid' : 'outline'}
               type={tokenUnit === 'K' ? 'primary' : 'tertiary'}
               onClick={handleTokenUnitToggle}
+              className='pricing-mode-button'
             >
               {tokenUnit}
             </Button>
@@ -149,6 +151,7 @@ const SearchActions = memo(
             type='tertiary'
             icon={<IconFilter />}
             onClick={handleFilterClick}
+            className='pricing-mode-button'
           >
             {t('筛选')}
           </Button>

@@ -89,15 +89,53 @@ func Login(c *gin.Context) {
 	setupLogin(&user, c)
 }
 
+func generateUniqueAccessToken() (string, error) {
+	for i := 0; i < 5; i++ {
+		randI := common.GetRandomInt(4)
+		key, err := common.GenerateRandomKey(29 + randI)
+		if err != nil {
+			return "", err
+		}
+
+		var existingUser model.User
+		if model.DB.Where("access_token = ?", key).First(&existingUser).RowsAffected == 0 {
+			return key, nil
+		}
+	}
+	return "", fmt.Errorf("failed to generate unique access token")
+}
+
+func ensureUserAccessToken(user *model.User) (string, error) {
+	if token := user.GetAccessToken(); token != "" {
+		return token, nil
+	}
+
+	key, err := generateUniqueAccessToken()
+	if err != nil {
+		return "", err
+	}
+	user.SetAccessToken(key)
+	if err := user.Update(false); err != nil {
+		return "", err
+	}
+	return key, nil
+}
+
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	accessToken, err := ensureUserAccessToken(user)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
 	session := sessions.Default(c)
 	session.Set("id", user.Id)
 	session.Set("username", user.Username)
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
-	err := session.Save()
+	err = session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
@@ -112,6 +150,7 @@ func setupLogin(user *model.User, c *gin.Context) {
 			"role":         user.Role,
 			"status":       user.Status,
 			"group":        user.Group,
+			"access_token": accessToken,
 		},
 	})
 }
@@ -193,6 +232,10 @@ func Register(c *gin.Context) {
 	var insertedUser model.User
 	if err := model.DB.Where("username = ?", cleanUser.Username).First(&insertedUser).Error; err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserRegisterFailed)
+		return
+	}
+	if _, err := ensureUserAccessToken(&insertedUser); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	// 生成默认令牌
@@ -293,20 +336,13 @@ func GenerateAccessToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	// get rand int 28-32
-	randI := common.GetRandomInt(4)
-	key, err := common.GenerateRandomKey(29 + randI)
+	key, err := generateUniqueAccessToken()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgGenerateFailed)
 		common.SysLog("failed to generate key: " + err.Error())
 		return
 	}
 	user.SetAccessToken(key)
-
-	if model.DB.Where("access_token = ?", user.AccessToken).First(user).RowsAffected != 0 {
-		common.ApiErrorI18n(c, i18n.MsgUuidDuplicate)
-		return
-	}
 
 	if err := user.Update(false); err != nil {
 		common.ApiError(c, err)

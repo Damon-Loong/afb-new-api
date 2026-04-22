@@ -27,11 +27,15 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       console: true,
       pricing: true,
       docs: true,
+      apiDocs: true,
       about: true,
     };
 
     // 使用传入的配置或默认配置
-    const modules = headerNavModules || defaultModules;
+    const modules = {
+      ...defaultModules,
+      ...(headerNavModules || {}),
+    };
 
     const allLinks = [
       {
@@ -60,6 +64,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ]
         : []),
       {
+        text: t('接口文档'),
+        itemKey: 'apiDocs',
+        to: '/interface-docs',
+      },
+      {
         text: t('关于'),
         itemKey: 'about',
         to: '/about',
@@ -77,7 +86,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
           ? modules.pricing.enabled
           : modules.pricing;
       }
-      return modules[link.itemKey] === true;
+      return modules[link.itemKey] !== false;
     });
   }, [t, docsLink, headerNavModules]);
 

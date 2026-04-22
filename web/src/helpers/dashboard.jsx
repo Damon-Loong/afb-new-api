@@ -130,6 +130,11 @@ export const getTrendSpec = (data, color) => ({
   point: {
     visible: false,
   },
+  canvas: {
+    style: {
+      fill: 'transparent',
+    },
+  },
   background: {
     fill: 'transparent',
   },

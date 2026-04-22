@@ -64,6 +64,7 @@ import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
 import TwoFAVerification from './TwoFAVerification';
+import AuthShell from '../common/ui/AuthShell';
 import { useTranslation } from 'react-i18next';
 import { SiDiscord } from 'react-icons/si';
 
@@ -511,7 +512,7 @@ const LoginForm = () => {
             </Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-form-card'>
             <div className='flex justify-center pt-6 pb-2'>
               <Title heading={3} className='text-gray-800 dark:text-gray-200'>
                 {t('登 录')}
@@ -725,7 +726,7 @@ const LoginForm = () => {
             <Title heading={3}>{systemName}</Title>
           </div>
 
-          <Card className='border-0 !rounded-2xl overflow-hidden'>
+          <Card className='auth-form-card'>
             <div className='flex justify-center pt-6 pb-2'>
               <Title heading={3} className='text-gray-800 dark:text-gray-200'>
                 {t('登 录')}
@@ -947,26 +948,17 @@ const LoginForm = () => {
   };
 
   return (
-    <div className='relative overflow-hidden bg-gray-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8'>
-      {/* 背景模糊晕染球 */}
-      <div
-        className='blur-ball blur-ball-indigo'
-        style={{ top: '-80px', right: '-80px', transform: 'none' }}
-      />
-      <div
-        className='blur-ball blur-ball-teal'
-        style={{ top: '50%', left: '-120px' }}
-      />
-      <div className='w-full max-w-sm mt-[60px]'>
-        {showEmailLogin ||
-        !hasOAuthLoginOptions
-          ? renderEmailLoginForm()
-          : renderOAuthOptions()}
-        {renderWeChatLoginModal()}
-        {render2FAModal()}
-
-        {turnstileEnabled && (
-          <div className='flex justify-center mt-6'>
+    <AuthShell
+      logo={logo}
+      systemName={systemName}
+      eyebrow='Secure Access'
+      title={t('登录 AfB API 工作台')}
+      description={t(
+        '统一访问供应商网关、令牌管理、订阅计费和运行分析能力。',
+      )}
+      footer={
+        turnstileEnabled ? (
+          <div className='flex justify-center mt-2'>
             <Turnstile
               sitekey={turnstileSiteKey}
               onVerify={(token) => {
@@ -974,9 +966,15 @@ const LoginForm = () => {
               }}
             />
           </div>
-        )}
-      </div>
-    </div>
+        ) : null
+      }
+    >
+      {showEmailLogin || !hasOAuthLoginOptions
+        ? renderEmailLoginForm()
+        : renderOAuthOptions()}
+      {renderWeChatLoginModal()}
+      {render2FAModal()}
+    </AuthShell>
   );
 };
 
