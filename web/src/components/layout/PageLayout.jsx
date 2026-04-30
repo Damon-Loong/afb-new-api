@@ -71,6 +71,7 @@ const PageLayout = () => {
 
   const isConsoleRoute = location.pathname.startsWith('/console');
   const isPricingRoute = location.pathname === '/pricing';
+  const isMarketRoute = location.pathname.startsWith('/market');
   const showSider = isConsoleRoute && (!isMobile || drawerOpen);
   const desktopSidebarTop = 88;
   const mobileSidebarTop = 12;
@@ -82,9 +83,13 @@ const PageLayout = () => {
         ? `${consoleTopInset} 5px 5px`
         : `${consoleTopInset} 24px 24px`
       : `${consoleTopInset} 0 0`
+    : isMarketRoute
+      ? `${consoleTopInset} 0 0`
     : '0';
   const contentShellClassName = isPricingRoute
     ? 'app-shell-content app-shell-content--wide'
+    : isMarketRoute
+      ? 'app-shell-content app-shell-content--wide'
     : isConsoleRoute
       ? 'app-shell-content app-shell-content--console'
       : 'app-shell-content';

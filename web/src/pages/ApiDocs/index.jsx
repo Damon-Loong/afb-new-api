@@ -115,6 +115,42 @@ const ApiDocs = () => {
         location: 'path',
         description: t('异步任务 ID，由提交任务接口返回。'),
       };
+      const userAuthParams = [
+        {
+          name: 'Cookie / Session',
+          required: false,
+          location: 'header',
+          description: t('浏览器登录后可使用 session/cookie 作为认证方式。'),
+        },
+        {
+          name: 'Authorization',
+          required: false,
+          location: 'header',
+          description: t(
+            '可传 Bearer USER_ACCESS_TOKEN。这里是用户 access_token，不是 sk-... API Token。',
+          ),
+        },
+        {
+          name: 'New-API-User',
+          required: false,
+          location: 'header',
+          description: t(
+            '使用用户 access_token 时建议传入当前用户 ID，用于后端校验用户一致性。',
+          ),
+        },
+      ];
+      const contentTypeJsonParam = {
+        name: 'Content-Type',
+        required: true,
+        location: 'header',
+        description: t('固定为 application/json。'),
+      };
+      const demandIdParam = {
+        name: 'id',
+        required: true,
+        location: 'path',
+        description: t('需求 ID。'),
+      };
 
       return [
       {
@@ -1277,12 +1313,12 @@ curl "${baseUrl}/api/token/?p=1&page_size=10" \\
         method: 'POST',
         path: '/api/token/{id}/key',
         summary: t(
-          '根据令牌 ID 获取当前用户某个 API 令牌的完整值。列表和详情接口只返回打码值，真正可用于模型调用的完整令牌需要通过该接口获取。',
+          '根据令牌 ID 获取当前用户某个 API 令牌的原始 key。列表和详情接口只返回打码值，模型调用前需要在该 key 前手动拼接 sk-。',
         ),
         notes: [
           t('只能获取当前登录用户自己名下的完整令牌。'),
           t('id 可以从 GET /api/token/ 的 data.items[].id 中获得。'),
-          t('返回的 data.key 是未加 sk- 前缀的完整令牌值；模型接口调用时通常使用 Authorization: Bearer sk-完整令牌。'),
+          t('返回的 data.key 不包含 sk- 前缀；模型接口调用时请自行拼接为 Authorization: Bearer sk-{data.key}。'),
           t('GET /api/token/{id} 只返回打码值，不会返回完整令牌。'),
         ],
         params: [
@@ -1333,7 +1369,7 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
           {
             name: 'data.key',
             type: 'string',
-            description: t('完整 API 令牌值。模型接口调用时通常需要拼接为 Bearer sk-完整令牌。'),
+            description: t('不带 sk- 前缀的原始 key。模型接口调用时请自行拼接为 Bearer sk-{data.key}。'),
           },
         ],
         responseExample: `{
@@ -1479,6 +1515,267 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
         responseExample: `{
   "success": true,
   "message": ""
+}`,
+      },
+      {
+        key: 'market-activities',
+        icon: <Sparkles size={18} />,
+        title: t('获取活动列表'),
+        method: 'GET',
+        path: '/api/market/activities',
+        summary: t('获取已发布的活动征稿列表。'),
+        notes: [
+          t('无需登录即可访问。'),
+          t('只返回 status 为 published 的活动。'),
+          t('列表接口只返回摘要字段，不返回 detail_content；完整富文本详情请调用 /api/market/activities/{id}。'),
+          t('can_submit、submission_mode、submit_url 由后端计算，客户平台可直接据此展示投稿入口。'),
+        ],
+        params: [
+          { name: 'p / page', required: false, location: 'query', description: t('页码，默认 1；推荐使用 p，兼容 page。') },
+          { name: 'page_size', required: false, location: 'query', description: t('每页数量，最大 100；兼容 ps / size。') },
+        ],
+        requestExample: `curl "${baseUrl}/api/market/activities?p=1&page_size=20"`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.total', type: 'number', description: t('活动总数。') },
+          { name: 'data.items[]', type: 'array', description: t('活动列表。') },
+          { name: 'data.items[].id', type: 'number', description: t('活动 ID。') },
+          { name: 'data.items[].title', type: 'string', description: t('活动标题。') },
+          { name: 'data.items[].subtitle', type: 'string', description: t('活动副标题。') },
+          { name: 'data.items[].prize_summary', type: 'string', description: t('奖池或奖金摘要，用于活动列表标签展示。') },
+          { name: 'data.items[].source_name', type: 'string', description: t('活动来源，空值表示官方，jimeng 表示即梦导入。') },
+          { name: 'data.items[].source_status', type: 'string', description: t('来源侧活动状态，例如即梦的 in_progress、in_evaluation、awarded。') },
+          { name: 'data.items[].category', type: 'string', description: t('活动类型：image、video、music、text、mixed。') },
+          { name: 'data.items[].cover_url', type: 'string', description: t('活动封面 URL。') },
+          { name: 'data.items[].submission_count', type: 'number', description: t('投稿数量。') },
+          { name: 'data.items[].can_submit', type: 'boolean', description: t('当前活动是否可投稿。') },
+          { name: 'data.items[].submission_mode', type: 'string', description: t('投稿方式：internal 表示站内投稿，external 表示跳转外链投稿，none 表示不可投稿。') },
+          { name: 'data.items[].submit_url', type: 'string', description: t('投稿地址。external 时为外部投稿链接；internal 时通常为空，由客户平台进入站内投稿页。') },
+          { name: 'data.items[].policies[]', type: 'array', description: t('政策标签。') },
+          { name: 'data.items[].detail_content', type: 'string', description: t('列表接口不返回该字段，请使用详情接口获取。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": {
+    "page": 1,
+    "page_size": 20,
+    "total": 1,
+    "items": [
+      {
+        "id": 1,
+        "title": "AI 宣传图征集活动",
+        "subtitle": "提交你的创意作品",
+        "prize_summary": "本期活动设置 20万 奖金池",
+        "source_name": "jimeng",
+        "source_status": "in_progress",
+        "category": "image",
+        "status": "published",
+        "cover_url": "/api/market/uploads/example.png",
+        "submission_count": 12,
+        "can_submit": true,
+        "submission_mode": "external",
+        "submit_url": "https://jimeng.jianying.com/ai-tool/activity-detail/2024-142-dreamina-weekly-challenge"
+      }
+    ]
+  }
+}`,
+      },
+      {
+        key: 'market-activity-detail',
+        icon: <Sparkles size={18} />,
+        title: t('获取活动详情'),
+        method: 'GET',
+        path: '/api/market/activities/{id}',
+        summary: t('获取单个已发布活动的完整详情和政策标签。'),
+        params: [{ name: 'id', required: true, location: 'path', description: t('活动 ID。') }],
+        requestExample: `curl "${baseUrl}/api/market/activities/1"`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.id', type: 'number', description: t('活动 ID。') },
+          { name: 'data.source_name', type: 'string', description: t('活动来源，空值表示官方，jimeng 表示即梦导入。') },
+          { name: 'data.source_status', type: 'string', description: t('来源侧活动状态，例如即梦的 in_progress、in_evaluation、awarded。') },
+          { name: 'data.external_url', type: 'string', description: t('外部活动原始链接，外联投稿时使用。') },
+          { name: 'data.prize_summary', type: 'string', description: t('奖池或奖金摘要，用于活动头部展示。') },
+          { name: 'data.can_submit', type: 'boolean', description: t('当前活动是否可投稿。') },
+          { name: 'data.submission_mode', type: 'string', description: t('投稿方式：internal、external、none。') },
+          { name: 'data.submit_url', type: 'string', description: t('投稿地址。external 时为外部投稿链接。') },
+          { name: 'data.detail_content', type: 'string', description: t('活动详情正文，支持 Markdown，可包含详情图、介绍、投稿要求、奖励说明和评选规则。') },
+          { name: 'data.policies[]', type: 'array', description: t('政策标签。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": {
+    "id": 1,
+    "title": "AI 宣传图征集活动",
+    "source_name": "jimeng",
+    "source_status": "in_progress",
+    "external_url": "https://jimeng.jianying.com/ai-tool/activity-detail/2024-142-dreamina-weekly-challenge",
+    "prize_summary": "本期活动设置 20万 奖金池",
+    "can_submit": true,
+    "submission_mode": "external",
+    "submit_url": "https://jimeng.jianying.com/ai-tool/activity-detail/2024-142-dreamina-weekly-challenge",
+    "detail_content": "## 活动介绍\\n围绕主题提交作品。\\n\\n## 投稿要求\\n- 请上传作品或填写作品链接。\\n\\n## 奖励说明\\n优秀作品奖励。"
+  }
+}`,
+      },
+      {
+        key: 'market-activity-works',
+        icon: <Sparkles size={18} />,
+        title: t('获取活动作品'),
+        method: 'GET',
+        path: '/api/market/activities/{id}/works',
+        summary: t('获取活动下已审核通过的作品列表。'),
+        params: [
+          { name: 'id', required: true, location: 'path', description: t('活动 ID。') },
+          { name: 'p / page', required: false, location: 'query', description: t('页码，默认 1；推荐使用 p，兼容 page。') },
+          { name: 'page_size', required: false, location: 'query', description: t('每页数量，最大 100；兼容 ps / size。') },
+        ],
+        requestExample: `curl "${baseUrl}/api/market/activities/1/works?p=1&page_size=20"`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.items[].title', type: 'string', description: t('作品标题。') },
+          { name: 'data.items[].work_url', type: 'string', description: t('作品链接。') },
+          { name: 'data.items[].cover_url', type: 'string', description: t('作品封面。') },
+          { name: 'data.items[].is_featured', type: 'boolean', description: t('是否精选。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": {
+    "page": 1,
+    "page_size": 20,
+    "total": 1,
+    "items": [{ "id": 10, "title": "我的作品", "status": "approved", "is_featured": true }]
+  }
+}`,
+      },
+      {
+        key: 'market-upload-file',
+        icon: <Sparkles size={18} />,
+        title: t('上传活动文件'),
+        method: 'POST',
+        path: '/api/market/uploads',
+        summary: t('登录用户上传活动封面、作品封面或作品附件。'),
+        notes: [
+          t('请求体使用 multipart/form-data，文件字段名为 file。'),
+          t('单个文件最大 100MB；不压缩、不转 base64。'),
+        ],
+        params: [
+          ...userAuthParams,
+          { name: 'file', required: true, location: 'formData', description: t('上传文件。') },
+          { name: 'usage_type', required: false, location: 'formData', description: t('用途：activity_cover、activity_banner、submission_cover、submission_attachment。') },
+        ],
+        requestExample: `curl -X POST "${baseUrl}/api/market/uploads" \
+  -H "Authorization: Bearer USER_ACCESS_TOKEN" \
+  -H "New-API-User: 1" \
+  -F "usage_type=submission_attachment" \
+  -F "file=@demo.png"`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.file_name', type: 'string', description: t('原始文件名。') },
+          { name: 'data.file_url', type: 'string', description: t('文件访问地址。') },
+          { name: 'data.storage_key', type: 'string', description: t('文件存储键。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": {
+    "file_name": "demo.png",
+    "file_url": "/api/market/uploads/5a3f.png",
+    "file_type": "image/png",
+    "file_size": 1024,
+    "storage_key": "5a3f.png"
+  }
+}`,
+      },
+      {
+        key: 'market-download-file',
+        icon: <Sparkles size={18} />,
+        title: t('读取活动文件'),
+        method: 'GET',
+        path: '/api/market/uploads/{key}',
+        summary: t('根据上传接口返回的 storage_key 读取文件。'),
+        params: [{ name: 'key', required: true, location: 'path', description: t('文件 storage_key。') }],
+        requestExample: `curl -L "${baseUrl}/api/market/uploads/5a3f.png" -o demo.png`,
+        responseFields: [{ name: 'file', type: 'binary', description: t('文件流。') }],
+        responseExample: t('返回文件流'),
+      },
+      {
+        key: 'market-submit-work',
+        icon: <Sparkles size={18} />,
+        title: t('提交作品'),
+        method: 'POST',
+        path: '/api/market/activities/{id}/submissions',
+        summary: t('登录用户向指定活动提交作品。'),
+        notes: [
+          t('不选择模型，不进入站内创作。'),
+          t('作品标题必填，作品链接和附件至少提供一个。'),
+        ],
+        params: [
+          ...userAuthParams,
+          contentTypeJsonParam,
+          { name: 'id', required: true, location: 'path', description: t('活动 ID。') },
+          { name: 'title', required: true, location: 'body', description: t('作品标题。') },
+          { name: 'description', required: false, location: 'body', description: t('作品说明。') },
+          { name: 'work_url', required: false, location: 'body', description: t('作品链接。') },
+          { name: 'cover_url', required: false, location: 'body', description: t('作品封面 URL。') },
+          { name: 'attachments', required: false, location: 'body', description: t('上传接口返回的附件元数据数组。') },
+        ],
+        requestExample: `curl -X POST "${baseUrl}/api/market/activities/1/submissions" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer USER_ACCESS_TOKEN" \
+  -H "New-API-User: 1" \
+  -d '{
+    "title": "我的作品",
+    "description": "作品说明",
+    "work_url": "https://example.com/work",
+    "attachments": []
+  }'`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.id', type: 'number', description: t('投稿记录 ID。') },
+          { name: 'data.activity_id', type: 'number', description: t('活动 ID。') },
+          { name: 'data.status', type: 'string', description: t('投稿状态，默认 pending。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": { "id": 18, "activity_id": 1, "title": "我的作品", "status": "pending" }
+}`,
+      },
+      {
+        key: 'market-my-submissions',
+        icon: <Sparkles size={18} />,
+        title: t('获取我的投稿记录'),
+        method: 'GET',
+        path: '/api/market/submissions/self',
+        summary: t('分页获取当前登录用户在需求市场提交过的作品记录。'),
+        notes: [t('只返回当前登录用户自己的投稿记录。')],
+        params: [
+          ...userAuthParams,
+          { name: 'p / page', required: false, location: 'query', description: t('页码，默认 1；推荐使用 p，兼容 page。') },
+          { name: 'page_size', required: false, location: 'query', description: t('每页数量，最大 100；兼容 ps / size。') },
+        ],
+        requestExample: `curl "${baseUrl}/api/market/submissions/self?p=1&page_size=20" \
+  -H "Authorization: Bearer USER_ACCESS_TOKEN" \
+  -H "New-API-User: 1"`,
+        responseFields: [
+          { name: 'success', type: 'boolean', description: t('请求是否成功。') },
+          { name: 'data.items[].id', type: 'number', description: t('投稿记录 ID。') },
+          { name: 'data.items[].activity_id', type: 'number', description: t('活动 ID。') },
+          { name: 'data.items[].status', type: 'string', description: t('投稿状态。') },
+        ],
+        responseExample: `{
+  "success": true,
+  "message": "",
+  "data": {
+    "page": 1,
+    "page_size": 20,
+    "total": 1,
+    "items": [{ "id": 18, "activity_id": 1, "title": "我的作品", "status": "pending" }]
+  }
 }`,
       },
       createAiEndpoint({
@@ -2588,9 +2885,12 @@ data: [DONE]`,
       });
     });
 
-    const countLeaves = (node) =>
-      (node.field ? 1 : 0) +
-      node.children.reduce((sum, child) => sum + countLeaves(child), 0);
+    const countLeaves = (node) => {
+      if (node.children.length > 0) {
+        return node.children.reduce((sum, child) => sum + countLeaves(child), 0);
+      }
+      return node.field ? 1 : 0;
+    };
 
     const stripMaps = (node) => ({
       key: node.key,
@@ -2641,6 +2941,28 @@ data: [DONE]`,
             title: t('API 令牌'),
             description: t('创建和管理模型调用 API Key'),
             endpointKeys: ['list-api-tokens', 'get-api-token-key', 'create-api-token'],
+          },
+        ],
+      },
+      {
+        key: 'market',
+        title: t('需求市场'),
+        description: t('活动浏览、文件上传和作品投稿'),
+        icon: <Sparkles size={18} />,
+        categories: [
+          {
+            key: 'market-public',
+            title: t('需求市场'),
+            description: t('用户侧活动浏览、作品展示和投稿记录'),
+            endpointKeys: [
+              'market-activities',
+              'market-activity-detail',
+              'market-activity-works',
+              'market-upload-file',
+              'market-download-file',
+              'market-submit-work',
+              'market-my-submissions',
+            ],
           },
         ],
       },

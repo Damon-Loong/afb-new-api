@@ -173,6 +173,36 @@ func UserAuth() func(c *gin.Context) {
 	}
 }
 
+func SessionRelayAuthContext() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		userID := c.GetInt("id")
+		if userID == 0 {
+			abortWithOpenAiMessage(c, http.StatusUnauthorized, common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn))
+			return
+		}
+		userCache, err := model.GetUserCache(userID)
+		if err != nil {
+			common.SysLog(fmt.Sprintf("SessionRelayAuthContext GetUserCache error for user %d: %v", userID, err))
+			abortWithOpenAiMessage(c, http.StatusInternalServerError, common.TranslateMessage(c, i18n.MsgDatabaseError))
+			return
+		}
+		if userCache.Status != common.UserStatusEnabled {
+			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			return
+		}
+		userCache.WriteContext(c)
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, userCache.Group)
+		common.SetContextKey(c, constant.ContextKeyTokenGroup, userCache.Group)
+		common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, false)
+		common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, false)
+		common.SetContextKey(c, constant.ContextKeyTokenUnlimited, true)
+		c.Set("token_id", 0)
+		c.Set("token_key", "")
+		c.Set("token_name", "需求市场")
+		c.Next()
+	}
+}
+
 func AdminAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleAdminUser)

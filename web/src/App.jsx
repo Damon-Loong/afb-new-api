@@ -40,6 +40,8 @@ import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
 import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
+import Market, { MarketDetail, MarketSubmit } from './pages/Market';
+import MarketAdmin from './pages/MarketAdmin';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
@@ -88,6 +90,22 @@ function App() {
     return false; // 默认不需要登录
   }, [statusState?.status?.HeaderNavModules]);
 
+  const marketRequireAuth = useMemo(() => {
+    const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
+    if (headerNavModulesConfig) {
+      try {
+        const modules = JSON.parse(headerNavModulesConfig);
+        if (typeof modules.market === 'boolean') {
+          return false;
+        }
+        return modules.market?.requireAuth === true;
+      } catch (error) {
+        console.error('解析顶栏模块配置失败:', error);
+      }
+    }
+    return false;
+  }, [statusState?.status?.HeaderNavModules]);
+
   return (
     <SetupCheck>
       <Routes>
@@ -121,6 +139,14 @@ function App() {
           element={
             <AdminRoute>
               <ModelDeploymentPage />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/market'
+          element={
+            <AdminRoute>
+              <MarketAdmin />
             </AdminRoute>
           }
         />
@@ -333,6 +359,48 @@ function App() {
                 <Pricing />
               </Suspense>
             )
+          }
+        />
+        <Route
+          path='/market'
+          element={
+            marketRequireAuth ? (
+              <PrivateRoute>
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <Market />
+                </Suspense>
+              </PrivateRoute>
+            ) : (
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <Market />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path='/market/:id'
+          element={
+            marketRequireAuth ? (
+              <PrivateRoute>
+                <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                  <MarketDetail />
+                </Suspense>
+              </PrivateRoute>
+            ) : (
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <MarketDetail />
+              </Suspense>
+            )
+          }
+        />
+        <Route
+          path='/market/:id/submit'
+          element={
+            <PrivateRoute>
+              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+                <MarketSubmit />
+              </Suspense>
+            </PrivateRoute>
           }
         />
         <Route

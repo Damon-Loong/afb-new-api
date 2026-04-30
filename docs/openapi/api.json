@@ -55,6 +55,9 @@
       "name": "模型管理"
     },
     {
+      "name": "需求市场"
+    },
+    {
       "name": "系统设置"
     }
   ],
@@ -126,27 +129,35 @@
     },
     "/api/status": {
       "get": {
-        "summary": "获取系统状态",
-        "deprecated": false,
-        "description": "🔓 无需鉴权",
         "tags": [
-          "系统"
+          "基础信息"
         ],
-        "parameters": [],
+        "summary": "获取系统状态和额度展示配置",
+        "description": "客户平台可用 quota_per_unit、quota_display_type 等字段换算用户余额展示。",
         "responses": {
           "200": {
             "description": "成功",
-            "headers": {}
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SystemStatus"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
+        }
       }
     },
     "/api/status/test": {
@@ -4942,6 +4953,1300 @@
           }
         ]
       }
+    },
+    "/api/market/activities": {
+      "get": {
+        "summary": "获取活动列表",
+        "deprecated": false,
+        "description": "获取已发布的活动征稿列表。列表接口只返回摘要字段，不返回 detail_content；完整富文本详情请调用 /api/market/activities/{id}。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，从 1 开始。推荐使用 p；后端兼容 page。"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "兼容页码参数，推荐使用 p。"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100
+            },
+            "description": "每页数量，最大 100；后端兼容 ps / size。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/PageInfo"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MarketActivityListItem"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/activities/{id}": {
+      "get": {
+        "summary": "获取活动详情",
+        "deprecated": false,
+        "description": "🔓 无需鉴权。获取单个已发布活动的详情。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "活动 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketActivity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/activities/{id}/works": {
+      "get": {
+        "summary": "获取活动作品",
+        "deprecated": false,
+        "description": "🔓 无需鉴权。获取活动下审核通过的作品列表。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "活动 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，从 1 开始。推荐使用 p；后端兼容 page。"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "兼容页码参数，推荐使用 p。"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100
+            },
+            "description": "每页数量，最大 100；后端兼容 ps / size。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/PageInfo"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MarketSubmission"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/uploads": {
+      "post": {
+        "summary": "上传活动文件",
+        "deprecated": false,
+        "description": "🔐 需要登录。上传活动封面、作品封面或作品附件，单个文件最大 100MB。",
+        "tags": [
+          "需求市场"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "file"
+                ],
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  },
+                  "usage_type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketUpload"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/uploads/{key}": {
+      "get": {
+        "summary": "读取活动文件",
+        "deprecated": false,
+        "description": "🔓 无需鉴权。根据 storage_key 读取上传文件。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "文件 storage_key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "文件流",
+            "headers": {}
+          }
+        }
+      }
+    },
+    "/api/market/activities/{id}/submissions": {
+      "post": {
+        "summary": "提交作品",
+        "deprecated": false,
+        "description": "🔐 需要登录。用户向指定活动提交作品；作品标题必填，作品链接和附件至少提供一个。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "活动 ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketSubmissionInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketSubmission"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/submissions/self": {
+      "get": {
+        "summary": "获取我的投稿记录",
+        "deprecated": false,
+        "description": "🔐 需要登录。分页获取当前登录用户的活动投稿记录。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "p",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "页码，从 1 开始。推荐使用 p；后端兼容 page。"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "兼容页码参数，推荐使用 p。"
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100
+            },
+            "description": "每页数量，最大 100；后端兼容 ps / size。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/PageInfo"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MarketSubmission"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/activities": {
+      "get": {
+        "summary": "管理员获取活动列表",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/PageInfo"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MarketActivity"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "管理员创建活动",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketActivity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/activities/{id}": {
+      "get": {
+        "summary": "管理员获取活动详情",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketActivity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "管理员更新活动",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketActivityInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/MarketActivity"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "管理员删除活动",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/activities/{id}/status": {
+      "patch": {
+        "summary": "管理员更新活动状态",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "draft",
+                      "published",
+                      "ended",
+                      "archived"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/submissions": {
+      "get": {
+        "summary": "管理员获取投稿列表",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "allOf": [
+                            {
+                              "$ref": "#/components/schemas/PageInfo"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "items": {
+                                  "type": "array",
+                                  "items": {
+                                    "$ref": "#/components/schemas/MarketSubmission"
+                                  }
+                                }
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/submissions/{id}/status": {
+      "patch": {
+        "summary": "管理员审核投稿",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "enum": [
+                      "pending",
+                      "approved",
+                      "rejected"
+                    ]
+                  },
+                  "reject_reason": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/submissions/{id}/feature": {
+      "patch": {
+        "summary": "管理员设置精选",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "is_featured": {
+                    "type": "boolean"
+                  },
+                  "sort_weight": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/market/admin/submissions/{id}": {
+      "delete": {
+        "summary": "管理员删除投稿",
+        "deprecated": false,
+        "description": "👨‍💼 需要管理员权限。",
+        "tags": [
+          "需求市场"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {},
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscription/plans": {
+      "get": {
+        "tags": [
+          "用户管理"
+        ],
+        "summary": "获取可购买订阅套餐",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "用户 access_token，格式：Bearer USER_ACCESS_TOKEN。不是 sk-... API Token。"
+          },
+          {
+            "name": "New-Api-User",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前用户 ID，必须与 session 或 access_token 中的用户 ID 一致。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "plan": {
+                                "$ref": "#/components/schemas/SubscriptionPlan"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/subscription/self": {
+      "get": {
+        "tags": [
+          "用户管理"
+        ],
+        "summary": "获取当前用户订阅套餐",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "用户 access_token，格式：Bearer USER_ACCESS_TOKEN。不是 sk-... API Token。"
+          },
+          {
+            "name": "New-Api-User",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前用户 ID，必须与 session 或 access_token 中的用户 ID 一致。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/SubscriptionSelf"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/token/{id}/key": {
+      "post": {
+        "tags": [
+          "令牌管理"
+        ],
+        "summary": "获取完整 API 令牌",
+        "description": "列表和详情接口只返回打码 key；该接口返回不带 sk- 前缀的原始 key。模型调用时请客户端自行拼接 Authorization: Bearer sk-{key}。",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "令牌 ID。"
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "用户 access_token，格式：Bearer USER_ACCESS_TOKEN。不是 sk-... API Token。"
+          },
+          {
+            "name": "New-Api-User",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "当前用户 ID，必须与 session 或 access_token 中的用户 ID 一致。"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponse"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": {
+                          "$ref": "#/components/schemas/TokenKeyResponse"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/models": {
+      "get": {
+        "tags": [
+          "模型调用"
+        ],
+        "summary": "获取可用模型",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "模型调用 API Token，格式：Bearer sk-..."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "object": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OpenAIModel"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "tags": [
+          "模型调用"
+        ],
+        "summary": "创建聊天补全",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "模型调用 API Token，格式：Bearer sk-..."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatCompletionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatCompletionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/images/generations": {
+      "post": {
+        "tags": [
+          "模型调用"
+        ],
+        "summary": "图像生成",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "模型调用 API Token，格式：Bearer sk-..."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImageGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageGenerationResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5118,6 +6423,622 @@
           },
           "redeemed_time": {
             "type": "integer"
+          }
+        }
+      },
+      "MarketActivityPolicy": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "activity_id": {
+            "type": "integer"
+          },
+          "region_name": {
+            "type": "string"
+          },
+          "policy_name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": "integer"
+          }
+        }
+      },
+      "MarketActivity": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "submission_count": {
+            "type": "integer"
+          },
+          "sort_weight": {
+            "type": "integer"
+          },
+          "start_time": {
+            "type": "integer"
+          },
+          "end_time": {
+            "type": "integer"
+          },
+          "submission_start_time": {
+            "type": "integer"
+          },
+          "submission_end_time": {
+            "type": "integer"
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketActivityPolicy"
+            }
+          },
+          "detail_content": {
+            "type": "string",
+            "description": "活动详情正文，支持 Markdown，可包含详情图、活动介绍、投稿要求、奖励说明和评选规则。"
+          },
+          "prize_summary": {
+            "type": "string",
+            "description": "奖池或奖金摘要，用于活动列表和活动头部展示。"
+          },
+          "source_name": {
+            "type": "string",
+            "description": "活动来源，空值表示官方，jimeng 表示即梦导入。"
+          },
+          "source_key": {
+            "type": "string",
+            "description": "来源侧活动唯一标识。"
+          },
+          "external_url": {
+            "type": "string",
+            "description": "外部活动原始链接，外联投稿时使用。"
+          },
+          "source_status": {
+            "type": "string",
+            "description": "来源侧活动状态，例如即梦的 in_progress、in_evaluation、awarded。"
+          },
+          "can_submit": {
+            "type": "boolean",
+            "description": "当前活动是否可投稿。"
+          },
+          "submission_mode": {
+            "type": "string",
+            "description": "投稿方式：internal、external、none。"
+          },
+          "submit_url": {
+            "type": "string",
+            "description": "投稿地址。external 时为外部投稿链接；internal 时通常为空。"
+          }
+        }
+      },
+      "MarketActivityInput": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/MarketActivity"
+          }
+        ]
+      },
+      "MarketUpload": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "file_name": {
+            "type": "string"
+          },
+          "file_url": {
+            "type": "string"
+          },
+          "file_type": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "integer"
+          },
+          "storage_key": {
+            "type": "string"
+          },
+          "usage_type": {
+            "type": "string"
+          }
+        }
+      },
+      "MarketSubmission": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "activity_id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "work_url": {
+            "type": "string"
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "reject_reason": {
+            "type": "string"
+          },
+          "is_featured": {
+            "type": "boolean"
+          },
+          "sort_weight": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "MarketSubmissionInput": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "work_url": {
+            "type": "string"
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "SystemStatus": {
+        "type": "object",
+        "properties": {
+          "quota_per_unit": {
+            "type": "number",
+            "description": "原始 quota 与显示单位的换算基数。"
+          },
+          "quota_display_type": {
+            "type": "string",
+            "description": "额度展示类型：USD、CNY、TOKENS、CUSTOM。"
+          },
+          "usd_exchange_rate": {
+            "type": "number",
+            "description": "USD 到 CNY 的展示汇率。"
+          },
+          "custom_currency_exchange_rate": {
+            "type": "number",
+            "description": "自定义货币展示汇率。"
+          }
+        }
+      },
+      "SubscriptionPlan": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "price_amount": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "duration_unit": {
+            "type": "string"
+          },
+          "duration_value": {
+            "type": "integer"
+          },
+          "custom_seconds": {
+            "type": "integer"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "sort_order": {
+            "type": "integer"
+          },
+          "stripe_price_id": {
+            "type": "string"
+          },
+          "creem_product_id": {
+            "type": "string"
+          },
+          "max_purchase_per_user": {
+            "type": "integer"
+          },
+          "upgrade_group": {
+            "type": "string"
+          },
+          "total_amount": {
+            "type": "integer",
+            "description": "套餐总额度，原始 quota 单位。"
+          },
+          "quota_reset_period": {
+            "type": "string"
+          },
+          "quota_reset_custom_seconds": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "UserSubscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "integer"
+          },
+          "plan_id": {
+            "type": "integer"
+          },
+          "amount_total": {
+            "type": "integer",
+            "description": "订阅总额度，原始 quota 单位。"
+          },
+          "amount_used": {
+            "type": "integer",
+            "description": "订阅已用额度，原始 quota 单位。"
+          },
+          "start_time": {
+            "type": "integer"
+          },
+          "end_time": {
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "last_reset_time": {
+            "type": "integer"
+          },
+          "next_reset_time": {
+            "type": "integer"
+          },
+          "upgrade_group": {
+            "type": "string"
+          },
+          "prev_user_group": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "integer"
+          },
+          "updated_at": {
+            "type": "integer"
+          }
+        }
+      },
+      "SubscriptionSelf": {
+        "type": "object",
+        "properties": {
+          "billing_preference": {
+            "type": "string"
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subscription": {
+                  "$ref": "#/components/schemas/UserSubscription"
+                }
+              }
+            }
+          },
+          "all_subscriptions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "subscription": {
+                  "$ref": "#/components/schemas/UserSubscription"
+                }
+              }
+            }
+          }
+        }
+      },
+      "TokenKeyResponse": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "不带 sk- 前缀的原始 key。模型接口调用时请自行拼接为 Bearer sk-{key}。",
+            "example": "abcd1234efgh5678ijkl9012mnop3456"
+          }
+        }
+      },
+      "OpenAIModel": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string",
+            "example": "model"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "owned_by": {
+            "type": "string"
+          },
+          "supported_endpoint_types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "模型支持的端点类型，例如 openai、image-generation、embedding、rerank、video-generation。"
+          }
+        }
+      },
+      "ChatCompletionRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "content": {}
+              }
+            }
+          },
+          "stream": {
+            "type": "boolean"
+          },
+          "temperature": {
+            "type": "number"
+          },
+          "max_tokens": {
+            "type": "integer"
+          }
+        }
+      },
+      "ChatCompletionResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "object": {
+            "type": "string"
+          },
+          "created": {
+            "type": "integer"
+          },
+          "model": {
+            "type": "string"
+          },
+          "choices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "object",
+                  "properties": {
+                    "role": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "finish_reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "properties": {
+              "prompt_tokens": {
+                "type": "integer"
+              },
+              "completion_tokens": {
+                "type": "integer"
+              },
+              "total_tokens": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      },
+      "ImageGenerationRequest": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "n": {
+            "type": "integer"
+          },
+          "size": {
+            "type": "string"
+          },
+          "response_format": {
+            "type": "string"
+          }
+        }
+      },
+      "ImageGenerationResponse": {
+        "type": "object",
+        "properties": {
+          "created": {
+            "type": "integer"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "url": {
+                  "type": "string"
+                },
+                "b64_json": {
+                  "type": "string"
+                },
+                "revised_prompt": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "MarketActivityListItem": {
+        "type": "object",
+        "description": "活动列表项。列表接口不返回 detail_content，完整详情请调用 /api/market/activities/{id}。",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "cover_url": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "submission_count": {
+            "type": "integer"
+          },
+          "sort_weight": {
+            "type": "integer"
+          },
+          "start_time": {
+            "type": "integer"
+          },
+          "end_time": {
+            "type": "integer"
+          },
+          "submission_start_time": {
+            "type": "integer"
+          },
+          "submission_end_time": {
+            "type": "integer"
+          },
+          "policies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MarketActivityPolicy"
+            }
+          },
+          "prize_summary": {
+            "type": "string",
+            "description": "奖池或奖金摘要，用于活动列表和活动头部展示。"
+          },
+          "source_name": {
+            "type": "string",
+            "description": "活动来源，空值表示官方，jimeng 表示即梦导入。"
+          },
+          "external_url": {
+            "type": "string",
+            "description": "外部活动原始链接，外联投稿时使用。"
+          },
+          "source_status": {
+            "type": "string",
+            "description": "来源侧活动状态，例如即梦的 in_progress、in_evaluation、awarded。"
+          },
+          "can_submit": {
+            "type": "boolean",
+            "description": "当前活动是否可投稿。"
+          },
+          "submission_mode": {
+            "type": "string",
+            "description": "投稿方式：internal、external、none。"
+          },
+          "submit_url": {
+            "type": "string",
+            "description": "投稿地址。external 时为外部投稿链接；internal 时通常为空。"
           }
         }
       }

@@ -254,6 +254,7 @@ func migrateDB() error {
 	if err := migrateTokenModelLimitsToText(); err != nil {
 		return err
 	}
+	resetLegacyMarketTables()
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -280,6 +281,10 @@ func migrateDB() error {
 		&SubscriptionPreConsumeRecord{},
 		&CustomOAuthProvider{},
 		&UserOAuthBinding{},
+		&MarketActivity{},
+		&MarketActivityPolicy{},
+		&MarketSubmission{},
+		&MarketUpload{},
 	)
 	if err != nil {
 		return err
@@ -297,6 +302,7 @@ func migrateDB() error {
 }
 
 func migrateDBFast() error {
+	resetLegacyMarketTables()
 
 	var wg sync.WaitGroup
 
@@ -328,6 +334,10 @@ func migrateDBFast() error {
 		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
 		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
 		{&UserOAuthBinding{}, "UserOAuthBinding"},
+		{&MarketActivity{}, "MarketActivity"},
+		{&MarketActivityPolicy{}, "MarketActivityPolicy"},
+		{&MarketSubmission{}, "MarketSubmission"},
+		{&MarketUpload{}, "MarketUpload"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -371,6 +381,17 @@ func migrateLOGDB() error {
 		return err
 	}
 	return nil
+}
+
+func resetLegacyMarketTables() {
+	for _, table := range []string{"market_demands", "market_demand_models", "market_demand_policies"} {
+		if DB.Migrator().HasTable(table) {
+			_ = DB.Migrator().DropTable(table)
+		}
+	}
+	if DB.Migrator().HasTable("market_submissions") && !DB.Migrator().HasColumn(&MarketSubmission{}, "ActivityID") {
+		_ = DB.Migrator().DropTable("market_submissions")
+	}
 }
 
 type sqliteColumnDef struct {

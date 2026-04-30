@@ -25,6 +25,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
     const defaultModules = {
       home: true,
       console: true,
+      market: true,
       pricing: true,
       docs: true,
       apiDocs: true,
@@ -47,6 +48,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('控制台'),
         itemKey: 'console',
         to: '/console',
+      },
+      {
+        text: t('需求市场'),
+        itemKey: 'market',
+        to: '/market',
       },
       {
         text: t('模型广场'),
@@ -85,6 +91,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         return typeof modules.pricing === 'object'
           ? modules.pricing.enabled
           : modules.pricing;
+      }
+      if (link.itemKey === 'market') {
+        return typeof modules.market === 'object'
+          ? modules.market.enabled
+          : modules.market;
       }
       return modules[link.itemKey] !== false;
     });
