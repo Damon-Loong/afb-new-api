@@ -19,6 +19,7 @@ tiktoken_cache
 .gocache
 .gomodcache/
 .cache
+.tmp-go-cache/
 web/bun.lock
 plans
 .claude

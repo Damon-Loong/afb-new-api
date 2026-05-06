@@ -134,6 +134,12 @@ const PaymentConfirmModal = ({
                             size={16}
                             color='#07C160'
                           />
+                        ) : payMethod.type === 'wechatpay' ? (
+                          <SiWechat
+                            className='mr-2'
+                            size={16}
+                            color='#07C160'
+                          />
                         ) : payMethod.type === 'stripe' ? (
                           <SiStripe
                             className='mr-2'

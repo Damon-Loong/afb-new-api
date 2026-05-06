@@ -23,6 +23,7 @@ import SettingsGeneralPayment from '../../pages/Setting/Payment/SettingsGeneralP
 import SettingsPaymentGateway from '../../pages/Setting/Payment/SettingsPaymentGateway';
 import SettingsPaymentGatewayStripe from '../../pages/Setting/Payment/SettingsPaymentGatewayStripe';
 import SettingsPaymentGatewayCreem from '../../pages/Setting/Payment/SettingsPaymentGatewayCreem';
+import SettingsPaymentGatewayWeChatPay from '../../pages/Setting/Payment/SettingsPaymentGatewayWeChatPay';
 import SettingsPaymentGatewayWaffo from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffo';
 import SettingsPaymentGatewayWaffoPancake from '../../pages/Setting/Payment/SettingsPaymentGatewayWaffoPancake';
 import { API, showError, toBoolean } from '../../helpers';
@@ -49,6 +50,17 @@ const PaymentSetting = () => {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+
+    WeChatPayEnabled: false,
+    WeChatPayAppID: '',
+    WeChatPayMchID: '',
+    WeChatPayMchCertSerialNo: '',
+    WeChatPayAPIv3Key: '',
+    WeChatPayPrivateKey: '',
+    WeChatPayNotifyURL: '',
+    WeChatPayReturnURL: '',
+    WeChatPayUnitPrice: 7.3,
+    WeChatPayMinTopUp: 1,
 
     WaffoPancakeEnabled: false,
     WaffoPancakeSandbox: false,
@@ -108,6 +120,8 @@ const PaymentSetting = () => {
           case 'MinTopUp':
           case 'StripeUnitPrice':
           case 'StripeMinTopUp':
+          case 'WeChatPayUnitPrice':
+          case 'WeChatPayMinTopUp':
           case 'WaffoPancakeUnitPrice':
           case 'WaffoPancakeMinTopUp':
             newInputs[item.key] = parseFloat(item.value);
@@ -186,6 +200,13 @@ const PaymentSetting = () => {
             </Tabs.TabPane>
             <Tabs.TabPane tab={t('Creem 设置')} itemKey='creem'>
               <SettingsPaymentGatewayCreem
+                options={inputs}
+                refresh={onRefresh}
+                hideSectionTitle
+              />
+            </Tabs.TabPane>
+            <Tabs.TabPane tab={t('微信支付设置')} itemKey='wechatpay'>
+              <SettingsPaymentGatewayWeChatPay
                 options={inputs}
                 refresh={onRefresh}
                 hideSectionTitle
