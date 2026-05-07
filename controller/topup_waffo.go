@@ -379,7 +379,14 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo 订单状态非成功，忽略充值 trade_no=%s order_status=%s client_ip=%s", result.MerchantOrderID, result.OrderStatus, c.ClientIP()))
 		// 终态失败订单标记为 failed，避免永远停在 pending
 		if result.MerchantOrderID != "" {
-			if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentMethodWaffo, common.TopUpStatusFailed); err != nil &&
+			if sub := model.GetSubscriptionOrderByTradeNo(result.MerchantOrderID); sub != nil &&
+				sub.PaymentMethod == model.PaymentMethodWaffo &&
+				sub.Status == common.TopUpStatusPending {
+				if err := model.ExpireSubscriptionOrder(result.MerchantOrderID, model.PaymentMethodWaffo); err != nil &&
+					!errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+					logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 订阅订单标记失败 trade_no=%s error=%q", result.MerchantOrderID, err.Error()))
+				}
+			} else if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentMethodWaffo, common.TopUpStatusFailed); err != nil &&
 				!errors.Is(err, model.ErrTopUpNotFound) &&
 				!errors.Is(err, model.ErrTopUpStatusInvalid) {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 标记失败订单状态失败 trade_no=%s error=%q", result.MerchantOrderID, err.Error()))
@@ -393,6 +400,20 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 
 	LockOrder(merchantOrderId)
 	defer UnlockOrder(merchantOrderId)
+
+	if sub := model.GetSubscriptionOrderByTradeNo(merchantOrderId); sub != nil &&
+		sub.PaymentMethod == model.PaymentMethodWaffo &&
+		sub.Status == common.TopUpStatusPending {
+		payload := common.GetJsonString(result)
+		if err := model.CompleteSubscriptionOrder(merchantOrderId, payload, model.PaymentMethodWaffo); err != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 订阅订单履约失败 trade_no=%s client_ip=%s error=%q", merchantOrderId, c.ClientIP(), err.Error()))
+			sendWaffoWebhookResponse(c, wh, false, err.Error())
+			return
+		}
+		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo 订阅购买成功 trade_no=%s client_ip=%s", merchantOrderId, c.ClientIP()))
+		sendWaffoWebhookResponse(c, wh, true, "")
+		return
+	}
 
 	if err := model.RechargeWaffo(merchantOrderId, c.ClientIP()); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 充值处理失败 trade_no=%s client_ip=%s error=%q", merchantOrderId, c.ClientIP(), err.Error()))

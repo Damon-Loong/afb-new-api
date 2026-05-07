@@ -105,7 +105,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "微信支付",
 				"type":      model.PaymentMethodWeChatPay,
 				"color":     "rgba(var(--semi-green-5), 1)",
-				"min_topup": strconv.Itoa(setting.WeChatPayMinTopUp),
+				"min_topup": strconv.FormatFloat(setting.WeChatPayMinTopUp, 'f', -1, 64),
 			})
 		}
 	}

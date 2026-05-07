@@ -60,6 +60,7 @@ import {
   IconLock,
   IconKey,
 } from '@douyinfe/semi-icons';
+import { IconPhone, IconTick } from '@douyinfe/semi-icons';
 import OIDCIcon from '../common/logo/OIDCIcon';
 import WeChatIcon from '../common/logo/WeChatIcon';
 import LinuxDoIcon from '../common/logo/LinuxDoIcon';
@@ -80,6 +81,8 @@ const LoginForm = () => {
     username: '',
     password: '',
     wechat_verification_code: '',
+    phone: '',
+    sms_code: '',
   });
   const { username, password } = inputs;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -91,6 +94,7 @@ const LoginForm = () => {
   const [turnstileToken, setTurnstileToken] = useState('');
   const [showWeChatLoginModal, setShowWeChatLoginModal] = useState(false);
   const [showEmailLogin, setShowEmailLogin] = useState(false);
+  const [showSMSLogin, setShowSMSLogin] = useState(false);
   const [wechatLoading, setWechatLoading] = useState(false);
   const [githubLoading, setGithubLoading] = useState(false);
   const [discordLoading, setDiscordLoading] = useState(false);
@@ -98,6 +102,10 @@ const LoginForm = () => {
   const [linuxdoLoading, setLinuxdoLoading] = useState(false);
   const [emailLoginLoading, setEmailLoginLoading] = useState(false);
   const [loginLoading, setLoginLoading] = useState(false);
+  const [smsSendLoading, setSmsSendLoading] = useState(false);
+  const [smsLoginLoading, setSmsLoginLoading] = useState(false);
+  const [smsCountdown, setSmsCountdown] = useState(0);
+  const smsTimerRef = useRef(null);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [otherLoginOptionsLoading, setOtherLoginOptionsLoading] =
     useState(false);
@@ -141,6 +149,7 @@ const LoginForm = () => {
       status.wechat_login ||
       status.linuxdo_oauth ||
       status.telegram_oauth ||
+      status.sms_login ||
       hasCustomOAuthProviders,
   );
 
@@ -164,8 +173,28 @@ const LoginForm = () => {
       if (githubTimeoutRef.current) {
         clearTimeout(githubTimeoutRef.current);
       }
+      if (smsTimerRef.current) {
+        clearInterval(smsTimerRef.current);
+      }
     };
   }, []);
+
+  const startSMSTimer = () => {
+    setSmsCountdown(60);
+    if (smsTimerRef.current) {
+      clearInterval(smsTimerRef.current);
+    }
+    smsTimerRef.current = setInterval(() => {
+      setSmsCountdown((n) => {
+        if (n <= 1) {
+          clearInterval(smsTimerRef.current);
+          smsTimerRef.current = null;
+          return 0;
+        }
+        return n - 1;
+      });
+    }, 1000);
+  };
 
   useEffect(() => {
     if (searchParams.get('expired')) {
@@ -269,6 +298,71 @@ const LoginForm = () => {
       setLoginLoading(false);
     }
   }
+
+  const handleSendSMSCode = async () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    const phone = String(inputs.phone || '').trim();
+    if (!/^(?:\+?86)?1\d{10}$/.test(phone)) {
+      showError(t('请输入有效的手机号（仅支持 +86）'));
+      return;
+    }
+    setSmsSendLoading(true);
+    try {
+      const res = await API.post('/api/auth/sms/send', {
+        phone,
+        purpose: 'sms_login',
+      });
+      const { success, message } = res.data || {};
+      if (success) {
+        showSuccess(t('验证码已发送'));
+        startSMSTimer();
+      } else {
+        showError(message || t('发送验证码失败'));
+      }
+    } catch (e) {
+      showError(t('发送验证码失败'));
+    } finally {
+      setSmsSendLoading(false);
+    }
+  };
+
+  const handleSMSLogin = async () => {
+    if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
+      showInfo(t('请先阅读并同意用户协议和隐私政策'));
+      return;
+    }
+    const phone = String(inputs.phone || '').trim();
+    const code = String(inputs.sms_code || '').trim();
+    if (!/^(?:\+?86)?1\d{10}$/.test(phone)) {
+      showError(t('请输入有效的手机号（仅支持 +86）'));
+      return;
+    }
+    if (!/^\d{6}$/.test(code)) {
+      showError(t('请输入 6 位验证码'));
+      return;
+    }
+    setSmsLoginLoading(true);
+    try {
+      const res = await API.post('/api/auth/sms/login', { phone, code });
+      const { success, message, data } = res.data || {};
+      if (success) {
+        userDispatch({ type: 'login', payload: data });
+        setUserData(data);
+        updateAPI();
+        showSuccess(t('登录成功！'));
+        navigate('/console');
+      } else {
+        showError(message || t('登录失败，请重试'));
+      }
+    } catch (e) {
+      showError(t('登录失败，请重试'));
+    } finally {
+      setSmsLoginLoading(false);
+    }
+  };
 
   // 添加Telegram登录处理函数
   const onTelegramLoginClicked = async (response) => {
@@ -409,6 +503,14 @@ const LoginForm = () => {
   const handleEmailLoginClick = () => {
     setEmailLoginLoading(true);
     setShowEmailLogin(true);
+    setShowSMSLogin(false);
+    setEmailLoginLoading(false);
+  };
+
+  const handleSMSLoginClick = () => {
+    setEmailLoginLoading(true);
+    setShowEmailLogin(true);
+    setShowSMSLogin(true);
     setEmailLoginLoading(false);
   };
 
@@ -483,6 +585,7 @@ const LoginForm = () => {
   const handleOtherLoginOptionsClick = () => {
     setOtherLoginOptionsLoading(true);
     setShowEmailLogin(false);
+    setShowSMSLogin(false);
     setOtherLoginOptionsLoading(false);
   };
 
@@ -647,6 +750,19 @@ const LoginForm = () => {
                   {t('或')}
                 </Divider>
 
+                {status.sms_login && (
+                  <Button
+                    theme='outline'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                    type='tertiary'
+                    icon={<IconPhone size='large' />}
+                    onClick={handleSMSLoginClick}
+                    loading={emailLoginLoading}
+                  >
+                    <span className='ml-3'>{t('使用 手机号验证码 登录')}</span>
+                  </Button>
+                )}
+
                 <Button
                   theme='solid'
                   type='primary'
@@ -745,25 +861,67 @@ const LoginForm = () => {
                   <span className='ml-3'>{t('使用 Passkey 登录')}</span>
                 </Button>
               )}
-              <Form className='space-y-3'>
-                <Form.Input
-                  field='username'
-                  label={t('用户名或邮箱')}
-                  placeholder={t('请输入您的用户名或邮箱地址')}
-                  name='username'
-                  onChange={(value) => handleChange('username', value)}
-                  prefix={<IconMail />}
-                />
 
-                <Form.Input
-                  field='password'
-                  label={t('密码')}
-                  placeholder={t('请输入您的密码')}
-                  name='password'
-                  mode='password'
-                  onChange={(value) => handleChange('password', value)}
-                  prefix={<IconLock />}
-                />
+              <Form className='space-y-3'>
+                {showSMSLogin && status.sms_login ? (
+                  <>
+                    <Form.Input
+                      field='phone'
+                      label={t('手机号')}
+                      placeholder={t('请输入手机号（仅 +86）')}
+                      name='phone'
+                      onChange={(value) => handleChange('phone', value)}
+                      prefix={<IconPhone />}
+                    />
+                    <div className='flex'>
+                      <div className='flex-1'>
+                        <Form.Input
+                          field='sms_code'
+                          label={t('验证码')}
+                          placeholder={t('请输入 6 位验证码')}
+                          name='sms_code'
+                          onChange={(value) => handleChange('sms_code', value)}
+                          prefix={<IconTick />}
+                          suffix={
+                            <Button
+                              theme='outline'
+                              type='tertiary'
+                              className='!rounded-full'
+                              onClick={handleSendSMSCode}
+                              loading={smsSendLoading}
+                              disabled={smsCountdown > 0}
+                            >
+                              {smsCountdown > 0
+                                ? `${smsCountdown}s`
+                                : t('发送验证码')}
+                            </Button>
+                          }
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Form.Input
+                      field='username'
+                      label={t('用户名或邮箱')}
+                      placeholder={t('请输入您的用户名或邮箱地址')}
+                      name='username'
+                      onChange={(value) => handleChange('username', value)}
+                      prefix={<IconMail />}
+                    />
+
+                    <Form.Input
+                      field='password'
+                      label={t('密码')}
+                      placeholder={t('请输入您的密码')}
+                      name='password'
+                      mode='password'
+                      onChange={(value) => handleChange('password', value)}
+                      prefix={<IconLock />}
+                    />
+                  </>
+                )}
 
                 {(hasUserAgreement || hasPrivacyPolicy) && (
                   <div className='pt-4'>
@@ -809,8 +967,8 @@ const LoginForm = () => {
                     className='w-full !rounded-full'
                     type='primary'
                     htmlType='submit'
-                    onClick={handleSubmit}
-                    loading={loginLoading}
+                    onClick={showSMSLogin && status.sms_login ? handleSMSLogin : handleSubmit}
+                    loading={showSMSLogin && status.sms_login ? smsLoginLoading : loginLoading}
                     disabled={
                       (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
                     }

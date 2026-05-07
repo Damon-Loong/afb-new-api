@@ -44,6 +44,7 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAuthEnabled"] = strconv.FormatBool(common.WeChatAuthEnabled)
 	common.OptionMap["TurnstileCheckEnabled"] = strconv.FormatBool(common.TurnstileCheckEnabled)
 	common.OptionMap["RegisterEnabled"] = strconv.FormatBool(common.RegisterEnabled)
+	common.OptionMap["SMSLoginEnabled"] = strconv.FormatBool(common.SMSLoginEnabled)
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
@@ -99,7 +100,7 @@ func InitOptionMap() {
 	common.OptionMap["WeChatPayNotifyURL"] = setting.WeChatPayNotifyURL
 	common.OptionMap["WeChatPayReturnURL"] = setting.WeChatPayReturnURL
 	common.OptionMap["WeChatPayUnitPrice"] = strconv.FormatFloat(setting.WeChatPayUnitPrice, 'f', -1, 64)
-	common.OptionMap["WeChatPayMinTopUp"] = strconv.Itoa(setting.WeChatPayMinTopUp)
+	common.OptionMap["WeChatPayMinTopUp"] = strconv.FormatFloat(setting.WeChatPayMinTopUp, 'f', -1, 64)
 	common.OptionMap["WaffoEnabled"] = strconv.FormatBool(setting.WaffoEnabled)
 	common.OptionMap["WaffoApiKey"] = setting.WaffoApiKey
 	common.OptionMap["WaffoPrivateKey"] = setting.WaffoPrivateKey
@@ -142,6 +143,11 @@ func InitOptionMap() {
 	common.OptionMap["WeChatAccountQRCodeImageURL"] = ""
 	common.OptionMap["TurnstileSiteKey"] = ""
 	common.OptionMap["TurnstileSecretKey"] = ""
+	common.OptionMap["AliyunSMSAccessKeyId"] = ""
+	common.OptionMap["AliyunSMSAccessKeySecret"] = ""
+	common.OptionMap["AliyunSMSRegionId"] = setting.AliyunSMSRegionId
+	common.OptionMap["AliyunSMSSignName"] = ""
+	common.OptionMap["AliyunSMSTemplateCode"] = ""
 	common.OptionMap["QuotaForNewUser"] = strconv.Itoa(common.QuotaForNewUser)
 	common.OptionMap["QuotaForInviter"] = strconv.Itoa(common.QuotaForInviter)
 	common.OptionMap["QuotaForInvitee"] = strconv.Itoa(common.QuotaForInvitee)
@@ -277,6 +283,8 @@ func updateOptionMap(key string, value string) (err error) {
 			common.TurnstileCheckEnabled = boolValue
 		case "RegisterEnabled":
 			common.RegisterEnabled = boolValue
+		case "SMSLoginEnabled":
+			common.SMSLoginEnabled = boolValue
 		case "EmailDomainRestrictionEnabled":
 			common.EmailDomainRestrictionEnabled = boolValue
 		case "EmailAliasRestrictionEnabled":
@@ -418,7 +426,7 @@ func updateOptionMap(key string, value string) (err error) {
 	case "WeChatPayUnitPrice":
 		setting.WeChatPayUnitPrice, _ = strconv.ParseFloat(value, 64)
 	case "WeChatPayMinTopUp":
-		setting.WeChatPayMinTopUp, _ = strconv.Atoi(value)
+		setting.WeChatPayMinTopUp, _ = strconv.ParseFloat(value, 64)
 	case "WaffoEnabled":
 		setting.WaffoEnabled = value == "true"
 	case "WaffoApiKey":
@@ -505,6 +513,16 @@ func updateOptionMap(key string, value string) (err error) {
 		common.TurnstileSiteKey = value
 	case "TurnstileSecretKey":
 		common.TurnstileSecretKey = value
+	case "AliyunSMSAccessKeyId":
+		setting.AliyunSMSAccessKeyId = value
+	case "AliyunSMSAccessKeySecret":
+		setting.AliyunSMSAccessKeySecret = value
+	case "AliyunSMSRegionId":
+		setting.AliyunSMSRegionId = value
+	case "AliyunSMSSignName":
+		setting.AliyunSMSSignName = value
+	case "AliyunSMSTemplateCode":
+		setting.AliyunSMSTemplateCode = value
 	case "QuotaForNewUser":
 		common.QuotaForNewUser, _ = strconv.Atoi(value)
 	case "QuotaForInviter":

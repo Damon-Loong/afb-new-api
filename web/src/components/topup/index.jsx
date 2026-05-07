@@ -448,7 +448,7 @@ const TopUp = () => {
     setAmountLoading(true);
     try {
       const res = await API.post('/api/user/wechatpay/amount', {
-        amount: parseInt(value),
+        amount: Number(value),
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -482,7 +482,7 @@ const TopUp = () => {
     setPaymentLoading(true);
     try {
       const res = await API.post('/api/user/wechatpay/pay', {
-        amount: parseInt(topUpCount),
+        amount: Number(topUpCount),
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -747,7 +747,11 @@ const TopUp = () => {
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
           setEnableWeChatPayTopUp(enableWeChatPayTopUp);
-          setWechatPayMinTopUp(data.wechatpay_min_topup || 1);
+          setWechatPayMinTopUp(
+            Number.isFinite(parseFloat(data.wechatpay_min_topup))
+              ? parseFloat(data.wechatpay_min_topup)
+              : 1,
+          );
           setEnableWaffoTopUp(enableWaffoTopUp);
           setWaffoPayMethods(data.waffo_pay_methods || []);
           setWaffoMinTopUp(data.waffo_min_topup || 1);
@@ -1019,7 +1023,9 @@ const TopUp = () => {
         payWay={payWay}
         payMethods={confirmPayMethods}
         amountNumber={amount}
-        discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        discountRate={
+          topupInfo?.discount?.[Math.floor(Number(topUpCount))] || 1.0
+        }
       />
 
       {/* 充值账单模态框 */}
@@ -1115,9 +1121,11 @@ const TopUp = () => {
           enableStripeTopUp={enableStripeTopUp}
           enableCreemTopUp={enableCreemTopUp}
           enableWeChatPayTopUp={enableWeChatPayTopUp}
+          wechatPayMinTopUp={wechatPayMinTopUp}
           creemProducts={creemProducts}
           creemPreTopUp={creemPreTopUp}
           enableWaffoTopUp={enableWaffoTopUp}
+          waffoPayMethods={waffoPayMethods}
           enableWaffoPancakeTopUp={enableWaffoPancakeTopUp}
           presetAmounts={presetAmounts}
           selectedPreset={selectedPreset}

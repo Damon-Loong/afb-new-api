@@ -30,6 +30,7 @@ var (
 
 	// Pricing settings (same meaning as other gateways): CNY per 1 USD unit.
 	WeChatPayUnitPrice float64 = 7.3
-	WeChatPayMinTopUp  int     = 1
+	// WeChatPayMinTopUp is the minimum recharge quantity (same unit as the top-up form; can be fractional, e.g. 0.01).
+	WeChatPayMinTopUp float64 = 1
 )
 

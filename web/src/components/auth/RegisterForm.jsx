@@ -776,9 +776,7 @@ const RegisterForm = () => {
       systemName={systemName}
       eyebrow='New Account'
       title={t('创建 AfB API 账户')}
-      description={t(
-        '保持现有注册逻辑与校验流程不变，以更清晰的结构完成首次接入。',
-      )}
+      description={null}
       footer={
         turnstileEnabled ? (
           <div className='flex justify-center mt-2'>

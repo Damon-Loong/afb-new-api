@@ -15,6 +15,7 @@ type TopUp struct {
 	Id            int     `json:"id"`
 	UserId        int     `json:"user_id" gorm:"index"`
 	Amount        int64   `json:"amount"`
+	AmountDenom   int64   `json:"amount_denom,omitempty" gorm:"column:amount_denom;default:1"` // wechatpay 非 TOKENS 模式：10000 表示 Amount 为「充值数量×10000」
 	Money         float64 `json:"money"`
 	TradeNo       string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod string  `json:"payment_method" gorm:"type:varchar(50)"`
@@ -30,6 +31,21 @@ const (
 	PaymentMethodWaffoPancake = "waffo_pancake"
 	PaymentMethodWeChatPay    = "wechatpay"
 )
+
+// WeChatPayUserAmount returns the user-facing recharge quantity before quota conversion (wechatpay only).
+func (t *TopUp) WeChatPayUserAmount() decimal.Decimal {
+	if t == nil {
+		return decimal.Zero
+	}
+	if t.PaymentMethod != PaymentMethodWeChatPay {
+		return decimal.NewFromInt(t.Amount)
+	}
+	denom := t.AmountDenom
+	if denom <= 0 {
+		denom = 1
+	}
+	return decimal.NewFromInt(t.Amount).Div(decimal.NewFromInt(denom))
+}
 
 var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
@@ -345,7 +361,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
 		} else {
-			dAmount := decimal.NewFromInt(topUp.Amount)
+			var dAmount decimal.Decimal
+			if topUp.PaymentMethod == PaymentMethodWeChatPay {
+				dAmount = topUp.WeChatPayUserAmount()
+			} else {
+				dAmount = decimal.NewFromInt(topUp.Amount)
+			}
 			dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 			quotaToAdd = int(dAmount.Mul(dQuotaPerUnit).IntPart())
 		}
@@ -609,9 +630,10 @@ func RechargeWeChatPay(tradeNo string, callerIp string) (err error) {
 			return errors.New("充值订单状态错误")
 		}
 
-		quotaToAdd = int(decimal.NewFromInt(topUp.Amount).Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
-		if quotaToAdd <= 0 {
-			return errors.New("无效的充值额度")
+		dUser := topUp.WeChatPayUserAmount()
+		quotaToAdd = int(dUser.Mul(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart())
+		if quotaToAdd < 1 {
+			quotaToAdd = 1
 		}
 
 		topUp.CompleteTime = common.GetTimestamp()

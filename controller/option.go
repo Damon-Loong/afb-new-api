@@ -133,6 +133,22 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
+	case "SMSLoginEnabled":
+		// Enabling SMS login requires Aliyun SMS config (from option or env fallback).
+		if option.Value == "true" {
+			// Make sure the latest setting values are loaded (options may have been set earlier).
+			setting.InitAliyunSMSFromEnvIfEmpty()
+			if strings.TrimSpace(setting.AliyunSMSAccessKeyId) == "" ||
+				strings.TrimSpace(setting.AliyunSMSAccessKeySecret) == "" ||
+				strings.TrimSpace(setting.AliyunSMSSignName) == "" ||
+				strings.TrimSpace(setting.AliyunSMSTemplateCode) == "" {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "无法启用短信登录，请先填写阿里云短信 AccessKeyId/AccessKeySecret/签名/模板 Code（可在系统设置中配置）。",
+				})
+				return
+			}
+		}
 	case "GitHubOAuthEnabled":
 		if option.Value == "true" && common.GitHubClientId == "" {
 			c.JSON(http.StatusOK, gin.H{

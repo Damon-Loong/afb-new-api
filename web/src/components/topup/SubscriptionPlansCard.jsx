@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   Divider,
+  Modal,
   Select,
   Skeleton,
   Space,
@@ -30,6 +31,7 @@ import {
   Tooltip,
   Typography,
 } from '@douyinfe/semi-ui';
+import { QRCodeCanvas } from 'qrcode.react';
 import { API, showError, showSuccess, renderQuota } from '../../helpers';
 import { getCurrencyConfig } from '../../helpers/render';
 import { RefreshCw, Sparkles } from 'lucide-react';
@@ -41,11 +43,16 @@ import {
 
 const { Text } = Typography;
 
-// 过滤易支付方式
+// 过滤易支付子通道（排除独立网关，避免误走 /subscription/epay）
 function getEpayMethods(payMethods = []) {
-  return (payMethods || []).filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
-  );
+  const skip = new Set([
+    'stripe',
+    'creem',
+    'wechatpay',
+    'waffo',
+    'waffo_pancake',
+  ]);
+  return (payMethods || []).filter((m) => m?.type && !skip.has(m.type));
 }
 
 // 提交易支付表单
@@ -77,6 +84,9 @@ const SubscriptionPlansCard = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWeChatPayTopUp = false,
+  enableWaffoTopUp = false,
+  waffoPayMethods = [],
   billingPreference,
   onChangeBillingPreference,
   activeSubscriptions = [],
@@ -88,13 +98,18 @@ const SubscriptionPlansCard = ({
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
   const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
+  const [selectedWaffoSubIdx, setSelectedWaffoSubIdx] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [subWechatOpen, setSubWechatOpen] = useState(false);
+  const [subWechatCodeUrl, setSubWechatCodeUrl] = useState('');
+  const [subWechatOrderId, setSubWechatOrderId] = useState('');
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
   const openBuy = (p) => {
     setSelectedPlan(p);
     setSelectedEpayMethod(epayMethods?.[0]?.type || '');
+    setSelectedWaffoSubIdx(0);
     setOpen(true);
   };
 
@@ -184,6 +199,64 @@ const SubscriptionPlansCard = ({
         submitEpayForm({ url: res.data.url, params: res.data.data });
         showSuccess(t('已发起支付'));
         closeBuy();
+      } else {
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const paySubscriptionWeChat = async () => {
+    if (!selectedPlan?.plan?.id) return;
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/wechatpay/pay', {
+        plan_id: selectedPlan.plan.id,
+      });
+      if (res.data?.message === 'success' && res.data?.data?.code_url) {
+        setSubWechatCodeUrl(res.data.data.code_url);
+        setSubWechatOrderId(res.data.data.order_id || '');
+        setSubWechatOpen(true);
+        showSuccess(t('请使用微信扫码完成支付'));
+        closeBuy();
+      } else {
+        const errorMsg =
+          typeof res.data?.data === 'string'
+            ? res.data.data
+            : res.data?.message || t('支付失败');
+        showError(errorMsg);
+      }
+    } catch (e) {
+      showError(t('支付请求失败'));
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const paySubscriptionWaffo = async () => {
+    if (!selectedPlan?.plan?.id) return;
+    setPaying(true);
+    try {
+      const res = await API.post('/api/subscription/waffo/pay', {
+        plan_id: selectedPlan.plan.id,
+        ...(waffoPayMethods?.length > 0 ? { pay_method_index: selectedWaffoSubIdx } : {}),
+      });
+      if (res.data?.message === 'success') {
+        const url = res.data.data?.payment_url || '';
+        if (url) {
+          window.open(url, '_blank', 'noopener,noreferrer');
+          showSuccess(t('已打开支付页面'));
+          closeBuy();
+        } else {
+          showError(t('支付失败'));
+        }
       } else {
         const errorMsg =
           typeof res.data?.data === 'string'
@@ -673,6 +746,11 @@ const SubscriptionPlansCard = ({
         enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
         enableCreemTopUp={enableCreemTopUp}
+        enableWeChatPayTopUp={enableWeChatPayTopUp}
+        enableWaffoTopUp={enableWaffoTopUp}
+        waffoPayMethods={waffoPayMethods}
+        selectedWaffoSubIdx={selectedWaffoSubIdx}
+        setSelectedWaffoSubIdx={setSelectedWaffoSubIdx}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {
@@ -684,7 +762,68 @@ const SubscriptionPlansCard = ({
         onPayStripe={payStripe}
         onPayCreem={payCreem}
         onPayEpay={payEpay}
+        onPayWeChat={paySubscriptionWeChat}
+        onPayWaffo={paySubscriptionWaffo}
       />
+
+      <Modal
+        title={t('微信扫码支付（订阅）')}
+        visible={subWechatOpen}
+        onCancel={() => {
+          setSubWechatOpen(false);
+          setSubWechatCodeUrl('');
+          setSubWechatOrderId('');
+        }}
+        footer={null}
+        width={400}
+        centered
+      >
+        <div className='space-y-3 py-2'>
+          {subWechatOrderId ? (
+            <Text type='tertiary' size='small'>
+              {t('订单号')}：{subWechatOrderId}
+            </Text>
+          ) : null}
+          {subWechatCodeUrl ? (
+            <div className='flex justify-center'>
+              <div
+                style={{
+                  padding: 12,
+                  border: '1px solid var(--semi-color-border)',
+                  borderRadius: 12,
+                  background: 'white',
+                }}
+              >
+                <QRCodeCanvas value={subWechatCodeUrl} size={220} />
+              </div>
+            </div>
+          ) : null}
+          <Text type='tertiary' size='small'>
+            {t('请使用微信扫描二维码完成支付。支付完成后请刷新订阅状态。')}
+          </Text>
+          <div className='flex justify-end gap-2'>
+            <Button
+              type='primary'
+              theme='solid'
+              onClick={async () => {
+                await reloadSubscriptionSelf?.();
+                setSubWechatOpen(false);
+              }}
+            >
+              {t('已完成支付，刷新')}
+            </Button>
+            <Button
+              onClick={() => {
+                setSubWechatOpen(false);
+                setSubWechatCodeUrl('');
+                setSubWechatOrderId('');
+              }}
+            >
+              {t('关闭')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 };

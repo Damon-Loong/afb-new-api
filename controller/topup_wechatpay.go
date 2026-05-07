@@ -1,9 +1,11 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -34,7 +36,29 @@ import (
 )
 
 type WeChatPayTopUpRequest struct {
-	Amount int64 `json:"amount"`
+	Amount json.RawMessage `json:"amount"`
+}
+
+const wechatPayAmountScale int64 = 10000 // 充值数量保留 4 位小数存入 Amount
+
+func parseWeChatPayAmountRaw(raw json.RawMessage) (decimal.Decimal, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return decimal.Zero, errors.New("empty amount")
+	}
+	var i int64
+	if err := common.Unmarshal(raw, &i); err == nil {
+		return decimal.NewFromInt(i), nil
+	}
+	var f float64
+	if err := common.Unmarshal(raw, &f); err == nil {
+		return decimal.NewFromFloat(f), nil
+	}
+	var s string
+	if err := common.Unmarshal(raw, &s); err == nil {
+		return decimal.NewFromString(strings.TrimSpace(s))
+	}
+	return decimal.Zero, errors.New("invalid amount")
 }
 
 func parseRSAPrivateKeyFromPEM(pemStr string) (*rsa.PrivateKey, error) {
@@ -104,17 +128,16 @@ func ensureWeChatPayNotifyHandler(ctx context.Context) (*notify.Handler, error) 
 	return notify.NewNotifyHandler(apiV3Key, verifiers.NewSHA256WithRSAVerifier(certVisitor)), nil
 }
 
-func getWeChatPayMinTopup() int64 {
-	minTopup := setting.WeChatPayMinTopUp
+func getWeChatPayMinTopupDecimal() decimal.Decimal {
+	dMin := decimal.NewFromFloat(setting.WeChatPayMinTopUp)
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		minTopup = minTopup * int(common.QuotaPerUnit)
+		dMin = dMin.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
 	}
-	return int64(minTopup)
+	return dMin
 }
 
-func getWeChatPayMoney(amount int64, group string) float64 {
-	originalAmount := amount
-	dAmount := decimal.NewFromInt(amount)
+func getWeChatPayMoney(amountDec decimal.Decimal, group string) float64 {
+	dAmount := amountDec
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dAmount = dAmount.Div(decimal.NewFromFloat(common.QuotaPerUnit))
 	}
@@ -125,7 +148,7 @@ func getWeChatPayMoney(amount int64, group string) float64 {
 	}
 
 	discount := 1.0
-	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(originalAmount)]; ok && ds > 0 {
+	if ds, ok := operation_setting.GetPaymentSetting().AmountDiscount[int(amountDec.IntPart())]; ok && ds > 0 {
 		discount = ds
 	}
 
@@ -149,8 +172,15 @@ func RequestWeChatPayAmount(c *gin.Context) {
 		return
 	}
 
-	if req.Amount < getWeChatPayMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getWeChatPayMinTopup())})
+	amountDec, err := parseWeChatPayAmountRaw(req.Amount)
+	if err != nil || amountDec.Sign() <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
+		return
+	}
+
+	minDec := getWeChatPayMinTopupDecimal()
+	if amountDec.Cmp(minDec) < 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %s", minDec.String())})
 		return
 	}
 
@@ -161,7 +191,7 @@ func RequestWeChatPayAmount(c *gin.Context) {
 		return
 	}
 
-	payMoney := getWeChatPayMoney(req.Amount, group)
+	payMoney := getWeChatPayMoney(amountDec, group)
 	if payMoney <= 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -181,8 +211,15 @@ func RequestWeChatPayPay(c *gin.Context) {
 		return
 	}
 
-	if req.Amount < getWeChatPayMinTopup() {
-		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getWeChatPayMinTopup())})
+	amountDec, err := parseWeChatPayAmountRaw(req.Amount)
+	if err != nil || amountDec.Sign() <= 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
+		return
+	}
+
+	minDec := getWeChatPayMinTopupDecimal()
+	if amountDec.Cmp(minDec) < 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %s", minDec.String())})
 		return
 	}
 
@@ -193,7 +230,7 @@ func RequestWeChatPayPay(c *gin.Context) {
 		return
 	}
 
-	payMoney := getWeChatPayMoney(req.Amount, group)
+	payMoney := getWeChatPayMoney(amountDec, group)
 	if payMoney < 0.01 {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值金额过低"})
 		return
@@ -206,18 +243,34 @@ func RequestWeChatPayPay(c *gin.Context) {
 
 	tradeNo := fmt.Sprintf("WXPAY-%d-%d-%s", id, time.Now().UnixMilli(), randstr.String(6))
 
-	amountToStore := req.Amount
+	var amountToStore int64
+	var amountDenom int64 = 1
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
-		normalized := int64(math.Floor(float64(req.Amount) / common.QuotaPerUnit))
+		tokenInt := amountDec.IntPart()
+		if tokenInt < 1 {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量无效"})
+			return
+		}
+		dTok := decimal.NewFromInt(tokenInt)
+		normalized := dTok.Div(decimal.NewFromFloat(common.QuotaPerUnit)).Floor().IntPart()
 		if normalized < 1 {
 			normalized = 1
 		}
 		amountToStore = normalized
+		amountDenom = 1
+	} else {
+		amountToStore = amountDec.Mul(decimal.NewFromInt(wechatPayAmountScale)).Round(0).IntPart()
+		if amountToStore < 1 {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "充值数量过低"})
+			return
+		}
+		amountDenom = wechatPayAmountScale
 	}
 
 	topUp := &model.TopUp{
 		UserId:        id,
 		Amount:        amountToStore,
+		AmountDenom:   amountDenom,
 		Money:         payMoney,
 		TradeNo:       tradeNo,
 		PaymentMethod: model.PaymentMethodWeChatPay,
@@ -225,7 +278,7 @@ func RequestWeChatPayPay(c *gin.Context) {
 		Status:        common.TopUpStatusPending,
 	}
 	if err := topUp.Insert(); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, tradeNo, req.Amount, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 创建充值订单失败 user_id=%d trade_no=%s amount=%s error=%q", id, tradeNo, amountDec.String(), err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
 		return
 	}
@@ -253,7 +306,7 @@ func RequestWeChatPayPay(c *gin.Context) {
 	resp, result, err := svc.Prepay(c.Request.Context(), native.PrepayRequest{
 		Appid:       core.String(strings.TrimSpace(setting.WeChatPayAppID)),
 		Mchid:       core.String(strings.TrimSpace(setting.WeChatPayMchID)),
-		Description: core.String(fmt.Sprintf("TopUp %d", req.Amount)),
+		Description: core.String(fmt.Sprintf("TopUp %s", amountDec.String())),
 		OutTradeNo:  core.String(tradeNo),
 		NotifyUrl:   core.String(notifyURL),
 		Amount: &native.Amount{
@@ -265,7 +318,7 @@ func RequestWeChatPayPay(c *gin.Context) {
 		if err != nil {
 			errMsg = err.Error()
 		}
-		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 下单失败 user_id=%d trade_no=%s amount=%d money=%.2f status=%d error=%q", id, tradeNo, req.Amount, payMoney, func() int {
+		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 下单失败 user_id=%d trade_no=%s amount=%s money=%.2f status=%d error=%q", id, tradeNo, amountDec.String(), payMoney, func() int {
 			if result != nil && result.Response != nil {
 				return result.Response.StatusCode
 			}
@@ -287,7 +340,7 @@ func RequestWeChatPayPay(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("微信支付 充值订单创建成功 user_id=%d trade_no=%s amount=%d money=%.2f fen=%d notify_url=%q", id, tradeNo, req.Amount, payMoney, totalFen, notifyURL))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("微信支付 充值订单创建成功 user_id=%d trade_no=%s amount=%s money=%.2f fen=%d notify_url=%q", id, tradeNo, amountDec.String(), payMoney, totalFen, notifyURL))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
@@ -340,6 +393,22 @@ func WeChatPayWebhook(c *gin.Context) {
 	if strings.EqualFold(tradeState, "SUCCESS") {
 		LockOrder(tradeNo)
 		defer UnlockOrder(tradeNo)
+		if subOrder := model.GetSubscriptionOrderByTradeNo(tradeNo); subOrder != nil &&
+			subOrder.PaymentMethod == model.PaymentMethodWeChatPay &&
+			subOrder.Status == common.TopUpStatusPending {
+			payloadBytes, mErr := common.Marshal(transaction)
+			payload := ""
+			if mErr == nil {
+				payload = string(payloadBytes)
+			}
+			if err := model.CompleteSubscriptionOrder(tradeNo, payload, model.PaymentMethodWeChatPay); err != nil {
+				logger.LogError(ctx, fmt.Sprintf("微信支付 订阅订单履约失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
+				c.AbortWithStatus(http.StatusInternalServerError)
+				return
+			}
+			c.Status(http.StatusOK)
+			return
+		}
 		if err := model.RechargeWeChatPay(tradeNo, c.ClientIP()); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("微信支付 充值处理失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
 			// Return 500 to trigger retry.
@@ -355,7 +424,14 @@ func WeChatPayWebhook(c *gin.Context) {
 		strings.EqualFold(tradeState, "CLOSED") ||
 		strings.EqualFold(tradeState, "REVOKED") ||
 		strings.EqualFold(tradeState, "REFUND") {
-		if err := model.UpdatePendingTopUpStatus(tradeNo, model.PaymentMethodWeChatPay, common.TopUpStatusFailed); err != nil &&
+		if subOrder := model.GetSubscriptionOrderByTradeNo(tradeNo); subOrder != nil &&
+			subOrder.PaymentMethod == model.PaymentMethodWeChatPay &&
+			subOrder.Status == common.TopUpStatusPending {
+			if err := model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWeChatPay); err != nil &&
+				!errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+				logger.LogError(ctx, fmt.Sprintf("微信支付 订阅订单标记失败 trade_no=%s error=%q", tradeNo, err.Error()))
+			}
+		} else if err := model.UpdatePendingTopUpStatus(tradeNo, model.PaymentMethodWeChatPay, common.TopUpStatusFailed); err != nil &&
 			!errors.Is(err, model.ErrTopUpNotFound) &&
 			!errors.Is(err, model.ErrTopUpStatusInvalid) &&
 			!errors.Is(err, model.ErrPaymentMethodMismatch) {

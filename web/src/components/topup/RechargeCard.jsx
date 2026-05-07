@@ -87,8 +87,10 @@ const RechargeCard = ({
   topupInfo,
   onOpenHistory,
   enableWaffoTopUp,
+  waffoPayMethods = [],
   enableWaffoPancakeTopUp,
   enableWeChatPayTopUp,
+  wechatPayMinTopUp = 1,
   subscriptionLoading = false,
   subscriptionPlans = [],
   billingPreference,
@@ -105,6 +107,17 @@ const RechargeCard = ({
   const shouldShowSubscription =
     !subscriptionLoading && subscriptionPlans.length > 0;
   const regularPayMethods = payMethods || [];
+  // 微信支付可配小额（如 0.01）；其它网关仍按各自最小值校验，但输入框统一允许小数，避免 min/onChange 卡住「先输 0 再输 .」
+  const confirmedMinQty = enableWeChatPayTopUp
+    ? Math.min(minTopUp, Number(wechatPayMinTopUp) || 0.01)
+    : minTopUp;
+  const onlineQtyRowEnabled =
+    enableOnlineTopUp ||
+    enableStripeTopUp ||
+    enableWeChatPayTopUp ||
+    enableWaffoTopUp ||
+    enableWaffoPancakeTopUp;
+  const useDecimalTopUpInput = onlineQtyRowEnabled;
 
   useEffect(() => {
     if (initialTabSetRef.current) return;
@@ -259,28 +272,44 @@ const RechargeCard = ({
                         t('充值数量，最低 ') + renderQuotaWithAmount(minTopUp)
                       }
                       value={topUpCount}
-                      min={minTopUp}
+                      min={0}
                       max={999999999}
-                      step={1}
-                      precision={0}
+                      step={useDecimalTopUpInput ? 0.01 : 1}
+                      precision={useDecimalTopUpInput ? 4 : 0}
                       onChange={async (value) => {
-                        if (value && value >= 1) {
-                          setTopUpCount(value);
-                          setSelectedPreset(null);
-                          await getAmount(value);
+                        if (value === null || value === undefined) return;
+                        const n = Number(value);
+                        if (!Number.isFinite(n)) return;
+                        setTopUpCount(n);
+                        setSelectedPreset(null);
+                        if (n >= confirmedMinQty) {
+                          await getAmount(n);
                         }
                       }}
-                      onBlur={(e) => {
-                        const value = parseInt(e.target.value);
-                        if (!value || value < 1) {
-                          setTopUpCount(1);
-                          getAmount(1);
+                      onBlur={() => {
+                        const n = Number(topUpCount);
+                        if (!Number.isFinite(n) || n < confirmedMinQty) {
+                          setTopUpCount(confirmedMinQty);
+                          getAmount(confirmedMinQty);
                         }
                       }}
                       formatter={(value) => (value ? `${value}` : '')}
-                      parser={(value) =>
-                        value ? parseInt(value.replace(/[^\d]/g, '')) : 0
-                      }
+                      parser={(value) => {
+                        if (value == null || value === '') return 0;
+                        if (!useDecimalTopUpInput) {
+                          return value
+                            ? parseInt(String(value).replace(/[^\d]/g, ''), 10)
+                            : 0;
+                        }
+                        const cleaned = String(value).replace(/[^\d.]/g, '');
+                        const parts = cleaned.split('.');
+                        const merged =
+                          parts.length > 2
+                            ? `${parts[0]}.${parts.slice(1).join('')}`
+                            : cleaned;
+                        const n = parseFloat(merged);
+                        return Number.isFinite(n) ? n : 0;
+                      }}
                       extraText={
                         <Skeleton
                           loading={showAmountSkeleton}
@@ -672,6 +701,9 @@ const RechargeCard = ({
                 enableOnlineTopUp={enableOnlineTopUp}
                 enableStripeTopUp={enableStripeTopUp}
                 enableCreemTopUp={enableCreemTopUp}
+                enableWeChatPayTopUp={enableWeChatPayTopUp}
+                enableWaffoTopUp={enableWaffoTopUp}
+                waffoPayMethods={waffoPayMethods}
                 billingPreference={billingPreference}
                 onChangeBillingPreference={onChangeBillingPreference}
                 activeSubscriptions={activeSubscriptions}

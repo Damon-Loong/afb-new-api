@@ -29,7 +29,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
-import { SiStripe } from 'react-icons/si';
+import { SiStripe, SiWechat } from 'react-icons/si';
 import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
@@ -52,10 +52,17 @@ const SubscriptionPurchaseModal = ({
   enableOnlineTopUp = false,
   enableStripeTopUp = false,
   enableCreemTopUp = false,
+  enableWeChatPayTopUp = false,
+  enableWaffoTopUp = false,
+  waffoPayMethods = [],
+  selectedWaffoSubIdx = 0,
+  setSelectedWaffoSubIdx = () => {},
   purchaseLimitInfo = null,
   onPayStripe,
   onPayCreem,
   onPayEpay,
+  onPayWeChat,
+  onPayWaffo,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -69,7 +76,9 @@ const SubscriptionPurchaseModal = ({
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
   const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
   const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
+  const hasWeChat = enableWeChatPayTopUp && !!plan;
+  const hasWaffo = enableWaffoTopUp && !!plan;
+  const hasAnyPayment = hasStripe || hasCreem || hasEpay || hasWeChat || hasWaffo;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -211,6 +220,60 @@ const SubscriptionPurchaseModal = ({
                     >
                       Creem
                     </Button>
+                  )}
+                </div>
+              )}
+
+              {/* 微信支付 / Waffo（与额度充值共用网关配置） */}
+              {(hasWeChat || hasWaffo) && (
+                <div className='flex flex-col gap-2'>
+                  <div className='flex gap-2'>
+                    {hasWeChat && (
+                      <Button
+                        theme='light'
+                        className='flex-1'
+                        icon={<SiWechat size={16} color='#07C160' />}
+                        onClick={onPayWeChat}
+                        loading={paying}
+                        disabled={purchaseLimitReached}
+                      >
+                        {t('微信支付')}
+                      </Button>
+                    )}
+                    {hasWaffo && (!waffoPayMethods || waffoPayMethods.length === 0) && (
+                      <Button
+                        theme='light'
+                        className='flex-1'
+                        onClick={onPayWaffo}
+                        loading={paying}
+                        disabled={purchaseLimitReached}
+                      >
+                        Waffo
+                      </Button>
+                    )}
+                  </div>
+                  {hasWaffo && waffoPayMethods && waffoPayMethods.length > 0 && (
+                    <div className='flex gap-2'>
+                      <Select
+                        value={selectedWaffoSubIdx}
+                        onChange={(v) => setSelectedWaffoSubIdx(v)}
+                        style={{ flex: 1 }}
+                        optionList={waffoPayMethods.map((m, i) => ({
+                          value: i,
+                          label: m.name || m.payMethodName || `Waffo ${i + 1}`,
+                        }))}
+                        disabled={purchaseLimitReached}
+                      />
+                      <Button
+                        theme='solid'
+                        type='primary'
+                        onClick={onPayWaffo}
+                        loading={paying}
+                        disabled={purchaseLimitReached}
+                      >
+                        Waffo
+                      </Button>
+                    </div>
                   )}
                 </div>
               )}
