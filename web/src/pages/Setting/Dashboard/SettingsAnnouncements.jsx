@@ -43,6 +43,7 @@ import {
   showSuccess,
   getRelativeTime,
   formatDateTimeString,
+  semiSelectPortalProps,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -562,7 +563,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
               setAnnouncementForm({ ...announcementForm, publishDate: value })
             }
           />
-          <Form.Select
+          <Form.Select {...semiSelectPortalProps}
             field='type'
             label={t('公告类型')}
             optionList={typeOptions}

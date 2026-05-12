@@ -25,6 +25,7 @@ import {
   showError,
   showSuccess,
   showWarning,
+  semiSelectPortalProps,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
@@ -141,7 +142,7 @@ export default function DataDashboard(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Select
+                <Form.Select {...semiSelectPortalProps}
                   label={t('数据看板默认时间粒度')}
                   optionList={optionsDataExportDefaultTime}
                   field={'DataExportDefaultTime'}

@@ -39,7 +39,7 @@ import {
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, showError, showSuccess, semiSelectPortalProps } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -339,7 +339,7 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='upgrade_group'
                         label={t('升级分组')}
                         showClear
@@ -419,7 +419,7 @@ const AddEditSubscriptionModal = ({
 
                   <Row gutter={12}>
                     <Col span={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='duration_unit'
                         label={t('有效期单位')}
                         required
@@ -481,7 +481,7 @@ const AddEditSubscriptionModal = ({
 
                   <Row gutter={12}>
                     <Col span={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='quota_reset_period'
                         label={t('重置周期')}
                       >

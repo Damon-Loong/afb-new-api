@@ -27,6 +27,7 @@ import {
   getCurrencyConfig,
   getModelCategories,
   selectFilter,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -386,7 +387,7 @@ const EditTokenModal = (props) => {
                   </Col>
                   <Col span={24}>
                     {groups.length > 0 ? (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='group'
                         label={t('令牌分组')}
                         placeholder={t('令牌分组，默认为用户的分组')}
@@ -404,7 +405,7 @@ const EditTokenModal = (props) => {
                         style={{ width: '100%' }}
                       />
                     ) : (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         placeholder={t('管理员未设置用户可选分组')}
                         disabled
                         label={t('令牌分组')}
@@ -612,7 +613,7 @@ const EditTokenModal = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field='model_limits'
                       label={t('模型限制列表')}
                       placeholder={t(

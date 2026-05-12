@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { semiSelectPortalProps } from '../../../helpers';
 
 import { DATE_RANGE_PRESETS } from '../../../constants/console.constants';
 
@@ -128,7 +129,7 @@ const LogsFilters = ({
         <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
           {/* 日志类型选择器 */}
           <div className='w-full sm:w-auto'>
-            <Form.Select
+            <Form.Select {...semiSelectPortalProps}
               field='logType'
               placeholder={t('日志类型')}
               className='w-full sm:w-auto min-w-[120px]'

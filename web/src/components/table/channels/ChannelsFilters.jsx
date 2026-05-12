@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Button, Form } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { semiSelectPortalProps } from '../../../helpers';
 
 const ChannelsFilters = ({
   setEditingChannel,
@@ -106,7 +107,7 @@ const ChannelsFilters = ({
             />
           </div>
           <div className='w-full md:w-32'>
-            <Form.Select
+            <Form.Select {...semiSelectPortalProps}
               size='small'
               field='searchGroup'
               placeholder={t('选择分组')}

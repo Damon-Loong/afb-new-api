@@ -25,6 +25,7 @@ import {
   showSuccess,
   renderQuota,
   getCurrencyConfig,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -359,7 +360,7 @@ const EditUserModal = (props) => {
 
                     <Row gutter={12}>
                       <Col span={24}>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='group'
                           label={t('分组')}
                           placeholder={t('请选择分组')}

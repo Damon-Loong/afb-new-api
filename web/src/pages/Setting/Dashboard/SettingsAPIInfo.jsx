@@ -36,7 +36,7 @@ import {
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
 import { Plus, Edit, Trash2, Save, Settings } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../helpers';
+import { API, showError, showSuccess, semiSelectPortalProps } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -474,7 +474,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
             rules={[{ required: true, message: t('请输入说明') }]}
             onChange={(value) => setApiForm({ ...apiForm, description: value })}
           />
-          <Form.Select
+          <Form.Select {...semiSelectPortalProps}
             field='color'
             label={t('标识颜色')}
             optionList={colorOptions}

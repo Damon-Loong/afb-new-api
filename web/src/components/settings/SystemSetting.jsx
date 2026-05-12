@@ -39,6 +39,7 @@ import {
   showError,
   showSuccess,
   toBoolean,
+  semiSelectPortalProps,
 } from '../../helpers';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
@@ -1246,7 +1247,7 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field="['passkey.user_verification']"
                         label={t('安全验证级别')}
                         placeholder={t('是否要求指纹/面容等生物识别')}
@@ -1262,7 +1263,7 @@ const SystemSetting = () => {
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field="['passkey.attachment_preference']"
                         label={t('设备类型偏好')}
                         placeholder={t('选择支持的认证设备类型')}

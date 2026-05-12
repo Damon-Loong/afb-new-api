@@ -33,7 +33,7 @@ import {
   Spin,
 } from '@douyinfe/semi-ui';
 import { IconLayers, IconSave, IconClose } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, showError, showSuccess, semiSelectPortalProps } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
@@ -211,7 +211,7 @@ const EditPrefillGroupModal = ({
                   />
                 </Col>
                 <Col span={24}>
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                     field='type'
                     label={t('类型')}
                     placeholder={t('选择组类型')}

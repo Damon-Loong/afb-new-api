@@ -25,6 +25,7 @@ import {
   showInfo,
   showSuccess,
   verifyJSON,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
@@ -2618,7 +2619,7 @@ const EditChannelModal = (props) => {
                       </Banner>
                     )}
 
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field='type'
                       label={t('类型')}
                       placeholder={t('请选择渠道类型')}
@@ -2674,7 +2675,7 @@ const EditChannelModal = (props) => {
 
                     {inputs.type === 33 && (
                       <>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='aws_key_type'
                           label={t('密钥格式')}
                           placeholder={t('请选择密钥格式')}
@@ -2701,7 +2702,7 @@ const EditChannelModal = (props) => {
                     )}
 
                     {inputs.type === 41 && (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='vertex_key_type'
                         label={t('密钥格式')}
                         placeholder={t('请选择密钥格式')}
@@ -3115,7 +3116,7 @@ const EditChannelModal = (props) => {
                     )}
 
                     {isEdit && isMultiKeyChannel && (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='key_mode'
                         label={t('密钥更新模式')}
                         placeholder={t('请选择密钥更新模式')}
@@ -3137,7 +3138,7 @@ const EditChannelModal = (props) => {
                     )}
                     {batch && multiToSingle && (
                       <>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='multi_key_mode'
                           label={t('密钥聚合模式')}
                           placeholder={t('请选择多密钥使用策略')}
@@ -3423,7 +3424,7 @@ const EditChannelModal = (props) => {
 
                       {inputs.type === 45 && !doubaoApiEditUnlocked && (
                         <div>
-                          <Form.Select
+                          <Form.Select {...semiSelectPortalProps}
                             field='base_url'
                             label={t('API地址')}
                             placeholder={t('请选择API地址')}
@@ -3456,7 +3457,7 @@ const EditChannelModal = (props) => {
                   )}
 
                   {/* Model Selection - Part of Core Config */}
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                       field='models'
                       label={t('模型')}
                       placeholder={t('请选择该渠道所支持的模型')}
@@ -3585,7 +3586,7 @@ const EditChannelModal = (props) => {
                   />
 
                   {/* Groups - Core Config */}
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                     field='groups'
                     label={t('分组')}
                     placeholder={t('请选择可以使用该渠道的分组')}
