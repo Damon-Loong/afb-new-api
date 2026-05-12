@@ -255,6 +255,7 @@ const EditModelModal = (props) => {
         <div className='flex justify-end bg-white'>
           <Space>
             <Button
+              htmlType='button'
               theme='solid'
               className='!rounded-lg'
               onClick={() => formApiRef.current?.submitForm()}
@@ -264,6 +265,7 @@ const EditModelModal = (props) => {
               {t('提交')}
             </Button>
             <Button
+              htmlType='button'
               theme='light'
               className='!rounded-lg'
               type='primary'

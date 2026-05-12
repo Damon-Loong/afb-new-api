@@ -84,6 +84,8 @@ const SubscriptionPurchaseModal = ({
   const purchaseLimitReached =
     purchaseLimit > 0 && purchaseCount >= purchaseLimit;
 
+  if (!visible) return null;
+
   return (
     <Modal
       title={

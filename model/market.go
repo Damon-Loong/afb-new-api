@@ -156,7 +156,7 @@ func IsValidMarketSubmissionStatus(status string) bool {
 	}
 }
 
-func ListMarketActivities(offset, limit int, admin bool, status string) ([]MarketActivity, int64, error) {
+func ListMarketActivities(offset, limit int, admin bool, status string, sortBy string, sortOrder string) ([]MarketActivity, int64, error) {
 	var activities []MarketActivity
 	var total int64
 	db := DB.Model(&MarketActivity{})
@@ -168,16 +168,27 @@ func ListMarketActivities(offset, limit int, admin bool, status string) ([]Marke
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
-	err := db.Preload("Policies", func(db *gorm.DB) *gorm.DB {
-		return db.Order("sort_order ASC, id ASC")
-	}).Order(`sort_weight DESC,
+
+	orderClause := `sort_weight DESC,
 		CASE source_status
 			WHEN 'in_progress' THEN 3
 			WHEN 'in_evaluation' THEN 2
 			WHEN 'awarded' THEN 1
 			ELSE 0
 		END DESC,
-		start_time DESC, end_time DESC, id DESC`).Offset(offset).Limit(limit).Find(&activities).Error
+		start_time DESC, end_time DESC, id DESC`
+	switch strings.TrimSpace(sortBy) {
+	case "created_at", "start_time":
+		direction := "DESC"
+		if strings.EqualFold(strings.TrimSpace(sortOrder), "asc") {
+			direction = "ASC"
+		}
+		orderClause = strings.TrimSpace(sortBy) + " " + direction + ", id " + direction
+	}
+
+	err := db.Preload("Policies", func(db *gorm.DB) *gorm.DB {
+		return db.Order("sort_order ASC, id ASC")
+	}).Order(orderClause).Offset(offset).Limit(limit).Find(&activities).Error
 	return activities, total, err
 }
 

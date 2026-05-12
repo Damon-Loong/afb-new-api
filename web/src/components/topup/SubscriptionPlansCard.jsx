@@ -734,37 +734,39 @@ const SubscriptionPlansCard = ({
       )}
 
       {/* 购买确认弹窗 */}
-      <SubscriptionPurchaseModal
-        t={t}
-        visible={open}
-        onCancel={closeBuy}
-        selectedPlan={selectedPlan}
-        paying={paying}
-        selectedEpayMethod={selectedEpayMethod}
-        setSelectedEpayMethod={setSelectedEpayMethod}
-        epayMethods={epayMethods}
-        enableOnlineTopUp={enableOnlineTopUp}
-        enableStripeTopUp={enableStripeTopUp}
-        enableCreemTopUp={enableCreemTopUp}
-        enableWeChatPayTopUp={enableWeChatPayTopUp}
-        enableWaffoTopUp={enableWaffoTopUp}
-        waffoPayMethods={waffoPayMethods}
-        selectedWaffoSubIdx={selectedWaffoSubIdx}
-        setSelectedWaffoSubIdx={setSelectedWaffoSubIdx}
-        purchaseLimitInfo={
-          selectedPlan?.plan?.id
-            ? {
-                limit: Number(selectedPlan?.plan?.max_purchase_per_user || 0),
-                count: getPlanPurchaseCount(selectedPlan?.plan?.id),
-              }
-            : null
-        }
-        onPayStripe={payStripe}
-        onPayCreem={payCreem}
-        onPayEpay={payEpay}
-        onPayWeChat={paySubscriptionWeChat}
-        onPayWaffo={paySubscriptionWaffo}
-      />
+      {open && (
+        <SubscriptionPurchaseModal
+          t={t}
+          visible={open}
+          onCancel={closeBuy}
+          selectedPlan={selectedPlan}
+          paying={paying}
+          selectedEpayMethod={selectedEpayMethod}
+          setSelectedEpayMethod={setSelectedEpayMethod}
+          epayMethods={epayMethods}
+          enableOnlineTopUp={enableOnlineTopUp}
+          enableStripeTopUp={enableStripeTopUp}
+          enableCreemTopUp={enableCreemTopUp}
+          enableWeChatPayTopUp={enableWeChatPayTopUp}
+          enableWaffoTopUp={enableWaffoTopUp}
+          waffoPayMethods={waffoPayMethods}
+          selectedWaffoSubIdx={selectedWaffoSubIdx}
+          setSelectedWaffoSubIdx={setSelectedWaffoSubIdx}
+          purchaseLimitInfo={
+            selectedPlan?.plan?.id
+              ? {
+                  limit: Number(selectedPlan?.plan?.max_purchase_per_user || 0),
+                  count: getPlanPurchaseCount(selectedPlan?.plan?.id),
+                }
+              : null
+          }
+          onPayStripe={payStripe}
+          onPayCreem={payCreem}
+          onPayEpay={payEpay}
+          onPayWeChat={paySubscriptionWeChat}
+          onPayWaffo={paySubscriptionWaffo}
+        />
+      )}
 
       <Modal
         title={t('微信扫码支付（订阅）')}

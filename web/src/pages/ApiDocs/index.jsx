@@ -1533,8 +1533,10 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
         params: [
           { name: 'p / page', required: false, location: 'query', description: t('页码，默认 1；推荐使用 p，兼容 page。') },
           { name: 'page_size', required: false, location: 'query', description: t('每页数量，最大 100；兼容 ps / size。') },
+          { name: 'sort_by', required: false, location: 'query', description: t('排序字段。支持 start_time（活动时间）和 created_at（创建时间）；不传时使用默认推荐排序。') },
+          { name: 'sort_order', required: false, location: 'query', description: t('排序方向。asc 表示从早到晚，desc 表示从晚到早；配合 sort_by 使用。') },
         ],
-        requestExample: `curl "${baseUrl}/api/market/activities?p=1&page_size=20"`,
+        requestExample: `curl "${baseUrl}/api/market/activities?p=1&page_size=20&sort_by=start_time&sort_order=desc"`,
         responseFields: [
           { name: 'success', type: 'boolean', description: t('请求是否成功。') },
           { name: 'data.total', type: 'number', description: t('活动总数。') },
@@ -1588,6 +1590,10 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
         method: 'GET',
         path: '/api/market/activities/{id}',
         summary: t('获取单个已发布活动的完整详情和政策标签。'),
+        notes: [
+          t('无需登录即可访问。'),
+          t('只返回 status 为 published 的活动详情。'),
+        ],
         params: [{ name: 'id', required: true, location: 'path', description: t('活动 ID。') }],
         requestExample: `curl "${baseUrl}/api/market/activities/1"`,
         responseFields: [
@@ -3567,7 +3573,7 @@ data: [DONE]`,
                 <div className='api-docs-section'>
                   <h3>{t('注意事项')}</h3>
                   <ul className='api-docs-note-list'>
-                    {activeEndpoint.notes.map((note) => (
+                    {(activeEndpoint.notes || []).map((note) => (
                       <li key={note}>{note}</li>
                     ))}
                   </ul>

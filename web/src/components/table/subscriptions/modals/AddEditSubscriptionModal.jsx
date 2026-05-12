@@ -79,6 +79,9 @@ const AddEditSubscriptionModal = ({
   const formApiRef = useRef(null);
   const isEdit = editingPlan?.plan?.id !== undefined;
   const formKey = isEdit ? `edit-${editingPlan?.plan?.id}` : 'create';
+  const handleCancel = () => {
+    handleClose();
+  };
 
   const getInitValues = () => ({
     title: '',
@@ -173,7 +176,7 @@ const AddEditSubscriptionModal = ({
         );
         if (res.data?.success) {
           showSuccess(t('更新成功'));
-          handleClose();
+          handleCancel();
           refresh?.();
         } else {
           showError(res.data?.message || t('更新失败'));
@@ -182,7 +185,7 @@ const AddEditSubscriptionModal = ({
         const res = await API.post('/api/subscription/admin/plans', payload);
         if (res.data?.success) {
           showSuccess(t('创建成功'));
-          handleClose();
+          handleCancel();
           refresh?.();
         } else {
           showError(res.data?.message || t('创建失败'));
@@ -200,7 +203,8 @@ const AddEditSubscriptionModal = ({
       <SideSheet
         placement={placement}
         title={
-          <Space>
+          <div className='flex items-center justify-between gap-3 w-full'>
+            <Space>
             {isEdit ? (
               <Tag color='blue' shape='circle'>
                 {t('更新')}
@@ -213,7 +217,17 @@ const AddEditSubscriptionModal = ({
             <Title heading={4} className='m-0'>
               {isEdit ? t('更新套餐信息') : t('创建新的订阅套餐')}
             </Title>
-          </Space>
+            </Space>
+            <Button
+              htmlType='button'
+              className='shrink-0'
+              type='tertiary'
+              theme='borderless'
+              icon={<IconClose />}
+              size='small'
+              onClick={handleCancel}
+            />
+          </div>
         }
         bodyStyle={{ padding: '0' }}
         visible={visible}
@@ -222,6 +236,7 @@ const AddEditSubscriptionModal = ({
           <div className='flex justify-end bg-white'>
             <Space>
               <Button
+                htmlType='button'
                 theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
@@ -230,9 +245,10 @@ const AddEditSubscriptionModal = ({
                 {t('提交')}
               </Button>
               <Button
+                htmlType='button'
                 theme='light'
                 type='primary'
-                onClick={handleClose}
+                onClick={handleCancel}
                 icon={<IconClose />}
               >
                 {t('取消')}
@@ -240,8 +256,8 @@ const AddEditSubscriptionModal = ({
             </Space>
           </div>
         }
-        closeIcon={null}
-        onCancel={handleClose}
+        closable={false}
+        onCancel={handleCancel}
       >
         <Spin spinning={loading}>
           <Form

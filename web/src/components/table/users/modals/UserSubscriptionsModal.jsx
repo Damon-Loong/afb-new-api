@@ -249,9 +249,10 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     return [
       {
         title: 'ID',
-        dataIndex: ['subscription', 'id'],
+        dataIndex: 'subscription_id',
         key: 'id',
         width: 70,
+        render: (_, record) => record?.subscription?.id ?? '-',
       },
       {
         title: t('套餐'),

@@ -64,18 +64,22 @@ const UsersPage = () => {
 
   return (
     <>
-      <AddUserModal
-        refresh={refresh}
-        visible={showAddUser}
-        handleClose={closeAddUser}
-      />
+      {showAddUser && (
+        <AddUserModal
+          refresh={refresh}
+          visible={showAddUser}
+          handleClose={closeAddUser}
+        />
+      )}
 
-      <EditUserModal
-        refresh={refresh}
-        visible={showEditUser}
-        handleClose={closeEditUser}
-        editingUser={editingUser}
-      />
+      {showEditUser && (
+        <EditUserModal
+          refresh={refresh}
+          visible={showEditUser}
+          handleClose={closeEditUser}
+          editingUser={editingUser}
+        />
+      )}
 
       <CardPro
         type='type1'

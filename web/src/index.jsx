@@ -33,6 +33,20 @@ import { useTranslation } from 'react-i18next';
 import zh_CN from '@douyinfe/semi-ui/lib/es/locale/source/zh_CN';
 import en_GB from '@douyinfe/semi-ui/lib/es/locale/source/en_GB';
 
+if (import.meta.env.DEV) {
+  const originalConsoleError = console.error;
+  console.error = (...args) => {
+    const [message] = args;
+    if (
+      typeof message === 'string' &&
+      message.includes('findDOMNode is deprecated')
+    ) {
+      return;
+    }
+    originalConsoleError(...args);
+  };
+}
+
 function SemiLocaleWrapper({ children }) {
   const { i18n } = useTranslation();
   const semiLocale = React.useMemo(
@@ -46,22 +60,20 @@ function SemiLocaleWrapper({ children }) {
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
-  <React.StrictMode>
-    <StatusProvider>
-      <UserProvider>
-        <BrowserRouter
-          future={{
-            v7_startTransition: true,
-            v7_relativeSplatPath: true,
-          }}
-        >
-          <ThemeProvider>
-            <SemiLocaleWrapper>
-              <PageLayout />
-            </SemiLocaleWrapper>
-          </ThemeProvider>
-        </BrowserRouter>
-      </UserProvider>
-    </StatusProvider>
-  </React.StrictMode>,
+  <StatusProvider>
+    <UserProvider>
+      <BrowserRouter
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        <ThemeProvider>
+          <SemiLocaleWrapper>
+            <PageLayout />
+          </SemiLocaleWrapper>
+        </ThemeProvider>
+      </BrowserRouter>
+    </UserProvider>
+  </StatusProvider>,
 );

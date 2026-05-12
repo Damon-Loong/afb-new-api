@@ -377,12 +377,14 @@ function TokensPage() {
 
   return (
     <>
-      <EditTokenModal
-        refresh={refresh}
-        editingToken={editingToken}
-        visiable={showEdit}
-        handleClose={closeEdit}
-      />
+      {showEdit && (
+        <EditTokenModal
+          refresh={refresh}
+          editingToken={editingToken}
+          visiable={showEdit}
+          handleClose={closeEdit}
+        />
+      )}
 
       <CCSwitchModal
         visible={ccSwitchVisible}

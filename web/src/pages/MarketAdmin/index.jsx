@@ -469,7 +469,7 @@ export default function MarketAdmin() {
   return (
     <div className='px-2'>
       <Card style={{ borderRadius: 8 }}>
-        <Tabs activeKey={activeKey} onChange={setActiveKey}>
+        <Tabs activeKey={activeKey} onChange={setActiveKey} size='medium'>
           <Tabs.TabPane tab='活动管理' itemKey='activities'>
             <Space vertical align='start' spacing='loose' style={{ width: '100%' }}>
               <Space style={{ width: '100%', justifyContent: 'space-between' }}>

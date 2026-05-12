@@ -47,6 +47,7 @@ const ChannelsTabs = ({
     <Tabs
       activeKey={activeTypeKey}
       type='card'
+      size='medium'
       collapsible
       onChange={handleTabChange}
       className='mb-2'

@@ -244,6 +244,7 @@ const EditUserModal = (props) => {
           <div className='flex justify-end bg-white'>
             <Space>
               <Button
+                htmlType='button'
                 theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
@@ -252,6 +253,7 @@ const EditUserModal = (props) => {
                 {t('提交')}
               </Button>
               <Button
+                htmlType='button'
                 theme='light'
                 type='primary'
                 onClick={handleCancel}

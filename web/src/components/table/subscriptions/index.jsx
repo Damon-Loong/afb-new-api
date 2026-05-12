@@ -49,14 +49,16 @@ const SubscriptionsPage = () => {
 
   return (
     <>
-      <AddEditSubscriptionModal
-        visible={showEdit}
-        handleClose={closeEdit}
-        editingPlan={editingPlan}
-        placement={sheetPlacement}
-        refresh={refresh}
-        t={t}
-      />
+      {showEdit && (
+        <AddEditSubscriptionModal
+          visible={showEdit}
+          handleClose={closeEdit}
+          editingPlan={editingPlan}
+          placement={sheetPlacement}
+          refresh={refresh}
+          t={t}
+        />
+      )}
 
       <CardPro
         type='type1'

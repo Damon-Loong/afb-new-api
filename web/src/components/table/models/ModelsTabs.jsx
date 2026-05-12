@@ -76,6 +76,7 @@ const ModelsTabs = ({
     <Tabs
       activeKey={activeVendorKey}
       type='card'
+      size='medium'
       collapsible
       onChange={handleTabChange}
       className='mb-2'
