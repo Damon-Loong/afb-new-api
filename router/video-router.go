@@ -49,4 +49,13 @@ func SetVideoRouter(router *gin.Engine) {
 		// Maps to: /?Action=CVSync2AsyncSubmitTask&Version=2022-08-31 and /?Action=CVSync2AsyncGetResult&Version=2022-08-31
 		jimengOfficialGroup.POST("/", controller.RelayTask)
 	}
+
+	// Volcengine Ark: official video task paths (passthrough to upstream /api/v3/contents/generations/tasks)
+	volcArkV3 := router.Group("/api/v3")
+	volcArkV3.Use(middleware.RouteTag("relay"))
+	volcArkV3.Use(middleware.TokenAuth(), middleware.Distribute())
+	{
+		volcArkV3.POST("/contents/generations/tasks", controller.RelayVolcContentsGenerationsTaskCreate)
+		volcArkV3.GET("/contents/generations/tasks/:task_id", controller.RelayVolcContentsGenerationsTaskGet)
+	}
 }

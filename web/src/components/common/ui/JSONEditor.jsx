@@ -633,6 +633,7 @@ const JSONEditor = ({
           <div className='flex justify-between items-center'>
             <Tabs
               type='slash'
+              size='medium'
               activeKey={editMode}
               onChange={(key) => {
                 if (key === 'manual' && editMode === 'visual') {

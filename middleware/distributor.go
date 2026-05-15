@@ -3,6 +3,7 @@ package middleware
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -36,7 +37,40 @@ func Distribute() func(c *gin.Context) {
 			abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": err.Error()}))
 			return
 		}
-		if ok {
+
+		// 方舟官方 GET /api/v3/contents/generations/tasks/{id}：无 model 参数，从本用户任务记录还原提交时使用的渠道
+		volcOfficialGet := c.Request.Method == http.MethodGet && strings.HasPrefix(c.Request.URL.Path, "/api/v3/contents/generations/tasks/")
+		if volcOfficialGet {
+			tid := strings.TrimSpace(c.Param("task_id"))
+			if tid == "" {
+				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "task_id is required"}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			uid := c.GetInt("id")
+			originTask, exist, terr := model.GetByTaskId(uid, tid)
+			if terr != nil {
+				abortWithOpenAiMessage(c, http.StatusInternalServerError, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": terr.Error()}), types.ErrorCodeQueryDataError)
+				return
+			}
+			if !exist {
+				abortWithOpenAiMessage(c, http.StatusNotFound, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "任务不存在或无权访问，请使用本接口创建任务返回的 id 查询"}), types.ErrorCodeInvalidRequest)
+				return
+			}
+			ch, chErr := model.GetChannelById(originTask.ChannelId, true)
+			if chErr != nil || ch == nil || ch.Status != common.ChannelStatusEnabled {
+				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorChannelDisabled), types.ErrorCodeGetChannelFailed)
+				return
+			}
+			channel = ch
+			shouldSelectChannel = false
+			if od := strings.TrimSpace(originTask.Properties.OriginModelName); od != "" {
+				modelRequest.Model = od
+			} else if ud := strings.TrimSpace(originTask.Properties.UpstreamModelName); ud != "" {
+				modelRequest.Model = ud
+			}
+		}
+
+		if ok && !(volcOfficialGet && channel != nil) {
 			id, err := strconv.Atoi(channelId.(string))
 			if err != nil {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
@@ -261,6 +295,42 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 		}
 		if _, ok := c.Get("relay_mode"); !ok {
 			c.Set("relay_mode", relayMode)
+		}
+	} else if strings.HasPrefix(c.Request.URL.Path, "/api/v3/contents/generations/tasks") {
+		// 火山方舟官方路径：创建/查询视频生成任务（网关透传）
+		if c.Request.Method == http.MethodPost {
+			if c.Request.URL.Path != "/api/v3/contents/generations/tasks" {
+				return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "invalid path for POST"}))
+			}
+			relayMode := relayconstant.RelayModeVideoSubmit
+			c.Set("relay_mode", relayMode)
+			req, err := getModelFromRequest(c)
+			if err != nil {
+				return nil, false, err
+			}
+			modelRequest.Model = req.Model
+			// 与官方 SDK 一致：可能未带 application/json，仍从 body 解析 model 供选路，body 指针回绕供后续控制器原样转发
+			if strings.TrimSpace(modelRequest.Model) == "" {
+				storage, serr := common.GetBodyStorage(c)
+				if serr == nil {
+					raw, _ := storage.Bytes()
+					var slim struct {
+						Model string `json:"model"`
+					}
+					if uerr := common.Unmarshal(raw, &slim); uerr == nil {
+						modelRequest.Model = strings.TrimSpace(slim.Model)
+					}
+					if _, seekErr := storage.Seek(0, io.SeekStart); seekErr == nil {
+						c.Request.Body = io.NopCloser(storage)
+					}
+				}
+			}
+		} else if c.Request.Method == http.MethodGet {
+			relayMode := relayconstant.RelayModeVideoFetchByID
+			c.Set("relay_mode", relayMode)
+			shouldSelectChannel = false
+		} else {
+			return nil, false, errors.New(i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "method not allowed"}))
 		}
 	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models/") || strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
 		// Gemini API 路径处理: /v1beta/models/gemini-2.0-flash:generateContent

@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch, IconRefresh } from '@douyinfe/semi-icons';
+import { semiSelectPortalProps } from '../../../helpers';
 
 const DeploymentsFilters = ({
   formInitValues,
@@ -78,7 +79,7 @@ const DeploymentsFilters = ({
         </div>
 
         <div className='w-full md:w-48'>
-          <Form.Select
+          <Form.Select {...semiSelectPortalProps}
             field='searchStatus'
             placeholder={t('选择状态')}
             optionList={statusOptions}

@@ -25,6 +25,7 @@ import {
   showInfo,
   showSuccess,
   verifyJSON,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import { CHANNEL_OPTIONS, MODEL_FETCHABLE_CHANNEL_TYPES } from '../../../../constants';
@@ -129,6 +130,9 @@ const PARAM_OVERRIDE_OPERATIONS_TEMPLATE = {
 
 const DEPRECATED_DOUBAO_CODING_PLAN_BASE_URL = 'doubao-coding-plan';
 
+const normalizeSwitchValue = (value) =>
+  value === true || value === 1 || value === '1' || value === 'true';
+
 // 支持并且已适配通过接口获取模型列表的渠道类型
 const MODEL_FETCHABLE_TYPES = new Set([
   1, 4, 14, 34, 17, 26, 27, 24, 47, 25, 20, 23, 31, 40, 42, 48, 43,
@@ -167,6 +171,7 @@ const EditChannelModal = (props) => {
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
   const handleCancel = () => {
+    setAdvancedSettingsOpen(false);
     props.handleClose();
   };
   const originInputs = {
@@ -181,7 +186,7 @@ const EditChannelModal = (props) => {
     param_override: '',
     status_code_mapping: '',
     models: [],
-    auto_ban: 1,
+    auto_ban: true,
     test_model: '',
     groups: ['default'],
     priority: 0,
@@ -843,15 +848,15 @@ const EditChannelModal = (props) => {
       if (data.setting) {
         try {
           const parsedSettings = JSON.parse(data.setting);
-          data.force_format = parsedSettings.force_format || false;
+          data.force_format = normalizeSwitchValue(parsedSettings.force_format);
           data.thinking_to_content =
-            parsedSettings.thinking_to_content || false;
+            normalizeSwitchValue(parsedSettings.thinking_to_content);
           data.proxy = parsedSettings.proxy || '';
           data.pass_through_body_enabled =
-            parsedSettings.pass_through_body_enabled || false;
+            normalizeSwitchValue(parsedSettings.pass_through_body_enabled);
           data.system_prompt = parsedSettings.system_prompt || '';
           data.system_prompt_override =
-            parsedSettings.system_prompt_override || false;
+            normalizeSwitchValue(parsedSettings.system_prompt_override);
         } catch (error) {
           console.error('解析渠道设置失败:', error);
           data.force_format = false;
@@ -883,20 +888,30 @@ const EditChannelModal = (props) => {
           data.is_enterprise_account =
             parsedSettings.openrouter_enterprise === true;
           // 读取字段透传控制设置
-          data.allow_service_tier = parsedSettings.allow_service_tier || false;
-          data.disable_store = parsedSettings.disable_store || false;
+          data.allow_service_tier = normalizeSwitchValue(
+            parsedSettings.allow_service_tier,
+          );
+          data.disable_store = normalizeSwitchValue(
+            parsedSettings.disable_store,
+          );
           data.allow_safety_identifier =
-            parsedSettings.allow_safety_identifier || false;
+            normalizeSwitchValue(parsedSettings.allow_safety_identifier);
           data.allow_include_obfuscation =
-            parsedSettings.allow_include_obfuscation || false;
+            normalizeSwitchValue(parsedSettings.allow_include_obfuscation);
           data.allow_inference_geo =
-            parsedSettings.allow_inference_geo || false;
-          data.allow_speed = parsedSettings.allow_speed || false;
-          data.claude_beta_query = parsedSettings.claude_beta_query || false;
+            normalizeSwitchValue(parsedSettings.allow_inference_geo);
+          data.allow_speed = normalizeSwitchValue(parsedSettings.allow_speed);
+          data.claude_beta_query = normalizeSwitchValue(
+            parsedSettings.claude_beta_query,
+          );
           data.upstream_model_update_check_enabled =
-            parsedSettings.upstream_model_update_check_enabled === true;
+            normalizeSwitchValue(
+              parsedSettings.upstream_model_update_check_enabled,
+            );
           data.upstream_model_update_auto_sync_enabled =
-            parsedSettings.upstream_model_update_auto_sync_enabled === true;
+            normalizeSwitchValue(
+              parsedSettings.upstream_model_update_auto_sync_enabled,
+            );
           data.upstream_model_update_last_check_time =
             Number(parsedSettings.upstream_model_update_last_check_time) || 0;
           data.upstream_model_update_last_detected_models = Array.isArray(
@@ -957,15 +972,15 @@ const EditChannelModal = (props) => {
       }
 
       initialBaseUrlRef.current = data.base_url || '';
-      setInputs(data);
+      const normalizedData = {
+        ...data,
+        auto_ban: normalizeSwitchValue(data.auto_ban),
+      };
+      setInputs(normalizedData);
       if (formApiRef.current) {
-        formApiRef.current.setValues(data);
+        formApiRef.current.setValues(normalizedData);
       }
-      if (data.auto_ban === 0) {
-        setAutoBan(false);
-      } else {
-        setAutoBan(true);
-      }
+      setAutoBan(normalizedData.auto_ban);
       // 同步企业账户状态
       setIsEnterpriseAccount(data.is_enterprise_account || false);
       setBasicModels(getChannelModels(data.type));
@@ -2157,6 +2172,14 @@ const EditChannelModal = (props) => {
                 {t('从剪贴板粘贴配置')}
               </Button>
             )}
+            <Button
+              className='shrink-0'
+              type='tertiary'
+              theme='borderless'
+              icon={<IconClose />}
+              size='small'
+              onClick={handleCancel}
+            />
           </div>
         }
         bodyStyle={{ padding: '0' }}
@@ -2165,6 +2188,7 @@ const EditChannelModal = (props) => {
         footer={
           <div className='flex justify-end items-center gap-2'>
             <Button
+              htmlType='button'
               theme='solid'
               onClick={() => formApiRef.current?.submitForm()}
               icon={<IconSave />}
@@ -2172,6 +2196,7 @@ const EditChannelModal = (props) => {
               {t('提交')}
             </Button>
             <Button
+              htmlType='button'
               theme='light'
               type='primary'
               onClick={handleCancel}
@@ -2181,7 +2206,7 @@ const EditChannelModal = (props) => {
             </Button>
           </div>
         }
-        closeIcon={null}
+        closable={false}
         onCancel={() => handleCancel()}
       >
         <Form
@@ -2594,7 +2619,7 @@ const EditChannelModal = (props) => {
                       </Banner>
                     )}
 
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field='type'
                       label={t('类型')}
                       placeholder={t('请选择渠道类型')}
@@ -2650,7 +2675,7 @@ const EditChannelModal = (props) => {
 
                     {inputs.type === 33 && (
                       <>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='aws_key_type'
                           label={t('密钥格式')}
                           placeholder={t('请选择密钥格式')}
@@ -2677,7 +2702,7 @@ const EditChannelModal = (props) => {
                     )}
 
                     {inputs.type === 41 && (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='vertex_key_type'
                         label={t('密钥格式')}
                         placeholder={t('请选择密钥格式')}
@@ -3091,7 +3116,7 @@ const EditChannelModal = (props) => {
                     )}
 
                     {isEdit && isMultiKeyChannel && (
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field='key_mode'
                         label={t('密钥更新模式')}
                         placeholder={t('请选择密钥更新模式')}
@@ -3113,7 +3138,7 @@ const EditChannelModal = (props) => {
                     )}
                     {batch && multiToSingle && (
                       <>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='multi_key_mode'
                           label={t('密钥聚合模式')}
                           placeholder={t('请选择多密钥使用策略')}
@@ -3399,7 +3424,7 @@ const EditChannelModal = (props) => {
 
                       {inputs.type === 45 && !doubaoApiEditUnlocked && (
                         <div>
-                          <Form.Select
+                          <Form.Select {...semiSelectPortalProps}
                             field='base_url'
                             label={t('API地址')}
                             placeholder={t('请选择API地址')}
@@ -3432,7 +3457,7 @@ const EditChannelModal = (props) => {
                   )}
 
                   {/* Model Selection - Part of Core Config */}
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                       field='models'
                       label={t('模型')}
                       placeholder={t('请选择该渠道所支持的模型')}
@@ -3561,7 +3586,7 @@ const EditChannelModal = (props) => {
                   />
 
                   {/* Groups - Core Config */}
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                     field='groups'
                     label={t('分组')}
                     placeholder={t('请选择可以使用该渠道的分组')}
@@ -3631,7 +3656,7 @@ const EditChannelModal = (props) => {
                     extraText={t(
                       '仅当自动禁用开启时有效，关闭后不会自动禁用该渠道',
                     )}
-                    initValue={autoBan}
+                    initValue={Boolean(autoBan)}
                   />
 
                   {/* Test Model - Core Config */}

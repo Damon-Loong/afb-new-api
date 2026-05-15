@@ -95,7 +95,7 @@ const RatioSetting = () => {
   return (
     <Spin spinning={loading} size='large'>
       <Card style={{ marginTop: '10px' }}>
-        <Tabs type='card' defaultActiveKey='pricing'>
+        <Tabs type='card' size='medium' defaultActiveKey='pricing'>
           <Tabs.TabPane tab={t('模型定价设置')} itemKey='pricing'>
             <ModelPricingCombined options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>

@@ -26,6 +26,7 @@ import {
   showWarning,
   verifyJSON,
   selectFilter,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import {
   SideSheet,
@@ -476,7 +477,7 @@ const EditTagModal = (props) => {
                     )}
                     className='!rounded-lg mb-4'
                   />
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                     field='models'
                     label={t('模型')}
                     placeholder={t('请选择该渠道所支持的模型，留空则不更改')}
@@ -728,7 +729,7 @@ const EditTagModal = (props) => {
                 </div>
 
                 <div className='space-y-4'>
-                  <Form.Select
+                  <Form.Select {...semiSelectPortalProps}
                     field='groups'
                     label={t('分组')}
                     placeholder={t('请选择可以使用该渠道的分组，留空则不更改')}

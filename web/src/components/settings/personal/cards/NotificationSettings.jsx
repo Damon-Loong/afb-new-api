@@ -407,6 +407,7 @@ const NotificationSettings = ({
         {() => (
           <Tabs
             type='card'
+            size='medium'
             defaultActiveKey='notification'
             onChange={(key) => setActiveTabKey(key)}
           >

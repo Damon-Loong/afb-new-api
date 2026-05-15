@@ -25,6 +25,7 @@ import {
   showSuccess,
   renderQuota,
   getCurrencyConfig,
+  semiSelectPortalProps,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -244,6 +245,7 @@ const EditUserModal = (props) => {
           <div className='flex justify-end bg-white'>
             <Space>
               <Button
+                htmlType='button'
                 theme='solid'
                 onClick={() => formApiRef.current?.submitForm()}
                 icon={<IconSave />}
@@ -252,6 +254,7 @@ const EditUserModal = (props) => {
                 {t('提交')}
               </Button>
               <Button
+                htmlType='button'
                 theme='light'
                 type='primary'
                 onClick={handleCancel}
@@ -357,7 +360,7 @@ const EditUserModal = (props) => {
 
                     <Row gutter={12}>
                       <Col span={24}>
-                        <Form.Select
+                        <Form.Select {...semiSelectPortalProps}
                           field='group'
                           label={t('分组')}
                           placeholder={t('请选择分组')}

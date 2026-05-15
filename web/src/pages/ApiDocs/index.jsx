@@ -80,6 +80,7 @@ const ApiDocs = () => {
         body,
         responseExample = genericAiResponse,
         notes = [],
+        requestExample: requestExampleOverride,
       }) => ({
         key,
         icon: <MessageCircle size={18} />,
@@ -93,13 +94,14 @@ const ApiDocs = () => {
             ? [apiKeyHeaderParam, ...params]
             : [apiKeyHeaderParam, jsonContentTypeParam, ...params],
         requestExample:
-          method === 'GET'
+          requestExampleOverride ??
+          (method === 'GET'
             ? `curl "${baseUrl}${path}" \\
   -H "Authorization: Bearer sk-YOUR_API_TOKEN"`
             : `curl -X ${method} "${baseUrl}${path}" \\
   -H "Authorization: Bearer sk-YOUR_API_TOKEN" \\
   -H "Content-Type: application/json" \\
-  -d '${body}'`,
+  -d '${body}'`),
         responseExample,
       });
 
@@ -115,6 +117,61 @@ const ApiDocs = () => {
         location: 'path',
         description: t('异步任务 ID，由提交任务接口返回。'),
       };
+      const videoTaskSubmitOptionalParams = [
+        {
+          name: 'images',
+          required: false,
+          location: 'body',
+          description: t('视频接口-参考图数组'),
+        },
+        {
+          name: 'image',
+          required: false,
+          location: 'body',
+          description: t('视频接口-参考图单张'),
+        },
+        {
+          name: 'duration',
+          required: false,
+          location: 'body',
+          description: t('视频接口-时长整数'),
+        },
+        {
+          name: 'seconds',
+          required: false,
+          location: 'body',
+          description: t('视频接口-时长字符串'),
+        },
+        {
+          name: 'size',
+          required: false,
+          location: 'body',
+          description: t('视频接口-size'),
+        },
+        {
+          name: 'mode',
+          required: false,
+          location: 'body',
+          description: t('视频接口-mode'),
+        },
+        {
+          name: 'input_reference',
+          required: false,
+          location: 'body',
+          description: t('视频接口-input_reference'),
+        },
+        {
+          name: 'metadata',
+          required: false,
+          location: 'body',
+          description: t('视频接口-metadata'),
+        },
+      ];
+      const videoTaskSubmitBodyNotes = [
+        '视频接口-备注-metadata合并',
+        '视频接口-备注-content与images',
+        '视频接口-备注-顶层字段',
+      ];
       const userAuthParams = [
         {
           name: 'Cookie / Session',
@@ -1533,8 +1590,10 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
         params: [
           { name: 'p / page', required: false, location: 'query', description: t('页码，默认 1；推荐使用 p，兼容 page。') },
           { name: 'page_size', required: false, location: 'query', description: t('每页数量，最大 100；兼容 ps / size。') },
+          { name: 'sort_by', required: false, location: 'query', description: t('排序字段。支持 start_time（活动时间）和 created_at（创建时间）；不传时使用默认推荐排序。') },
+          { name: 'sort_order', required: false, location: 'query', description: t('排序方向。asc 表示从早到晚，desc 表示从晚到早；配合 sort_by 使用。') },
         ],
-        requestExample: `curl "${baseUrl}/api/market/activities?p=1&page_size=20"`,
+        requestExample: `curl "${baseUrl}/api/market/activities?p=1&page_size=20&sort_by=start_time&sort_order=desc"`,
         responseFields: [
           { name: 'success', type: 'boolean', description: t('请求是否成功。') },
           { name: 'data.total', type: 'number', description: t('活动总数。') },
@@ -1588,6 +1647,10 @@ curl -X POST "${baseUrl}/api/token/12/key" \\
         method: 'GET',
         path: '/api/market/activities/{id}',
         summary: t('获取单个已发布活动的完整详情和政策标签。'),
+        notes: [
+          t('无需登录即可访问。'),
+          t('只返回 status 为 published 的活动详情。'),
+        ],
         params: [{ name: 'id', required: true, location: 'path', description: t('活动 ID。') }],
         requestExample: `curl "${baseUrl}/api/market/activities/1"`,
         responseFields: [
@@ -2666,7 +2729,8 @@ data: [DONE]`,
         key: 'video-generations',
         title: '视频生成',
         path: '/v1/video/generations',
-        summary: '提交视频生成任务。',
+        summary:
+          '提交视频生成任务，支持文生/图生与 metadata 中的官方扩展字段；实际生效字段取决于所选视频渠道。',
         params: [
           modelParam,
           {
@@ -2675,10 +2739,19 @@ data: [DONE]`,
             location: 'body',
             description: t('视频生成提示词。'),
           },
+          ...videoTaskSubmitOptionalParams,
         ],
+        notes: videoTaskSubmitBodyNotes,
         body: `{
-    "model": "video-model",
-    "prompt": "未来城市中的自动驾驶飞车"
+    "model": "doubao-seedance-1-5-pro-251215",
+    "prompt": "未来城市中的自动驾驶飞车",
+    "seconds": "5",
+    "images": ["https://example.com/ref.png"],
+    "metadata": {
+      "resolution": "1080p",
+      "ratio": "16:9",
+      "seed": 42
+    }
   }`,
       }),
       createAiEndpoint({
@@ -2693,19 +2766,26 @@ data: [DONE]`,
         key: 'openai-videos',
         title: '创建视频',
         path: '/v1/videos',
-        summary: 'OpenAI 兼容的视频创建接口。',
+        summary: '创建 OpenAI 兼容视频任务，请求体与 /v1/video/generations 相同（TaskSubmitReq）。',
         params: [
           modelParam,
           {
             name: 'prompt',
             required: true,
             location: 'body',
-            description: t('视频提示词。'),
+            description: t('视频生成提示词。'),
           },
+          ...videoTaskSubmitOptionalParams,
         ],
+        notes: videoTaskSubmitBodyNotes,
         body: `{
-    "model": "video-model",
-    "prompt": "一只猫在月球上跳舞"
+    "model": "doubao-seedance-1-5-pro-251215",
+    "prompt": "一只猫在月球上跳舞",
+    "seconds": "5",
+    "metadata": {
+      "resolution": "720p",
+      "ratio": "16:9"
+    }
   }`,
       }),
       createAiEndpoint({
@@ -2748,6 +2828,67 @@ data: [DONE]`,
         body: `{
     "prompt": "改成夜晚霓虹风格"
   }`,
+      }),
+      createAiEndpoint({
+        key: 'volc-contents-task-create',
+        title: '豆包视频（官方路径·创建任务）',
+        path: '/api/v3/contents/generations/tasks',
+        summary:
+          '与火山方舟「创建视频生成任务」一致：除鉴权与选路外，JSON body、URL query、可转发请求头均原样转发至上游；网关不对 body 做字段级校验或裁剪。官方文档见下方链接。仅支持 Doubao 视频 / VolcEngine 渠道；成功后将上游返回的 id 写入本地任务 task_id 供后续 GET。',
+        params: [
+          {
+            name: 'model',
+            required: true,
+            location: 'body',
+            description: t('官方请求体中的 model，网关仅用于选路、令牌模型限制与计费；须与 body 内字段一致。'),
+          },
+        ],
+        notes: [
+          '豆包官方视频-创建文档 https://www.volcengine.com/docs/82379/1520757?lang=zh',
+          '豆包官方视频-透传 body/query/头',
+          '豆包官方视频-计费按模型按次',
+          '豆包官方视频-创建返回的 id 即本地任务 id',
+        ],
+        body: `{
+  "model": "doubao-seedance-1-5-pro-251215",
+  "content": [
+    {
+      "type": "text",
+      "text": "首帧参考图1，生成 5 秒产品展示视频。"
+    },
+    {
+      "type": "image_url",
+      "image_url": { "url": "https://example.com/ref.jpg" },
+      "role": "reference_image"
+    }
+  ],
+  "duration": 5,
+  "ratio": "16:9"
+}`,
+        responseExample: `{
+  "id": "cmt-xxxxxxxx"
+}`,
+      }),
+      createAiEndpoint({
+        key: 'volc-contents-task-get',
+        title: '豆包视频（官方路径·查询任务）',
+        method: 'GET',
+        path: '/api/v3/contents/generations/tasks/{task_id}',
+        summary:
+          '与火山方舟「查询视频生成任务」一致：path、query、可转发请求头原样转发至上游；网关用 path 中的 id 匹配本用户在本站创建的任务以还原渠道与密钥。官方文档见下方链接。',
+        params: [taskIdParam],
+        notes: [
+          '豆包官方视频-查询文档 https://www.volcengine.com/docs/82379/1521309?lang=zh',
+          '豆包官方视频-查询依赖本地任务记录',
+          '豆包官方视频-透传 query 与响应头',
+        ],
+        requestExample: `curl "${baseUrl}/api/v3/contents/generations/tasks/cmt-xxxxxxxx" \\
+  -H "Authorization: Bearer sk-YOUR_API_TOKEN"`,
+        responseExample: `{
+  "id": "cmt-xxxxxxxx",
+  "status": "running",
+  "content": { "video_url": "https://..." }
+}`,
       }),
       createAiEndpoint({
         key: 'suno-submit',
@@ -3159,6 +3300,12 @@ data: [DONE]`,
                   'openai-video-content',
                 ],
               },
+              {
+                key: 'videos-volc-native',
+                title: t('豆包视频（官方路径）'),
+                description: t('与火山方舟相同的 URL 形态，网关透传至上游'),
+                endpointKeys: ['volc-contents-task-create', 'volc-contents-task-get'],
+              },
             ],
           },
         ],
@@ -3567,7 +3714,7 @@ data: [DONE]`,
                 <div className='api-docs-section'>
                   <h3>{t('注意事项')}</h3>
                   <ul className='api-docs-note-list'>
-                    {activeEndpoint.notes.map((note) => (
+                    {(activeEndpoint.notes || []).map((note) => (
                       <li key={note}>{note}</li>
                     ))}
                   </ul>

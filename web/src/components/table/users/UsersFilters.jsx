@@ -20,6 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useRef } from 'react';
 import { Form, Button } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
+import { semiSelectPortalProps } from '../../../helpers';
 
 const UsersFilters = ({
   formInitValues,
@@ -72,7 +73,7 @@ const UsersFilters = ({
           />
         </div>
         <div className='w-full md:w-48'>
-          <Form.Select
+          <Form.Select {...semiSelectPortalProps}
             field='searchGroup'
             placeholder={t('选择分组')}
             optionList={groupOptions}

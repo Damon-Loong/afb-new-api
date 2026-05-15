@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useRef } from 'react';
 import { Modal, Form } from '@douyinfe/semi-ui';
+import { semiSelectPortalProps } from '../../../helpers';
 
 const SearchModal = ({
   searchModalVisible,
@@ -76,6 +77,7 @@ const SearchModal = ({
         })}
 
         {createFormField(Form.Select, {
+          ...semiSelectPortalProps,
           field: 'data_export_default_time',
           label: t('时间粒度'),
           initValue: dataExportDefaultTime,

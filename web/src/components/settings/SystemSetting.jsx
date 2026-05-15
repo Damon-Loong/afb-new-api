@@ -39,6 +39,7 @@ import {
   showError,
   showSuccess,
   toBoolean,
+  semiSelectPortalProps,
 } from '../../helpers';
 import axios from 'axios';
 import { useTranslation } from 'react-i18next';
@@ -70,6 +71,10 @@ const SystemSetting = () => {
     'oidc.token_endpoint': '',
     'oidc.user_info_endpoint': '',
     Notice: '',
+    MClawDownloadLinks: '',
+    MClawDownloadWindowsUrl: '',
+    MClawDownloadMacosUrl: '',
+    MClawDownloadLinuxUrl: '',
     SMTPServer: '',
     SMTPPort: '',
     SMTPAccount: '',
@@ -146,6 +151,18 @@ const SystemSetting = () => {
             break;
           case 'EmailDomainWhitelist':
             setEmailDomainWhitelist(item.value ? item.value.split(',') : []);
+            break;
+          case 'MClawDownloadLinks':
+            try {
+              const links = item.value ? JSON.parse(item.value) : {};
+              newInputs.MClawDownloadWindowsUrl = links.windows?.url || '';
+              newInputs.MClawDownloadMacosUrl = links.macos?.url || '';
+              newInputs.MClawDownloadLinuxUrl = links.linux?.url || '';
+            } catch (e) {
+              newInputs.MClawDownloadWindowsUrl = '';
+              newInputs.MClawDownloadMacosUrl = '';
+              newInputs.MClawDownloadLinuxUrl = '';
+            }
             break;
           case 'fetch_setting.allow_private_ip':
           case 'fetch_setting.enable_ssrf_protection':
@@ -324,6 +341,17 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+
+  const submitMClawDownloadLinks = async () => {
+    const links = {
+      windows: { url: inputs.MClawDownloadWindowsUrl || '' },
+      macos: { url: inputs.MClawDownloadMacosUrl || '' },
+      linux: { url: inputs.MClawDownloadLinuxUrl || '' },
+    };
+    await updateOptions([
+      { key: 'MClawDownloadLinks', value: JSON.stringify(links) },
+    ]);
   };
 
   const submitSMTP = async () => {
@@ -1219,7 +1247,7 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field="['passkey.user_verification']"
                         label={t('安全验证级别')}
                         placeholder={t('是否要求指纹/面容等生物识别')}
@@ -1235,7 +1263,7 @@ const SystemSetting = () => {
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select
+                      <Form.Select {...semiSelectPortalProps}
                         field="['passkey.attachment_preference']"
                         label={t('设备类型偏好')}
                         placeholder={t('选择支持的认证设备类型')}
@@ -1611,6 +1639,43 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
                     {t('保存 Linux DO OAuth 设置')}
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text='MClaw 下载配置'>
+                  <Text>
+                    配置电信龙虾 MClaw 三个平台的安装包下载地址，mopc 前端会根据浏览器 User-Agent 自动选择平台。
+                  </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='MClawDownloadWindowsUrl'
+                        label='Windows 下载链接'
+                        placeholder='https://example.com/MClaw-windows.zip'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='MClawDownloadMacosUrl'
+                        label='macOS 下载链接'
+                        placeholder='https://example.com/MClaw-macos.zip'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                      <Form.Input
+                        field='MClawDownloadLinuxUrl'
+                        label='Linux 下载链接'
+                        placeholder='https://example.com/MClaw-linux.zip'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitMClawDownloadLinks}>
+                    保存 MClaw 下载配置
                   </Button>
                 </Form.Section>
               </Card>

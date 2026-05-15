@@ -109,26 +109,30 @@ const ModelsPage = () => {
 
   return (
     <>
-      <EditModelModal
-        refresh={refresh}
-        editingModel={editingModel}
-        visiable={showEdit}
-        handleClose={closeEdit}
-      />
+      {showEdit && (
+        <EditModelModal
+          refresh={refresh}
+          editingModel={editingModel}
+          visiable={showEdit}
+          handleClose={closeEdit}
+        />
+      )}
 
-      <EditVendorModal
-        visible={showAddVendor || showEditVendor}
-        handleClose={() => {
-          setShowAddVendor(false);
-          setShowEditVendor(false);
-          setEditingVendor({ id: undefined });
-        }}
-        editingVendor={showEditVendor ? editingVendor : { id: undefined }}
-        refresh={() => {
-          loadVendors();
-          refresh();
-        }}
-      />
+      {(showAddVendor || showEditVendor) && (
+        <EditVendorModal
+          visible={showAddVendor || showEditVendor}
+          handleClose={() => {
+            setShowAddVendor(false);
+            setShowEditVendor(false);
+            setEditingVendor({ id: undefined });
+          }}
+          editingVendor={showEditVendor ? editingVendor : { id: undefined }}
+          refresh={() => {
+            loadVendors();
+            refresh();
+          }}
+        />
+      )}
 
       {showMarketplaceDisplayNotice ? (
         <div style={{ position: 'relative', marginBottom: 12 }}>

@@ -63,12 +63,14 @@ const RedemptionsPage = () => {
 
   return (
     <>
-      <EditRedemptionModal
-        refresh={refresh}
-        editingRedemption={editingRedemption}
-        visiable={showEdit}
-        handleClose={closeEdit}
-      />
+      {showEdit && (
+        <EditRedemptionModal
+          refresh={refresh}
+          editingRedemption={editingRedemption}
+          visiable={showEdit}
+          handleClose={closeEdit}
+        />
+      )}
 
       <CardPro
         type='type1'

@@ -83,6 +83,17 @@ func canSendSMS(ip, phone string) (ok bool, msg string) {
 	return true, ""
 }
 
+func smsSendFailureMessage(err error) string {
+	if err == nil {
+		return "短信发送失败"
+	}
+	errText := strings.ToUpper(err.Error())
+	if strings.Contains(errText, "BUSINESS_LIMIT_CONTROL") {
+		return "该手机号短信发送过于频繁，请稍后再试"
+	}
+	return "短信发送失败"
+}
+
 type smsSendRequest struct {
 	Phone   string `json:"phone"`
 	Purpose string `json:"purpose"`
@@ -123,7 +134,7 @@ func SendSMSCode(c *gin.Context) {
 	common.SetSMSCode(purpose, e164, code)
 	if err := service.SendAliyunLoginSMS(c.Request.Context(), phone11, code); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("sms send failed phone=%s err=%v", maskPhone(phone11), err))
-		msg := "短信发送失败"
+		msg := smsSendFailureMessage(err)
 		if strings.HasPrefix(err.Error(), "aliyun sms not configured:") {
 			// Tell admin what is missing; no secrets are included.
 			missing := strings.TrimSpace(strings.TrimPrefix(err.Error(), "aliyun sms not configured:"))
@@ -280,4 +291,3 @@ func maskE164(e164 string) string {
 	}
 	return e164[:4] + "****" + e164[len(e164)-2:]
 }
-

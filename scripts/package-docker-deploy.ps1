@@ -21,9 +21,11 @@ try {
     $excludeDirs = @(
         ".git", ".github", "node_modules", "dist", "upload", "data", "logs",
         "deploy-packages",
+        "openclaw-afb",
+        "backups", "docfile", "UIPic",
         "plans", ".idea", ".vscode", ".zed", ".history", ".cache",
         ".tmp-go-cache", ".gocache", ".gomodcache", ".gopath",
-        ".eslintcache", ".claude", "tiktoken_cache", "build", "electron\dist"
+        ".eslintcache", ".claude", "tiktoken_cache", "build", "release", "electron\dist"
     )
     # Note: Go builds on Windows sometimes leave backup artifacts like "main.exe~" (not matched by "*.exe").
     # Exclude those to avoid bloating the deploy zip.

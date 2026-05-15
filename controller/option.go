@@ -322,6 +322,29 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "MClawDownloadLinks":
+		var links map[string]map[string]string
+		err = common.UnmarshalJsonStr(option.Value.(string), &links)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "MClaw 下载链接配置必须是有效 JSON",
+			})
+			return
+		}
+		for _, platform := range []string{"windows", "macos", "linux"} {
+			link := strings.TrimSpace(links[platform]["url"])
+			if link == "" {
+				continue
+			}
+			if !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
+				c.JSON(http.StatusOK, gin.H{
+					"success": false,
+					"message": "MClaw 下载链接必须以 http:// 或 https:// 开头",
+				})
+				return
+			}
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

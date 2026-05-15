@@ -40,7 +40,7 @@ import {
   IconDelete,
   IconRefresh,
 } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess, getOAuthProviderIcon } from '../../helpers';
+import { API, showError, showSuccess, getOAuthProviderIcon, semiSelectPortalProps } from '../../helpers';
 import { useTranslation } from 'react-i18next';
 
 const { Text } = Typography;
@@ -717,7 +717,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
 
             <Row gutter={16}>
               <Col span={8}>
-                <Form.Select
+                <Form.Select {...semiSelectPortalProps}
                   field="preset"
                   label={t('预设模板')}
                   placeholder={t('选择预设模板（可选）')}
@@ -974,7 +974,7 @@ const CustomOAuthSetting = ({ serverAddress }) => {
               <Collapse.Panel header={t('高级选项')} itemKey='advanced'>
                 <Row gutter={16}>
                   <Col span={12}>
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field="auth_style"
                       label={t('认证方式')}
                       optionList={[

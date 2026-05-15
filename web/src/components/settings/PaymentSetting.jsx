@@ -174,6 +174,7 @@ const PaymentSetting = () => {
         <Card style={{ marginTop: '10px' }}>
           <Tabs
             type='card'
+            size='medium'
             defaultActiveKey='general'
             contentStyle={{ paddingTop: 24 }}
           >

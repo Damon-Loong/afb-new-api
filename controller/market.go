@@ -25,7 +25,14 @@ const (
 
 func GetMarketActivities(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	activities, total, err := model.ListMarketActivities(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), false, "")
+	activities, total, err := model.ListMarketActivities(
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+		false,
+		"",
+		c.Query("sort_by"),
+		c.Query("sort_order"),
+	)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -267,7 +274,14 @@ func GetMarketSubmissionsSelf(c *gin.Context) {
 
 func AdminGetMarketActivities(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	activities, total, err := model.ListMarketActivities(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), true, c.Query("status"))
+	activities, total, err := model.ListMarketActivities(
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+		true,
+		c.Query("status"),
+		c.Query("sort_by"),
+		c.Query("sort_order"),
+	)
 	if err != nil {
 		common.ApiError(c, err)
 		return

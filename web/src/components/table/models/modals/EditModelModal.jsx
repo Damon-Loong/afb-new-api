@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+  startTransition,
+} from 'react';
 import JSONEditor from '../../../common/ui/JSONEditor';
 import {
   Banner,
@@ -32,10 +39,12 @@ import {
   Avatar,
   Col,
   Row,
+  useFormApi,
+  useFieldState,
 } from '@douyinfe/semi-ui';
 import { Save, X, FileText } from 'lucide-react';
 import { IconAlertTriangle, IconLink } from '@douyinfe/semi-icons';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, showError, showSuccess, semiSelectPortalProps } from '../../../../helpers';
 import { useTranslation } from 'react-i18next';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
@@ -58,6 +67,51 @@ const nameRuleOptions = [
   { label: '包含名称匹配', value: 2 },
   { label: '后缀名称匹配', value: 3 },
 ];
+
+/** 规范化标签；通过 Form.Field 的 convert 写入，勿在 onChange 里再 formApi.setValue，否则会与 Semi withField 内部更新嵌套触发 React 警告 */
+const normalizeTagInputValue = (raw) => {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw.flatMap((tag) =>
+        String(tag)
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean),
+      ),
+    ),
+  ];
+};
+
+/** 放在 Form 内，用 useFieldState 取 endpoints，避免 render props 把整块表单绑在 values 上加剧重渲染 */
+function EndpointsJSONBlock({
+  template,
+  templateLabel,
+  extraText,
+  extraFooter,
+  label,
+  placeholder,
+}) {
+  const formApi = useFormApi();
+  const fieldState = useFieldState('endpoints');
+  const endpoints = fieldState?.value ?? '';
+
+  return (
+    <JSONEditor
+      field='endpoints'
+      label={label}
+      placeholder={placeholder}
+      extraText={extraText}
+      extraFooter={extraFooter}
+      value={endpoints}
+      onChange={(val) => formApi.setValue('endpoints', val)}
+      formApi={formApi}
+      editorType='object'
+      template={template}
+      templateLabel={templateLabel}
+    />
+  );
+}
 
 const EditModelModal = (props) => {
   const { t } = useTranslation();
@@ -126,6 +180,33 @@ const EditModelModal = (props) => {
     sync_official: true,
   });
 
+  // 稳定 initValues / 选项引用，避免每次父组件重渲传入新对象导致子 Field 与 Select 反复同步
+  const formInitValues = useMemo(
+    () => getInitValues(),
+    [
+      props.editingModel?.id,
+      props.editingModel?.model_name,
+    ],
+  );
+
+  const nameRuleOptionList = useMemo(
+    () =>
+      nameRuleOptions.map((o) => ({
+        label: t(o.label),
+        value: o.value,
+      })),
+    [t],
+  );
+
+  const vendorOptionList = useMemo(
+    () =>
+      vendors.map((v) => ({
+        label: v.name,
+        value: v.id,
+      })),
+    [vendors],
+  );
+
   const handleCancel = () => {
     props.handleClose();
   };
@@ -163,31 +244,48 @@ const EditModelModal = (props) => {
     setLoading(false);
   };
 
+  /** 打开/关闭抽屉时同步表单；合并为单次 effect，避免重复 setValues 与嵌套更新 */
   useEffect(() => {
-    if (formApiRef.current) {
-      if (!isEdit) {
-        formApiRef.current.setValues({
-          ...getInitValues(),
-          model_name: props.editingModel?.model_name || '',
-        });
-      }
-    }
-  }, [props.editingModel?.id, props.editingModel?.model_name]);
-
-  useEffect(() => {
-    if (props.visiable) {
-      if (isEdit) {
-        loadModel();
-      } else {
-        formApiRef.current?.setValues({
-          ...getInitValues(),
-          model_name: props.editingModel?.model_name || '',
-        });
-      }
-    } else {
+    if (!props.visiable) {
       formApiRef.current?.reset();
+      return;
     }
-  }, [props.visiable, props.editingModel?.id, props.editingModel?.model_name]);
+    if (isEdit && props.editingModel?.id) {
+      loadModel();
+      return;
+    }
+    formApiRef.current?.setValues({
+      ...getInitValues(),
+      model_name: props.editingModel?.model_name || '',
+    });
+  }, [
+    props.visiable,
+    props.editingModel?.id,
+    props.editingModel?.model_name,
+    isEdit,
+  ]);
+
+  /** vendor_id 变更后延迟写入 vendor 文本，避免在 Semi Field 同一次 change 链路里嵌套 setValue */
+  const handleFormValueChange = useCallback(
+    (_values, changed) => {
+      if (!changed || !Object.prototype.hasOwnProperty.call(changed, 'vendor_id')) {
+        return;
+      }
+      const vid = changed.vendor_id;
+      startTransition(() => {
+        if (!formApiRef.current) return;
+        if (vid === undefined || vid === null) {
+          formApiRef.current.setValue('vendor', '');
+          return;
+        }
+        const vendorInfo = vendors.find((v) => v.id === vid);
+        if (vendorInfo) {
+          formApiRef.current.setValue('vendor', vendorInfo.name);
+        }
+      });
+    },
+    [vendors],
+  );
 
   const submit = async (values) => {
     setLoading(true);
@@ -255,6 +353,7 @@ const EditModelModal = (props) => {
         <div className='flex justify-end bg-white'>
           <Space>
             <Button
+              htmlType='button'
               theme='solid'
               className='!rounded-lg'
               onClick={() => formApiRef.current?.submitForm()}
@@ -264,6 +363,7 @@ const EditModelModal = (props) => {
               {t('提交')}
             </Button>
             <Button
+              htmlType='button'
               theme='light'
               className='!rounded-lg'
               type='primary'
@@ -281,12 +381,12 @@ const EditModelModal = (props) => {
       <Spin spinning={loading}>
         <Form
           key={isEdit ? 'edit' : 'new'}
-          initValues={getInitValues()}
+          initValues={formInitValues}
           getFormApi={(api) => (formApiRef.current = api)}
           onSubmit={submit}
+          onValueChange={handleFormValueChange}
         >
-          {({ values }) => (
-            <div className='p-2'>
+          <div className='p-2'>
               {/* 基本信息 */}
               <Card className='!rounded-2xl shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
@@ -312,14 +412,11 @@ const EditModelModal = (props) => {
                   </Col>
 
                   <Col span={24}>
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field='name_rule'
                       label={t('名称匹配类型')}
                       placeholder={t('请选择名称匹配类型')}
-                      optionList={nameRuleOptions.map((o) => ({
-                        label: t(o.label),
-                        value: o.value,
-                      }))}
+                      optionList={nameRuleOptionList}
                       rules={[
                         { required: true, message: t('请选择名称匹配类型') },
                       ]}
@@ -372,24 +469,7 @@ const EditModelModal = (props) => {
                       placeholder={t('输入标签或使用","分隔多个标签')}
                       addOnBlur
                       showClear
-                      onChange={(newTags) => {
-                        if (!formApiRef.current) return;
-                        const normalize = (tags) => {
-                          if (!Array.isArray(tags)) return [];
-                          return [
-                            ...new Set(
-                              tags.flatMap((tag) =>
-                                tag
-                                  .split(',')
-                                  .map((t) => t.trim())
-                                  .filter(Boolean),
-                              ),
-                            ),
-                          ];
-                        };
-                        const normalized = normalize(newTags);
-                        formApiRef.current.setValue('tags', normalized);
-                      }}
+                      convert={normalizeTagInputValue}
                       style={{ width: '100%' }}
                       {...(tagGroups.length > 0 && {
                         extraText: (
@@ -424,25 +504,13 @@ const EditModelModal = (props) => {
                     />
                   </Col>
                   <Col span={24}>
-                    <Form.Select
+                    <Form.Select {...semiSelectPortalProps}
                       field='vendor_id'
                       label={t('供应商')}
                       placeholder={t('选择模型供应商')}
-                      optionList={vendors.map((v) => ({
-                        label: v.name,
-                        value: v.id,
-                      }))}
+                      optionList={vendorOptionList}
                       filter
                       showClear
-                      onChange={(value) => {
-                        const vendorInfo = vendors.find((v) => v.id === value);
-                        if (vendorInfo && formApiRef.current) {
-                          formApiRef.current.setValue(
-                            'vendor',
-                            vendorInfo.name,
-                          );
-                        }
-                      }}
                       style={{ width: '100%' }}
                     />
                   </Col>
@@ -461,18 +529,11 @@ const EditModelModal = (props) => {
                       )}
                       style={{ marginBottom: 12 }}
                     />
-                    <JSONEditor
-                      field='endpoints'
+                    <EndpointsJSONBlock
                       label={t('在模型广场向用户展示的端点')}
                       placeholder={
                         '{\n  "openai": {"path": "/v1/chat/completions", "method": "POST"}\n}'
                       }
-                      value={values.endpoints}
-                      onChange={(val) =>
-                        formApiRef.current?.setValue('endpoints', val)
-                      }
-                      formApi={formApiRef.current}
-                      editorType='object'
                       template={ENDPOINT_TEMPLATE}
                       templateLabel={t('填入模板')}
                       extraText={t('留空则使用默认端点；支持 {path, method}')}
@@ -544,7 +605,6 @@ const EditModelModal = (props) => {
                 </Row>
               </Card>
             </div>
-          )}
         </Form>
       </Spin>
     </SideSheet>

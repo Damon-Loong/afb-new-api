@@ -50,6 +50,7 @@ const ChartsPanel = ({
           </div>
           <Tabs
             type='slash'
+            size='medium'
             activeKey={activeChartTab}
             onChange={setActiveChartTab}
           >

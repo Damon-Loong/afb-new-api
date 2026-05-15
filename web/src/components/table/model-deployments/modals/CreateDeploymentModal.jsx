@@ -44,8 +44,7 @@ import {
   IconHelpCircle,
   IconCopy,
 } from '@douyinfe/semi-icons';
-import { API } from '../../../../helpers';
-import { showError, showSuccess, copy } from '../../../../helpers';
+import { API, showError, showSuccess, copy, semiSelectPortalProps } from '../../../../helpers';
 
 const { Text, Title } = Typography;
 const { Option } = Select;
@@ -958,7 +957,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
 
             <Row gutter={16}>
               <Col xs={24} md={12}>
-                <Form.Select
+                <Form.Select {...semiSelectPortalProps}
                   field='hardware_id'
                   label={t('硬件类型')}
                   placeholder={t('选择硬件类型')}
@@ -1036,7 +1035,7 @@ const CreateDeploymentModal = ({ visible, onCancel, onSuccess, t }) => {
               </Text>
             )}
 
-            <Form.Select
+            <Form.Select {...semiSelectPortalProps}
               field='location_ids'
               label={
                 <Space>

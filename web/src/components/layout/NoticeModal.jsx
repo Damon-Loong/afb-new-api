@@ -213,7 +213,12 @@ const NoticeModal = ({
       title={
         <div className='flex items-center justify-between w-full'>
           <span>{t('系统公告')}</span>
-          <Tabs activeKey={activeTab} onChange={setActiveTab} type='button'>
+          <Tabs
+            activeKey={activeTab}
+            onChange={setActiveTab}
+            type='button'
+            size='medium'
+          >
             <TabPane
               tab={
                 <span className='flex items-center gap-1'>

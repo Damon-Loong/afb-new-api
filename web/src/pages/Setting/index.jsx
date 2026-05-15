@@ -198,6 +198,7 @@ const Setting = () => {
         <Layout.Content>
           <Tabs
             type='card'
+            size='medium'
             collapsible
             activeKey={tabActiveKey}
             onChange={(key) => onChangeTab(key)}

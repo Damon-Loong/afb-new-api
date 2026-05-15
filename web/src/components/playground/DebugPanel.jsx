@@ -133,6 +133,7 @@ const DebugPanel = ({
         <Tabs
           renderArrow={renderArrow}
           type='card'
+          size='medium'
           collapsible
           className='h-full'
           style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
