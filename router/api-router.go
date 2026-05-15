@@ -56,6 +56,17 @@ func SetApiRouter(router *gin.Engine) {
 				marketAdminRoute.DELETE("/submissions/:id", controller.AdminDeleteMarketSubmission)
 			}
 		}
+		toolsRoute := apiRouter.Group("/tools")
+		{
+			toolsRoute.GET("", controller.GetTools)
+			toolsRoute.GET("/", controller.GetTools)
+			toolsRoute.POST("/parse", controller.ParseToolOpenAPI)
+			toolsRoute.POST("/upload", controller.UploadToolOpenAPI)
+			toolsRoute.GET("/check-name", controller.CheckToolName)
+			toolsRoute.GET("/:tool_id/download", controller.DownloadTool)
+			toolsRoute.GET("/:tool_id", controller.GetTool)
+			toolsRoute.DELETE("/:tool_id", controller.DeleteTool)
+		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		// SMS auth (CN +86)
 		apiRouter.POST("/auth/sms/send", middleware.CriticalRateLimit(), controller.SendSMSCode)
