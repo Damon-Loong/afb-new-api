@@ -121,6 +121,14 @@ const SystemSetting = () => {
     'fetch_setting.ip_list': [],
     'fetch_setting.allowed_ports': [],
     'fetch_setting.apply_ip_filter_for_domain': true,
+    'storage_setting.enabled': false,
+    'storage_setting.endpoint': '',
+    'storage_setting.bucket': '',
+    'storage_setting.access_key_id': '',
+    'storage_setting.access_key_secret': '',
+    'storage_setting.prefix': 'files/',
+    'storage_setting.public_base_url': '',
+    'storage_setting.public_read': false,
   });
 
   const [originInputs, setOriginInputs] = useState({});
@@ -169,6 +177,8 @@ const SystemSetting = () => {
           case 'fetch_setting.domain_filter_mode':
           case 'fetch_setting.ip_filter_mode':
           case 'fetch_setting.apply_ip_filter_for_domain':
+          case 'storage_setting.enabled':
+          case 'storage_setting.public_read':
             item.value = toBoolean(item.value);
             break;
           case 'fetch_setting.domain_list':
@@ -341,6 +351,61 @@ const SystemSetting = () => {
   const submitServerAddress = async () => {
     let ServerAddress = removeTrailingSlash(inputs.ServerAddress);
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
+  };
+
+  const submitStorageSetting = async () => {
+    const values = formApiRef.current?.getValues() || inputs;
+    const getStorageValue = (key, fallback = '') => {
+      const flatKey = `storage_setting.${key}`;
+      if (values[flatKey] !== undefined) {
+        return values[flatKey];
+      }
+      if (values.storage_setting?.[key] !== undefined) {
+        return values.storage_setting[key];
+      }
+      return fallback;
+    };
+    const options = [
+      { key: 'storage_setting.enabled', value: !!getStorageValue('enabled') },
+      {
+        key: 'storage_setting.endpoint',
+        value: String(getStorageValue('endpoint') || '').trim(),
+      },
+      {
+        key: 'storage_setting.bucket',
+        value: String(getStorageValue('bucket') || '').trim(),
+      },
+      {
+        key: 'storage_setting.access_key_id',
+        value: String(getStorageValue('access_key_id') || '').trim(),
+      },
+      {
+        key: 'storage_setting.prefix',
+        value:
+          String(getStorageValue('prefix', 'files/') || 'files/').trim() ||
+          'files/',
+      },
+      {
+        key: 'storage_setting.public_base_url',
+        value: removeTrailingSlash(
+          String(getStorageValue('public_base_url') || ''),
+        ),
+      },
+      {
+        key: 'storage_setting.public_read',
+        value: !!getStorageValue('public_read'),
+      },
+    ];
+    const accessKeySecret = String(
+      getStorageValue('access_key_secret') || '',
+    ).trim();
+    if (accessKeySecret) {
+      options.push({
+        key: 'storage_setting.access_key_secret',
+        value: accessKeySecret,
+      });
+    }
+    await updateOptions(options);
   };
 
   const submitMClawDownloadLinks = async () => {
@@ -767,6 +832,78 @@ const SystemSetting = () => {
                   <Button onClick={submitServerAddress}>
                     {t('更新服务器地址')}
                   </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text={t('文件存储')}>
+                  <Banner
+                    type='info'
+                    description={t(
+                      '用于 OpenAI 兼容的 /v1/files 上传。默认保存到服务器本地并返回链接；开启 OSS 且配置完整后，新上传将优先写入阿里云 OSS。',
+                    )}
+                    style={{ marginBottom: 16, marginTop: 8 }}
+                  />
+                  <Form.Switch
+                    field="['storage_setting.enabled']"
+                    label={t('启用阿里云 OSS')}
+                  />
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 12 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.endpoint']"
+                        label={t('OSS Endpoint')}
+                        placeholder='oss-cn-hangzhou.aliyuncs.com'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.bucket']"
+                        label={t('Bucket 名称')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.access_key_id']"
+                        label={t('AccessKey ID')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.access_key_secret']"
+                        label={t('AccessKey Secret')}
+                        type='password'
+                        placeholder={t('敏感信息不会发送到前端显示')}
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.prefix']"
+                        label={t('对象键前缀')}
+                        placeholder='files/'
+                      />
+                    </Col>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field="['storage_setting.public_base_url']"
+                        label={t('对外访问域名（可选）')}
+                        placeholder='https://cdn.example.com'
+                        extraText={t('留空则使用 Bucket 默认域名')}
+                      />
+                    </Col>
+                  </Row>
+                  <Form.Switch
+                    field="['storage_setting.public_read']"
+                    label={t('OSS 对象公共读')}
+                  />
+                  <div style={{ marginTop: 12 }}>
+                    <Button onClick={submitStorageSetting}>
+                      {t('保存文件存储设置')}
+                    </Button>
+                  </div>
                 </Form.Section>
               </Card>
 

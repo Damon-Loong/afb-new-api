@@ -66,11 +66,25 @@ func SetRelayRouter(router *gin.Engine) {
 	{
 		playgroundRouter.POST("/chat/completions", controller.Playground)
 	}
+	// 文件内容公开读取（vision / 上游拉取图片），凭不可猜测的 file ID，无需 API Token
+	apiFilePublicRouter := router.Group("/v1")
+	apiFilePublicRouter.Use(middleware.RouteTag("relay"))
+	apiFilePublicRouter.Use(middleware.SystemPerformanceCheck())
+	apiFilePublicRouter.GET("/files/:id/content", controller.GetFileContentPublic)
+
 	relayV1Router := router.Group("/v1")
 	relayV1Router.Use(middleware.RouteTag("relay"))
 	relayV1Router.Use(middleware.SystemPerformanceCheck())
 	relayV1Router.Use(middleware.TokenAuth())
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
+	{
+		// OpenAI 文件 API：本地/OSS 存储，与 /api/market/uploads 同类，不走渠道分发（无需 model）
+		relayV1Router.GET("/files", controller.ListFiles)
+		relayV1Router.POST("/files", controller.CreateFile)
+		relayV1Router.DELETE("/files/:id", controller.DeleteFile)
+		relayV1Router.GET("/files/:id", controller.RetrieveFile)
+		// GET /files/:id/content 见上方 apiFilePublicRouter（无需 Token）
+	}
 	{
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")
@@ -152,11 +166,6 @@ func SetRelayRouter(router *gin.Engine) {
 
 		// not implemented
 		httpRouter.POST("/images/variations", controller.RelayNotImplemented)
-		httpRouter.GET("/files", controller.RelayNotImplemented)
-		httpRouter.POST("/files", controller.RelayNotImplemented)
-		httpRouter.DELETE("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id", controller.RelayNotImplemented)
-		httpRouter.GET("/files/:id/content", controller.RelayNotImplemented)
 		httpRouter.POST("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes", controller.RelayNotImplemented)
 		httpRouter.GET("/fine-tunes/:id", controller.RelayNotImplemented)
