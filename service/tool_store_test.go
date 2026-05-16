@@ -211,3 +211,119 @@ func TestDownloadToolExcludesSecretsAndIncrementsCount(t *testing.T) {
 		t.Fatalf("detail should be json serializable: %v", err)
 	}
 }
+
+func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
+	root := setupToolStoreTest(t)
+
+	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
+		Publish:        true,
+		CreatedBy:      18,
+		AuthType:       "api_key",
+		APIKeyLocation: "header",
+		APIKeyName:     "X-Old-Key",
+		APIKeyValue:    "old-secret",
+	})
+	if err != nil {
+		t.Fatalf("upload failed: %v", err)
+	}
+
+	updated, err := UpdateToolConfig(detail.ID, ToolUpdateConfigOptions{
+		UserID:         18,
+		Name:           "Weather Tool Updated",
+		Description:    "updated description",
+		ServerURL:      "https://weather.example.com",
+		Category:       "business",
+		Visibility:     "private",
+		AuthType:       "api_key",
+		APIKeyLocation: "query",
+		APIKeyName:     "token",
+		APIKeyValue:    "new-secret",
+		CommonHeaders:  []ToolHeader{{Name: "User-Agent", Value: "Coze/1.0"}},
+	})
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if updated.Name != "Weather Tool Updated" || updated.AuthType != "api_key" || updated.APIKeyLocation != "query" || updated.APIKeyName != "token" {
+		t.Fatalf("unexpected updated detail: %+v", updated)
+	}
+	if len(updated.CommonHeaders) != 1 || updated.CommonHeaders[0].Name != "User-Agent" {
+		t.Fatalf("unexpected headers: %+v", updated.CommonHeaders)
+	}
+	var secret map[string]string
+	if err := readJSON(filepath.Join(root, "data", "tool-secrets", detail.ID+".json"), &secret); err != nil {
+		t.Fatalf("read secret failed: %v", err)
+	}
+	if secret["api_key_value"] != "new-secret" || secret["api_key_name"] != "token" || secret["api_key_location"] != "query" {
+		t.Fatalf("unexpected secret: %+v", secret)
+	}
+
+	_, err = UpdateToolConfig(detail.ID, ToolUpdateConfigOptions{
+		UserID:      19,
+		Name:        "Nope",
+		Description: "updated description",
+		ServerURL:   "https://weather.example.com",
+	})
+	var appErr *ToolAppError
+	if !errors.As(err, &appErr) || appErr.Code != "permission_denied" {
+		t.Fatalf("expected permission denied, got %#v", err)
+	}
+}
+
+func TestUpdateToolActionConfigUpdatesActionAndOpenAPI(t *testing.T) {
+	setupToolStoreTest(t)
+
+	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
+		Publish:   true,
+		CreatedBy: 18,
+	})
+	if err != nil {
+		t.Fatalf("upload failed: %v", err)
+	}
+
+	inputSchema := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"city": map[string]any{
+				"type":         "string",
+				"description":  "city name",
+				"x-openapi-in": "query",
+			},
+		},
+		"required": []any{"city"},
+	}
+	updated, err := UpdateToolActionConfig(detail.ID, "getWeather", ToolActionUpdateConfigOptions{
+		UserID:      18,
+		DisplayName: "Get weather by city",
+		Description: "Get weather by city",
+		OperationID: "getWeatherByCity",
+		Method:      "POST",
+		Path:        "/weather/by-city",
+		InputSchema: inputSchema,
+		OutputSchema: map[string]any{
+			"type": "object",
+		},
+		Enabled:   true,
+		RiskLevel: "write",
+	})
+	if err != nil {
+		t.Fatalf("update action failed: %v", err)
+	}
+	if len(updated.Actions) != 1 {
+		t.Fatalf("expected one action, got %+v", updated.Actions)
+	}
+	action := updated.Actions[0]
+	if action.OperationID != "getWeatherByCity" || action.Name != "getWeatherByCity" || action.Method != "POST" || action.Path != "/weather/by-city" {
+		t.Fatalf("unexpected action: %+v", action)
+	}
+
+	var openAPI map[string]any
+	if err := readJSON(filepath.Join(toolDir(detail.ID), "openapi.json"), &openAPI); err != nil {
+		t.Fatalf("read openapi failed: %v", err)
+	}
+	paths, _ := openAPI["paths"].(map[string]any)
+	pathItem, _ := paths["/weather/by-city"].(map[string]any)
+	operation, _ := pathItem["post"].(map[string]any)
+	if operation["operationId"] != "getWeatherByCity" {
+		t.Fatalf("openapi not synced: %+v", operation)
+	}
+}

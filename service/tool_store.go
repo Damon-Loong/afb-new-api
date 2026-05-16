@@ -54,6 +54,7 @@ type ToolSummary struct {
 	CreatedAt     int64  `json:"created_at"`
 	UpdatedAt     int64  `json:"updated_at"`
 	DownloadCount int64  `json:"download_count"`
+	CreatedBy     int    `json:"created_by,omitempty"`
 }
 
 type ToolDetail struct {
@@ -66,6 +67,13 @@ type ToolDetail struct {
 	Visibility     string              `json:"visibility,omitempty"`
 	APIKeyLocation string              `json:"api_key_location,omitempty"`
 	APIKeyName     string              `json:"api_key_name,omitempty"`
+	CommonHeaders  []ToolHeader        `json:"common_headers,omitempty"`
+	CanEdit        bool                `json:"can_edit,omitempty"`
+}
+
+type ToolHeader struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 type ToolAction struct {
@@ -118,6 +126,37 @@ type ToolUploadOptions struct {
 	APIKeyLocation string
 	APIKeyName     string
 	APIKeyValue    string
+	CreatedBy      int
+	CommonHeaders  []ToolHeader
+}
+
+type ToolUpdateConfigOptions struct {
+	UserID         int
+	IsAdmin        bool
+	Name           string
+	Description    string
+	ServerURL      string
+	Category       string
+	Visibility     string
+	AuthType       string
+	APIKeyLocation string
+	APIKeyName     string
+	APIKeyValue    string
+	CommonHeaders  []ToolHeader
+}
+
+type ToolActionUpdateConfigOptions struct {
+	UserID       int
+	IsAdmin      bool
+	DisplayName  string
+	Description  string
+	OperationID  string
+	Method       string
+	Path         string
+	InputSchema  map[string]any
+	OutputSchema any
+	Enabled      bool
+	RiskLevel    string
 }
 
 func ListTools(keyword string) (ToolIndex, error) {
@@ -216,10 +255,7 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 		status = "draft"
 	}
 	authType := normalizeAuthType(opts.AuthType)
-	visibility := strings.TrimSpace(opts.Visibility)
-	if visibility == "" {
-		visibility = "public"
-	}
+	visibility := normalizeVisibility(opts.Visibility)
 	for i := range parsed.Actions {
 		parsed.Actions[i].ToolID = toolID
 		parsed.Actions[i].ID = "action_" + parsed.Actions[i].Name
@@ -239,6 +275,7 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 			CreatedAt:     now,
 			UpdatedAt:     now,
 			DownloadCount: 0,
+			CreatedBy:     opts.CreatedBy,
 		},
 		OpenAPIVersion: parsed.OpenAPIVersion,
 		SourceFormat:   parsed.SourceFormat,
@@ -248,6 +285,7 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 		Visibility:     visibility,
 		APIKeyLocation: normalizeAPIKeyLocation(opts.APIKeyLocation),
 		APIKeyName:     strings.TrimSpace(opts.APIKeyName),
+		CommonHeaders:  normalizeToolHeaders(opts.CommonHeaders),
 	}
 	if err := persistTool(detail, parsed); err != nil {
 		return ToolDetail{}, err
@@ -261,6 +299,166 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 	sortTools(index.Tools)
 	index.UpdatedAt = now
 	if err := writeToolIndex(index); err != nil {
+		return ToolDetail{}, err
+	}
+	return detail, nil
+}
+
+func UpdateToolConfig(toolID string, opts ToolUpdateConfigOptions) (ToolDetail, error) {
+	toolID = sanitizeID(toolID)
+	if toolID == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具 ID 无效")
+	}
+	detail, err := GetToolDetail(toolID)
+	if err != nil {
+		return ToolDetail{}, err
+	}
+	if !canEditTool(detail, opts.UserID, opts.IsAdmin) {
+		return ToolDetail{}, NewToolAppError("permission_denied", "只能编辑自己发布的工具")
+	}
+	name := strings.TrimSpace(opts.Name)
+	if name == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具名称不能为空")
+	}
+	description := strings.TrimSpace(opts.Description)
+	if description == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具描述不能为空")
+	}
+	serverURL := strings.TrimSpace(opts.ServerURL)
+	if err := validateToolServerURL(serverURL); err != nil {
+		return ToolDetail{}, err
+	}
+	authType := normalizeAuthType(opts.AuthType)
+	apiKeyLocation := normalizeAPIKeyLocation(opts.APIKeyLocation)
+	apiKeyName := strings.TrimSpace(opts.APIKeyName)
+	if authType == "api_key" && apiKeyName == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "API Key 参数名不能为空")
+	}
+	now := time.Now().Unix()
+	detail.Name = name
+	detail.Description = description
+	detail.ServerURL = serverURL
+	detail.Category = strings.TrimSpace(opts.Category)
+	detail.Visibility = normalizeVisibility(opts.Visibility)
+	detail.AuthType = authType
+	detail.APIKeyLocation = apiKeyLocation
+	detail.APIKeyName = apiKeyName
+	detail.CommonHeaders = normalizeToolHeaders(opts.CommonHeaders)
+	detail.UpdatedAt = now
+
+	if authType == "api_key" {
+		if strings.TrimSpace(opts.APIKeyValue) != "" {
+			if err := persistToolSecret(toolID, apiKeyLocation, apiKeyName, opts.APIKeyValue); err != nil {
+				return ToolDetail{}, err
+			}
+		}
+	} else {
+		_ = os.Remove(filepath.Join(toolSecretDir(), toolID+".json"))
+		detail.APIKeyLocation = ""
+		detail.APIKeyName = ""
+	}
+
+	if err := writeJSON(filepath.Join(toolDir(toolID), "tool.json"), detail); err != nil {
+		return ToolDetail{}, err
+	}
+	if err := updateToolIndexSummary(detail.ToolSummary); err != nil {
+		return ToolDetail{}, err
+	}
+	return detail, nil
+}
+
+func UpdateToolActionConfig(toolID string, actionID string, opts ToolActionUpdateConfigOptions) (ToolDetail, error) {
+	toolID = sanitizeID(toolID)
+	actionID = strings.TrimSpace(actionID)
+	if toolID == "" || actionID == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具或函数 ID 无效")
+	}
+	detail, err := GetToolDetail(toolID)
+	if err != nil {
+		return ToolDetail{}, err
+	}
+	if !canEditTool(detail, opts.UserID, opts.IsAdmin) {
+		return ToolDetail{}, NewToolAppError("permission_denied", "只能编辑自己发布的工具")
+	}
+	actionIndex := -1
+	for i, action := range detail.Actions {
+		if action.ID == actionID || action.OperationID == actionID || action.Name == actionID {
+			actionIndex = i
+			break
+		}
+	}
+	if actionIndex < 0 {
+		return ToolDetail{}, NewToolAppError("tool_action_not_found", "工具函数不存在")
+	}
+
+	displayName := strings.TrimSpace(opts.DisplayName)
+	if displayName == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "函数名称不能为空")
+	}
+	description := strings.TrimSpace(opts.Description)
+	if description == "" {
+		description = displayName
+	}
+	operationID := strings.TrimSpace(opts.OperationID)
+	if operationID == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "operationId 不能为空")
+	}
+	functionName := normalizeFunctionName(operationID)
+	if functionName == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "operationId 无法转换为可用 function name")
+	}
+	method := normalizeToolActionMethod(opts.Method)
+	if method == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "HTTP Method 无效")
+	}
+	actionPath := strings.TrimSpace(opts.Path)
+	if !strings.HasPrefix(actionPath, "/") {
+		return ToolDetail{}, NewToolAppError("invalid_request", "请求路径必须以 / 开头")
+	}
+	inputSchema := normalizeToolActionInputSchema(opts.InputSchema)
+	outputSchema := opts.OutputSchema
+	if outputSchema == nil {
+		outputSchema = detail.Actions[actionIndex].OutputSchema
+	}
+
+	for i, action := range detail.Actions {
+		if i == actionIndex {
+			continue
+		}
+		if action.OperationID == operationID || action.Name == functionName {
+			return ToolDetail{}, NewToolAppError("tool_name_conflict", "同一工具内 operationId/function name 不允许重复")
+		}
+		if strings.EqualFold(action.Method, method) && action.Path == actionPath {
+			return ToolDetail{}, NewToolAppError("tool_name_conflict", "同一工具内 Method + Path 不允许重复")
+		}
+	}
+
+	oldAction := detail.Actions[actionIndex]
+	nextAction := oldAction
+	nextAction.DisplayName = displayName
+	nextAction.Description = description
+	nextAction.OperationID = operationID
+	nextAction.Name = functionName
+	nextAction.Method = method
+	nextAction.Path = actionPath
+	nextAction.InputSchema = inputSchema
+	nextAction.OutputSchema = outputSchema
+	nextAction.Enabled = opts.Enabled
+	nextAction.RiskLevel = normalizeRiskLevel(opts.RiskLevel, method)
+	detail.Actions[actionIndex] = nextAction
+	detail.UpdatedAt = time.Now().Unix()
+	detail.ToolSummary.UpdatedAt = detail.UpdatedAt
+
+	if err := writeJSON(filepath.Join(toolDir(toolID), "actions.json"), detail.Actions); err != nil {
+		return ToolDetail{}, err
+	}
+	if err := writeJSON(filepath.Join(toolDir(toolID), "tool.json"), detail); err != nil {
+		return ToolDetail{}, err
+	}
+	if err := syncToolActionToOpenAPI(toolID, oldAction, nextAction); err != nil {
+		return ToolDetail{}, err
+	}
+	if err := updateToolIndexSummary(detail.ToolSummary); err != nil {
 		return ToolDetail{}, err
 	}
 	return detail, nil
@@ -436,6 +634,52 @@ func incrementDownloadCount(toolID string) error {
 		return err
 	}
 	return writeToolIndex(index)
+}
+
+func updateToolIndexSummary(summary ToolSummary) error {
+	index, err := readToolIndex()
+	if err != nil {
+		return err
+	}
+	found := false
+	for i := range index.Tools {
+		if index.Tools[i].ID == summary.ID {
+			index.Tools[i] = summary
+			found = true
+			break
+		}
+	}
+	if !found {
+		index.Tools = append(index.Tools, summary)
+	}
+	index.UpdatedAt = summary.UpdatedAt
+	sortTools(index.Tools)
+	return writeToolIndex(index)
+}
+
+func CanEditTool(detail ToolDetail, userID int, isAdmin bool) bool {
+	return canEditTool(detail, userID, isAdmin)
+}
+
+func canEditTool(detail ToolDetail, userID int, isAdmin bool) bool {
+	if isAdmin {
+		return true
+	}
+	if userID <= 0 {
+		return false
+	}
+	return detail.CreatedBy == 0 || detail.CreatedBy == userID
+}
+
+func validateToolServerURL(value string) error {
+	parsed, err := url.Parse(strings.TrimSpace(value))
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return NewToolAppError("invalid_request", "工具 URL 无效")
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return NewToolAppError("invalid_request", "工具 URL 仅支持 http/https")
+	}
+	return nil
 }
 
 func validateAndBuildTool(openapi map[string]any) (ToolParseResult, error) {
@@ -923,6 +1167,218 @@ func normalizeAPIKeyLocation(value string) string {
 		return "query"
 	}
 	return "header"
+}
+
+func normalizeVisibility(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "private" {
+		return "private"
+	}
+	return "public"
+}
+
+func normalizeToolHeaders(headers []ToolHeader) []ToolHeader {
+	normalized := make([]ToolHeader, 0, len(headers))
+	seen := map[string]bool{}
+	for _, header := range headers {
+		name := strings.TrimSpace(header.Name)
+		value := strings.TrimSpace(header.Value)
+		if name == "" || value == "" {
+			continue
+		}
+		lowerName := strings.ToLower(name)
+		if seen[lowerName] || lowerName == "authorization" {
+			continue
+		}
+		seen[lowerName] = true
+		normalized = append(normalized, ToolHeader{Name: name, Value: value})
+	}
+	return normalized
+}
+
+func normalizeToolActionMethod(value string) string {
+	method := strings.ToUpper(strings.TrimSpace(value))
+	if supportedMethods[method] {
+		return method
+	}
+	return ""
+}
+
+func normalizeToolActionInputSchema(schema map[string]any) map[string]any {
+	if schema == nil {
+		return map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+			"required":   []any{},
+		}
+	}
+	normalized := cloneMap(schema)
+	if strings.TrimSpace(asString(normalized["type"])) == "" {
+		normalized["type"] = "object"
+	}
+	if _, ok := normalized["properties"].(map[string]any); !ok {
+		normalized["properties"] = map[string]any{}
+	}
+	if _, ok := normalized["required"].([]any); !ok {
+		if values, ok := normalized["required"].([]string); ok {
+			required := make([]any, 0, len(values))
+			for _, value := range values {
+				if strings.TrimSpace(value) != "" {
+					required = append(required, strings.TrimSpace(value))
+				}
+			}
+			normalized["required"] = required
+		} else {
+			normalized["required"] = []any{}
+		}
+	}
+	return normalized
+}
+
+func normalizeRiskLevel(value string, method string) string {
+	switch strings.TrimSpace(value) {
+	case "read", "write", "dangerous":
+		return strings.TrimSpace(value)
+	default:
+		return riskLevel(method)
+	}
+}
+
+func syncToolActionToOpenAPI(toolID string, oldAction ToolAction, nextAction ToolAction) error {
+	openAPIPath := filepath.Join(toolDir(toolID), "openapi.json")
+	var openAPI map[string]any
+	if err := readJSON(openAPIPath, &openAPI); err != nil {
+		return nil
+	}
+	paths, ok := openAPI["paths"].(map[string]any)
+	if !ok {
+		paths = map[string]any{}
+		openAPI["paths"] = paths
+	}
+	oldPathItem, _ := paths[oldAction.Path].(map[string]any)
+	oldMethodKey := strings.ToLower(oldAction.Method)
+	nextMethodKey := strings.ToLower(nextAction.Method)
+	operation, _ := oldPathItem[oldMethodKey].(map[string]any)
+	if operation == nil {
+		operation = map[string]any{}
+	}
+	if oldPathItem != nil {
+		delete(oldPathItem, oldMethodKey)
+		if len(oldPathItem) == 0 {
+			delete(paths, oldAction.Path)
+		}
+	}
+	operation["operationId"] = nextAction.OperationID
+	operation["summary"] = nextAction.DisplayName
+	operation["description"] = nextAction.Description
+	operation["parameters"] = buildOpenAPIParametersFromInputSchema(nextAction.InputSchema)
+	if requestBody := buildOpenAPIRequestBodyFromInputSchema(nextAction.InputSchema); requestBody != nil {
+		operation["requestBody"] = requestBody
+	} else {
+		delete(operation, "requestBody")
+	}
+	if nextAction.OutputSchema != nil {
+		operation["responses"] = map[string]any{
+			"200": map[string]any{
+				"description": "OK",
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": nextAction.OutputSchema,
+					},
+				},
+			},
+		}
+	}
+	nextPathItem, _ := paths[nextAction.Path].(map[string]any)
+	if nextPathItem == nil {
+		nextPathItem = map[string]any{}
+		paths[nextAction.Path] = nextPathItem
+	}
+	nextPathItem[nextMethodKey] = operation
+	return writeJSON(openAPIPath, openAPI)
+}
+
+func buildOpenAPIParametersFromInputSchema(schema map[string]any) []any {
+	props, _ := schema["properties"].(map[string]any)
+	requiredNames := requiredNameSet(schema["required"])
+	parameters := make([]any, 0, len(props))
+	for name, rawProp := range props {
+		prop, _ := rawProp.(map[string]any)
+		location := strings.TrimSpace(asString(prop["x-openapi-in"]))
+		if location == "" || location == "body" {
+			continue
+		}
+		paramSchema := cloneMap(prop)
+		delete(paramSchema, "description")
+		delete(paramSchema, "x-openapi-in")
+		parameters = append(parameters, map[string]any{
+			"name":        name,
+			"in":          location,
+			"description": strings.TrimSpace(asString(prop["description"])),
+			"required":    requiredNames[name],
+			"schema":      paramSchema,
+		})
+	}
+	return parameters
+}
+
+func buildOpenAPIRequestBodyFromInputSchema(schema map[string]any) any {
+	props, _ := schema["properties"].(map[string]any)
+	bodyProps := map[string]any{}
+	requiredNames := requiredNameSet(schema["required"])
+	required := make([]any, 0)
+	for name, rawProp := range props {
+		prop, _ := rawProp.(map[string]any)
+		location := strings.TrimSpace(asString(prop["x-openapi-in"]))
+		if location != "" && location != "body" {
+			continue
+		}
+		bodyProp := cloneMap(prop)
+		delete(bodyProp, "x-openapi-in")
+		bodyProps[name] = bodyProp
+		if requiredNames[name] {
+			required = append(required, name)
+		}
+	}
+	if len(bodyProps) == 0 {
+		return nil
+	}
+	bodySchema := map[string]any{
+		"type":       "object",
+		"properties": bodyProps,
+	}
+	if len(required) > 0 {
+		bodySchema["required"] = required
+	}
+	return map[string]any{
+		"required": true,
+		"content": map[string]any{
+			"application/json": map[string]any{
+				"schema": bodySchema,
+			},
+		},
+	}
+}
+
+func requiredNameSet(value any) map[string]bool {
+	result := map[string]bool{}
+	switch values := value.(type) {
+	case []any:
+		for _, value := range values {
+			name := strings.TrimSpace(fmt.Sprint(value))
+			if name != "" {
+				result[name] = true
+			}
+		}
+	case []string:
+		for _, value := range values {
+			name := strings.TrimSpace(value)
+			if name != "" {
+				result[name] = true
+			}
+		}
+	}
+	return result
 }
 
 func riskLevel(method string) string {

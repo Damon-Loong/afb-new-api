@@ -270,6 +270,11 @@ func InitResources() error {
 		common.FatalLog("failed to initialize database: " + err.Error())
 		return err
 	}
+	err = model.InitToolDB()
+	if err != nil {
+		common.FatalLog("failed to initialize tool database: " + err.Error())
+		return err
+	}
 
 	model.CheckSetup()
 

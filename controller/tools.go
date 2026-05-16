@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
@@ -48,6 +49,7 @@ func GetTool(c *gin.Context) {
 		toolAPIError(c, err)
 		return
 	}
+	detail.CanEdit = service.CanEditTool(detail, c.GetInt("id"), c.GetInt("role") >= common.RoleAdminUser)
 	toolAPISuccess(c, detail)
 }
 
@@ -91,6 +93,7 @@ func UploadToolOpenAPI(c *gin.Context) {
 		APIKeyLocation: c.PostForm("api_key_location"),
 		APIKeyName:     c.PostForm("api_key_name"),
 		APIKeyValue:    c.PostForm("api_key_value"),
+		CreatedBy:      c.GetInt("id"),
 	}
 	detail, err := service.UploadTool(fileHeader.Filename, file, fileHeader.Size, opts)
 	if err != nil {
@@ -106,6 +109,82 @@ func UploadToolOpenAPI(c *gin.Context) {
 		"action_count":    detail.ActionCount,
 		"warnings":        detail.Warnings,
 	})
+}
+
+func UpdateToolConfig(c *gin.Context) {
+	var req struct {
+		Name           string               `json:"name"`
+		Description    string               `json:"description"`
+		ServerURL      string               `json:"server_url"`
+		Category       string               `json:"category"`
+		Visibility     string               `json:"visibility"`
+		AuthType       string               `json:"auth_type"`
+		APIKeyLocation string               `json:"api_key_location"`
+		APIKeyName     string               `json:"api_key_name"`
+		APIKeyValue    string               `json:"api_key_value"`
+		CommonHeaders  []service.ToolHeader `json:"common_headers"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		toolAPIError(c, service.NewToolAppError("invalid_request", "工具配置参数无效"))
+		return
+	}
+	detail, err := service.UpdateToolConfig(c.Param("tool_id"), service.ToolUpdateConfigOptions{
+		UserID:         c.GetInt("id"),
+		IsAdmin:        c.GetInt("role") >= common.RoleAdminUser,
+		Name:           req.Name,
+		Description:    req.Description,
+		ServerURL:      req.ServerURL,
+		Category:       req.Category,
+		Visibility:     req.Visibility,
+		AuthType:       req.AuthType,
+		APIKeyLocation: req.APIKeyLocation,
+		APIKeyName:     req.APIKeyName,
+		APIKeyValue:    req.APIKeyValue,
+		CommonHeaders:  req.CommonHeaders,
+	})
+	if err != nil {
+		toolAPIError(c, err)
+		return
+	}
+	detail.CanEdit = true
+	toolAPISuccess(c, detail)
+}
+
+func UpdateToolActionConfig(c *gin.Context) {
+	var req struct {
+		DisplayName  string         `json:"display_name"`
+		Description  string         `json:"description"`
+		OperationID  string         `json:"operation_id"`
+		Method       string         `json:"method"`
+		Path         string         `json:"path"`
+		InputSchema  map[string]any `json:"input_schema"`
+		OutputSchema any            `json:"output_schema"`
+		Enabled      bool           `json:"enabled"`
+		RiskLevel    string         `json:"risk_level"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		toolAPIError(c, service.NewToolAppError("invalid_request", "工具函数配置参数无效"))
+		return
+	}
+	detail, err := service.UpdateToolActionConfig(c.Param("tool_id"), c.Param("action_id"), service.ToolActionUpdateConfigOptions{
+		UserID:       c.GetInt("id"),
+		IsAdmin:      c.GetInt("role") >= common.RoleAdminUser,
+		DisplayName:  req.DisplayName,
+		Description:  req.Description,
+		OperationID:  req.OperationID,
+		Method:       req.Method,
+		Path:         req.Path,
+		InputSchema:  req.InputSchema,
+		OutputSchema: req.OutputSchema,
+		Enabled:      req.Enabled,
+		RiskLevel:    req.RiskLevel,
+	})
+	if err != nil {
+		toolAPIError(c, err)
+		return
+	}
+	detail.CanEdit = true
+	toolAPISuccess(c, detail)
 }
 
 func CheckToolName(c *gin.Context) {
