@@ -142,6 +142,35 @@ type ToolUploadOptions struct {
 	CommonHeaders  []ToolHeader
 }
 
+type ToolManualCreateOptions struct {
+	Name           string
+	Description    string
+	ServerURL      string
+	Category       string
+	Visibility     string
+	Publish        bool
+	AuthType       string
+	APIKeyLocation string
+	APIKeyName     string
+	APIKeyValue    string
+	CreatedBy      int
+	CommonHeaders  []ToolHeader
+	Action         ToolManualActionOptions
+	Actions        []ToolManualActionOptions
+}
+
+type ToolManualActionOptions struct {
+	DisplayName  string
+	Description  string
+	OperationID  string
+	Method       string
+	Path         string
+	InputSchema  map[string]any
+	OutputSchema any
+	Enabled      bool
+	RiskLevel    string
+}
+
 type ToolUpdateConfigOptions struct {
 	UserID         int
 	IsAdmin        bool
@@ -318,6 +347,173 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 		Visibility:     visibility,
 		APIKeyLocation: normalizeAPIKeyLocation(opts.APIKeyLocation),
 		APIKeyName:     strings.TrimSpace(opts.APIKeyName),
+		CommonHeaders:  normalizeToolHeaders(opts.CommonHeaders),
+	}
+	if err := persistTool(detail, parsed); err != nil {
+		return ToolDetail{}, err
+	}
+	if detail.AuthType == "api_key" && strings.TrimSpace(opts.APIKeyValue) != "" {
+		if err := persistToolSecret(toolID, detail.APIKeyLocation, detail.APIKeyName, opts.APIKeyValue); err != nil {
+			return ToolDetail{}, err
+		}
+	}
+	index.Tools = append(index.Tools, detail.ToolSummary)
+	sortTools(index.Tools)
+	index.UpdatedAt = now
+	if err := writeToolIndex(index); err != nil {
+		return ToolDetail{}, err
+	}
+	return detail, nil
+}
+
+func CreateManualTool(opts ToolManualCreateOptions) (ToolDetail, error) {
+	name := strings.TrimSpace(opts.Name)
+	if name == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具名称不能为空")
+	}
+	description := strings.TrimSpace(opts.Description)
+	if description == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "工具描述不能为空")
+	}
+	serverURL := strings.TrimSpace(opts.ServerURL)
+	if err := validateServerURL(serverURL); err != nil {
+		return ToolDetail{}, err
+	}
+	manualActions := opts.Actions
+	if len(manualActions) == 0 {
+		manualActions = []ToolManualActionOptions{opts.Action}
+	}
+	operationIDs := map[string]bool{}
+	functionNames := map[string]bool{}
+	methodPaths := map[string]bool{}
+	for i := range manualActions {
+		displayName := strings.TrimSpace(manualActions[i].DisplayName)
+		if displayName == "" {
+			return ToolDetail{}, NewToolAppError("invalid_request", "Action 名称不能为空")
+		}
+		actionDescription := strings.TrimSpace(manualActions[i].Description)
+		if actionDescription == "" {
+			actionDescription = displayName
+		}
+		operationID := strings.TrimSpace(manualActions[i].OperationID)
+		if operationID == "" {
+			operationID = displayName
+		}
+		functionName := normalizeFunctionName(operationID)
+		if functionName == "" {
+			return ToolDetail{}, NewToolAppError("invalid_request", "operationId 无法转换为可用 function name")
+		}
+		if operationIDs[operationID] || functionNames[functionName] {
+			return ToolDetail{}, NewToolAppError("tool_name_conflict", "同一工具内 operationId/function name 不允许重复")
+		}
+		method := normalizeToolActionMethod(manualActions[i].Method)
+		if method == "" {
+			return ToolDetail{}, NewToolAppError("invalid_request", "HTTP Method 无效")
+		}
+		actionPath := strings.TrimSpace(manualActions[i].Path)
+		if !strings.HasPrefix(actionPath, "/") {
+			return ToolDetail{}, NewToolAppError("invalid_request", "请求路径必须以 / 开头")
+		}
+		methodPathKey := method + " " + actionPath
+		if methodPaths[methodPathKey] {
+			return ToolDetail{}, NewToolAppError("tool_name_conflict", "同一工具内 Method + Path 不允许重复")
+		}
+		outputSchema := manualActions[i].OutputSchema
+		if outputSchema == nil {
+			outputSchema = map[string]any{"type": "object"}
+		}
+		manualActions[i].DisplayName = displayName
+		manualActions[i].Description = actionDescription
+		manualActions[i].OperationID = operationID
+		manualActions[i].Method = method
+		manualActions[i].Path = actionPath
+		manualActions[i].InputSchema = normalizeToolActionInputSchema(manualActions[i].InputSchema)
+		manualActions[i].OutputSchema = outputSchema
+		operationIDs[operationID] = true
+		functionNames[functionName] = true
+		methodPaths[methodPathKey] = true
+	}
+
+	index, err := readToolIndex()
+	if err != nil {
+		return ToolDetail{}, err
+	}
+	slug := slugify(name)
+	if slug == "" {
+		slug = "tool"
+	}
+	if hasToolConflict(index.Tools, name, slug) {
+		return ToolDetail{}, NewToolAppError("tool_name_conflict", "工具名称或 slug 已存在")
+	}
+	category, err := normalizeToolCategory(opts.Category)
+	if err != nil {
+		return ToolDetail{}, err
+	}
+	authType := normalizeAuthType(opts.AuthType)
+	apiKeyLocation := normalizeAPIKeyLocation(opts.APIKeyLocation)
+	apiKeyName := strings.TrimSpace(opts.APIKeyName)
+	if authType == "api_key" && apiKeyName == "" {
+		return ToolDetail{}, NewToolAppError("invalid_request", "API Key 参数名不能为空")
+	}
+
+	openAPI := buildManualOpenAPI(name, description, serverURL, manualActions)
+	parsed, err := validateAndBuildTool(openAPI)
+	if err != nil {
+		return ToolDetail{}, err
+	}
+	raw, err := json.MarshalIndent(openAPI, "", "  ")
+	if err != nil {
+		return ToolDetail{}, NewToolAppError("storage_write_failed", "序列化工具数据失败")
+	}
+	parsed.SourceFormat = "json"
+	parsed.SourceExt = ".json"
+	parsed.Raw = raw
+	parsed.OpenAPI = openAPI
+
+	now := time.Now().Unix()
+	toolID := "tool_" + slug + "_" + randomHex(4)
+	status := "published"
+	if !opts.Publish {
+		status = "draft"
+	}
+	for i := range parsed.Actions {
+		parsed.Actions[i].ToolID = toolID
+		parsed.Actions[i].ID = "action_" + parsed.Actions[i].Name
+		for _, manualAction := range manualActions {
+			if parsed.Actions[i].OperationID == manualAction.OperationID {
+				parsed.Actions[i].Enabled = manualAction.Enabled
+				parsed.Actions[i].RiskLevel = normalizeRiskLevel(manualAction.RiskLevel, manualAction.Method)
+				break
+			}
+		}
+	}
+	detail := ToolDetail{
+		ToolSummary: ToolSummary{
+			ID:            toolID,
+			Slug:          slug,
+			Name:          parsed.Name,
+			Description:   parsed.Description,
+			Version:       parsed.Version,
+			Type:          "openapi",
+			AuthType:      authType,
+			ServerURL:     parsed.ServerURL,
+			ActionCount:   len(parsed.Actions),
+			Status:        status,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+			DownloadCount: 0,
+			CreatedBy:     opts.CreatedBy,
+			Category:      category,
+			Visibility:    normalizeVisibility(opts.Visibility),
+		},
+		OpenAPIVersion: parsed.OpenAPIVersion,
+		SourceFormat:   parsed.SourceFormat,
+		Actions:        parsed.Actions,
+		Warnings:       parsed.Warnings,
+		Category:       category,
+		Visibility:     normalizeVisibility(opts.Visibility),
+		APIKeyLocation: apiKeyLocation,
+		APIKeyName:     apiKeyName,
 		CommonHeaders:  normalizeToolHeaders(opts.CommonHeaders),
 	}
 	if err := persistTool(detail, parsed); err != nil {
@@ -1342,6 +1538,54 @@ func normalizeRiskLevel(value string, method string) string {
 		return strings.TrimSpace(value)
 	default:
 		return riskLevel(method)
+	}
+}
+
+func buildManualOpenAPI(
+	name string,
+	description string,
+	serverURL string,
+	actions []ToolManualActionOptions,
+) map[string]any {
+	paths := map[string]any{}
+	for _, action := range actions {
+		operation := map[string]any{
+			"operationId": action.OperationID,
+			"summary":     action.DisplayName,
+			"description": action.Description,
+			"parameters":  buildOpenAPIParametersFromInputSchema(action.InputSchema),
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "OK",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": action.OutputSchema,
+						},
+					},
+				},
+			},
+		}
+		if requestBody := buildOpenAPIRequestBodyFromInputSchema(action.InputSchema); requestBody != nil {
+			operation["requestBody"] = requestBody
+		}
+		pathItem, _ := paths[action.Path].(map[string]any)
+		if pathItem == nil {
+			pathItem = map[string]any{}
+			paths[action.Path] = pathItem
+		}
+		pathItem[strings.ToLower(action.Method)] = operation
+	}
+	return map[string]any{
+		"openapi": "3.0.3",
+		"info": map[string]any{
+			"title":       name,
+			"description": description,
+			"version":     "1.0.0",
+		},
+		"servers": []any{
+			map[string]any{"url": serverURL},
+		},
+		"paths": paths,
 	}
 }
 

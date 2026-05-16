@@ -64,6 +64,7 @@ func SetApiRouter(router *gin.Engine) {
 			toolsRoute.GET("/", controller.GetTools)
 			toolsRoute.POST("/parse", controller.ParseToolOpenAPI)
 			toolsRoute.POST("/upload", middleware.UserAuth(), controller.UploadToolOpenAPI)
+			toolsRoute.POST("/manual", middleware.UserAuth(), controller.CreateManualTool)
 			toolsRoute.GET("/check-name", controller.CheckToolName)
 			toolsRoute.POST("/:tool_id/install", middleware.UserAuth(), controller.InstallTool)
 			toolsRoute.DELETE("/:tool_id/install", middleware.UserAuth(), controller.UninstallTool)

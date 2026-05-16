@@ -176,6 +176,103 @@ func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
 	}
 }
 
+func TestCreateManualToolBuildsOpenAPIAndPersistsIndex(t *testing.T) {
+	root := setupToolStoreTest(t)
+
+	detail, err := CreateManualTool(ToolManualCreateOptions{
+		Name:        "Manual Weather",
+		Description: "manually created weather tool",
+		ServerURL:   "https://api.example.com",
+		Category:    "工具",
+		Visibility:  "public",
+		Publish:     true,
+		CreatedBy:   18,
+		Actions: []ToolManualActionOptions{
+			{
+				DisplayName: "Get weather",
+				Description: "Get weather by city",
+				OperationID: "getWeather",
+				Method:      "GET",
+				Path:        "/weather",
+				Enabled:     true,
+				InputSchema: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"city": map[string]any{
+							"type":         "string",
+							"x-openapi-in": "query",
+						},
+					},
+					"required": []any{"city"},
+				},
+				OutputSchema: map[string]any{"type": "object"},
+			},
+			{
+				DisplayName:  "Create weather alert",
+				Description:  "Create a weather alert",
+				OperationID:  "createWeatherAlert",
+				Method:       "POST",
+				Path:         "/weather/alerts",
+				Enabled:      true,
+				InputSchema:  map[string]any{"type": "object", "properties": map[string]any{}},
+				OutputSchema: map[string]any{"type": "object"},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("manual create failed: %v", err)
+	}
+	if detail.ID == "" || detail.ActionCount != 2 || detail.CreatedBy != 18 {
+		t.Fatalf("unexpected detail: %+v", detail)
+	}
+	for _, name := range []string{"tool.json", "openapi.json", "actions.json", "source.openapi.json"} {
+		if _, err := os.Stat(filepath.Join(root, "data", "tools", detail.ID, name)); err != nil {
+			t.Fatalf("expected %s to be persisted: %v", name, err)
+		}
+	}
+	var openAPI map[string]any
+	if err := readJSON(filepath.Join(root, "data", "tools", detail.ID, "openapi.json"), &openAPI); err != nil {
+		t.Fatalf("read openapi failed: %v", err)
+	}
+	paths, _ := openAPI["paths"].(map[string]any)
+	pathItem, _ := paths["/weather"].(map[string]any)
+	operation, _ := pathItem["get"].(map[string]any)
+	if operation["operationId"] != "getWeather" {
+		t.Fatalf("manual openapi not built: %+v", operation)
+	}
+	alertPathItem, _ := paths["/weather/alerts"].(map[string]any)
+	alertOperation, _ := alertPathItem["post"].(map[string]any)
+	if alertOperation["operationId"] != "createWeatherAlert" {
+		t.Fatalf("second manual openapi action not built: %+v", alertOperation)
+	}
+	toolIndex, err := ListTools("", "工具")
+	if err != nil {
+		t.Fatalf("list by category failed: %v", err)
+	}
+	if len(toolIndex.Tools) != 1 || toolIndex.Tools[0].ID != detail.ID {
+		t.Fatalf("expected manual tool in category result, got %+v", toolIndex.Tools)
+	}
+
+	_, err = CreateManualTool(ToolManualCreateOptions{
+		Name:        "Bad Category",
+		Description: "bad category tool",
+		ServerURL:   "https://api.example.com",
+		Category:    "other",
+		Publish:     true,
+		Action: ToolManualActionOptions{
+			DisplayName: "Run",
+			OperationID: "run",
+			Method:      "GET",
+			Path:        "/run",
+			Enabled:     true,
+		},
+	})
+	var appErr *ToolAppError
+	if !errors.As(err, &appErr) || appErr.Code != "invalid_request" {
+		t.Fatalf("expected invalid category, got %#v", err)
+	}
+}
+
 func TestDownloadToolExcludesSecretsAndIncrementsCount(t *testing.T) {
 	setupToolStoreTest(t)
 

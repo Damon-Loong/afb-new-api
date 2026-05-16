@@ -49,6 +49,7 @@ func setupToolControllerRouter(t *testing.T) *gin.Engine {
 	tools.GET("", GetTools)
 	tools.POST("/parse", ParseToolOpenAPI)
 	tools.POST("/upload", UploadToolOpenAPI)
+	tools.POST("/manual", CreateManualTool)
 	tools.GET("/check-name", CheckToolName)
 	tools.GET("/:tool_id/download", DownloadTool)
 	tools.GET("/:tool_id", GetTool)
@@ -159,5 +160,71 @@ func TestToolControllerRejectsDuplicateName(t *testing.T) {
 		if i == 1 && (response.Success || response.Code != "tool_name_conflict") {
 			t.Fatalf("expected duplicate name rejection, got %+v", response)
 		}
+	}
+}
+
+func TestToolControllerManualCreate(t *testing.T) {
+	router := setupToolControllerRouter(t)
+	payload := map[string]any{
+		"name":        "Manual Weather",
+		"description": "manually created weather tool",
+		"server_url":  "https://api.example.com",
+		"category":    "工具",
+		"visibility":  "public",
+		"publish":     true,
+		"auth_type":   "none",
+		"actions": []any{
+			map[string]any{
+				"display_name": "Get weather",
+				"description":  "Get weather by city",
+				"operation_id": "getWeather",
+				"method":       "GET",
+				"path":         "/weather",
+				"enabled":      true,
+				"input_schema": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"city": map[string]any{
+							"type":         "string",
+							"x-openapi-in": "query",
+						},
+					},
+					"required": []any{"city"},
+				},
+				"output_schema": map[string]any{"type": "object"},
+			},
+			map[string]any{
+				"display_name":  "Create alert",
+				"description":   "Create weather alert",
+				"operation_id":  "createAlert",
+				"method":        "POST",
+				"path":          "/weather/alerts",
+				"enabled":       true,
+				"input_schema":  map[string]any{"type": "object", "properties": map[string]any{}},
+				"output_schema": map[string]any{"type": "object"},
+			},
+		},
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload failed: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/tools/manual", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(recorder, req)
+	response := decodeToolControllerResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("manual create failed: %+v", response)
+	}
+	var data struct {
+		ID          string `json:"id"`
+		ActionCount int    `json:"action_count"`
+	}
+	if err := json.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("decode manual create data failed: %v", err)
+	}
+	if data.ID == "" || data.ActionCount != 2 {
+		t.Fatalf("unexpected manual create data: %+v", data)
 	}
 }
