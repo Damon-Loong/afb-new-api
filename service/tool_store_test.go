@@ -133,7 +133,7 @@ func TestParseOpenAPIValidationFailures(t *testing.T) {
 func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
 	root := setupToolStoreTest(t)
 
-	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true})
+	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true, Category: "工具"})
 	if err != nil {
 		t.Fatalf("upload failed: %v", err)
 	}
@@ -145,14 +145,31 @@ func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
 			t.Fatalf("expected %s to be persisted: %v", name, err)
 		}
 	}
-	index, err := ListTools("")
+	index, err := ListTools("", "")
 	if err != nil {
 		t.Fatalf("list failed: %v", err)
 	}
 	if len(index.Tools) != 1 || index.Tools[0].Name != "Weather Tool" {
 		t.Fatalf("unexpected index: %+v", index)
 	}
-	_, err = UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true})
+	if index.Tools[0].Category != "工具" {
+		t.Fatalf("expected category to be persisted, got %+v", index.Tools[0])
+	}
+	businessIndex, err := ListTools("", "商业")
+	if err != nil {
+		t.Fatalf("list by business failed: %v", err)
+	}
+	if len(businessIndex.Tools) != 0 {
+		t.Fatalf("expected no business tools, got %+v", businessIndex.Tools)
+	}
+	toolIndex, err := ListTools("", "工具")
+	if err != nil {
+		t.Fatalf("list by tool category failed: %v", err)
+	}
+	if len(toolIndex.Tools) != 1 || toolIndex.Tools[0].ID != detail.ID {
+		t.Fatalf("expected tool category result, got %+v", toolIndex.Tools)
+	}
+	_, err = UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true, Category: "工具"})
 	var appErr *ToolAppError
 	if !errors.As(err, &appErr) || appErr.Code != "tool_name_conflict" {
 		t.Fatalf("expected name conflict, got %#v", err)
@@ -164,6 +181,7 @@ func TestDownloadToolExcludesSecretsAndIncrementsCount(t *testing.T) {
 
 	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
 		Publish:        true,
+		Category:       "工具",
 		AuthType:       "api_key",
 		APIKeyLocation: "header",
 		APIKeyName:     "X-API-Key",
@@ -217,6 +235,7 @@ func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
 
 	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
 		Publish:        true,
+		Category:       "工具",
 		CreatedBy:      18,
 		AuthType:       "api_key",
 		APIKeyLocation: "header",
@@ -232,7 +251,7 @@ func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
 		Name:           "Weather Tool Updated",
 		Description:    "updated description",
 		ServerURL:      "https://weather.example.com",
-		Category:       "business",
+		Category:       "商业",
 		Visibility:     "private",
 		AuthType:       "api_key",
 		APIKeyLocation: "query",
@@ -258,12 +277,24 @@ func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
 	}
 
 	_, err = UpdateToolConfig(detail.ID, ToolUpdateConfigOptions{
+		UserID:      18,
+		Name:        "Invalid Category",
+		Description: "updated description",
+		ServerURL:   "https://weather.example.com",
+		Category:    "other",
+	})
+	var appErr *ToolAppError
+	if !errors.As(err, &appErr) || appErr.Code != "invalid_request" {
+		t.Fatalf("expected invalid category, got %#v", err)
+	}
+
+	_, err = UpdateToolConfig(detail.ID, ToolUpdateConfigOptions{
 		UserID:      19,
 		Name:        "Nope",
 		Description: "updated description",
 		ServerURL:   "https://weather.example.com",
+		Category:    "工具",
 	})
-	var appErr *ToolAppError
 	if !errors.As(err, &appErr) || appErr.Code != "permission_denied" {
 		t.Fatalf("expected permission denied, got %#v", err)
 	}
@@ -274,6 +305,7 @@ func TestUpdateToolActionConfigUpdatesActionAndOpenAPI(t *testing.T) {
 
 	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
 		Publish:   true,
+		Category:  "工具",
 		CreatedBy: 18,
 	})
 	if err != nil {

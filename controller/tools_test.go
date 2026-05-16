@@ -66,6 +66,9 @@ func multipartRequest(t *testing.T, method string, path string, field string, fi
 	if _, err := io.WriteString(part, content); err != nil {
 		t.Fatalf("write form file failed: %v", err)
 	}
+	if err := writer.WriteField("category", "工具"); err != nil {
+		t.Fatalf("write category field failed: %v", err)
+	}
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close multipart failed: %v", err)
 	}

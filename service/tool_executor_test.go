@@ -26,6 +26,7 @@ func TestRunUserToolActionRecordsRun(t *testing.T) {
 	openAPI := strings.Replace(validOpenAPIJSON, "https://api.example.com", server.URL, 1)
 	detail, err := UploadTool("weather.json", strings.NewReader(openAPI), int64(len(openAPI)), ToolUploadOptions{
 		Publish:        true,
+		Category:       "工具",
 		AuthType:       "api_key",
 		APIKeyLocation: "header",
 		APIKeyName:     "X-Tool-Key",

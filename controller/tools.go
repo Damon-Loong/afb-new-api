@@ -35,7 +35,7 @@ func toolAPISuccess(c *gin.Context, data any) {
 }
 
 func GetTools(c *gin.Context) {
-	index, err := service.ListTools(c.Query("keyword"))
+	index, err := service.ListTools(c.Query("keyword"), c.Query("category"))
 	if err != nil {
 		toolAPIError(c, err)
 		return

@@ -35,7 +35,7 @@ func setupUserToolStoreTest(t *testing.T) {
 func TestInstallListAndUninstallUserTool(t *testing.T) {
 	setupUserToolStoreTest(t)
 
-	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true})
+	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true, Category: "工具"})
 	if err != nil {
 		t.Fatalf("upload failed: %v", err)
 	}

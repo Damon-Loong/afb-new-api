@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/model"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,6 +27,14 @@ const (
 	toolSecretDirEnv  = "TOOL_SECRET_DIR"
 	toolMaxUploadSize = 5 * 1024 * 1024
 )
+
+var supportedToolCategories = map[string]bool{
+	"商业": true,
+	"工具": true,
+	"开发": true,
+	"媒体": true,
+	"生活": true,
+}
 
 type ToolAppError struct {
 	Code    string
@@ -55,6 +64,9 @@ type ToolSummary struct {
 	UpdatedAt     int64  `json:"updated_at"`
 	DownloadCount int64  `json:"download_count"`
 	CreatedBy     int    `json:"created_by,omitempty"`
+	CreatedByName string `json:"created_by_name,omitempty"`
+	Category      string `json:"category,omitempty"`
+	Visibility    string `json:"visibility,omitempty"`
 }
 
 type ToolDetail struct {
@@ -159,23 +171,38 @@ type ToolActionUpdateConfigOptions struct {
 	RiskLevel    string
 }
 
-func ListTools(keyword string) (ToolIndex, error) {
+func ListTools(keyword string, category string) (ToolIndex, error) {
 	index, err := readToolIndex()
 	if err != nil {
 		return ToolIndex{}, err
 	}
 	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	if keyword == "" {
-		return index, nil
-	}
+	category = strings.ToLower(strings.TrimSpace(category))
 	filtered := make([]ToolSummary, 0, len(index.Tools))
-	for _, tool := range index.Tools {
-		haystack := strings.ToLower(tool.Name + " " + tool.Description)
-		if strings.Contains(haystack, keyword) {
-			filtered = append(filtered, tool)
+	indexChanged := false
+	for i, tool := range index.Tools {
+		hydrated := hydrateToolSummary(tool)
+		if hydrated != tool {
+			index.Tools[i] = hydrated
+			indexChanged = true
 		}
+		tool = hydrated
+		haystack := strings.ToLower(tool.Name + " " + tool.Description)
+		if keyword != "" && !strings.Contains(haystack, keyword) {
+			continue
+		}
+		if category != "" && strings.ToLower(strings.TrimSpace(tool.Category)) != category {
+			continue
+		}
+		filtered = append(filtered, tool)
+	}
+	if indexChanged {
+		index.UpdatedAt = time.Now().Unix()
+		sortTools(index.Tools)
+		_ = writeToolIndex(index)
 	}
 	index.Tools = filtered
+	enrichToolCreatorNames(index.Tools)
 	return index, nil
 }
 
@@ -256,6 +283,10 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 	}
 	authType := normalizeAuthType(opts.AuthType)
 	visibility := normalizeVisibility(opts.Visibility)
+	category, err := normalizeToolCategory(opts.Category)
+	if err != nil {
+		return ToolDetail{}, err
+	}
 	for i := range parsed.Actions {
 		parsed.Actions[i].ToolID = toolID
 		parsed.Actions[i].ID = "action_" + parsed.Actions[i].Name
@@ -276,12 +307,14 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 			UpdatedAt:     now,
 			DownloadCount: 0,
 			CreatedBy:     opts.CreatedBy,
+			Category:      category,
+			Visibility:    normalizeVisibility(opts.Visibility),
 		},
 		OpenAPIVersion: parsed.OpenAPIVersion,
 		SourceFormat:   parsed.SourceFormat,
 		Actions:        parsed.Actions,
 		Warnings:       parsed.Warnings,
-		Category:       strings.TrimSpace(opts.Category),
+		Category:       category,
 		Visibility:     visibility,
 		APIKeyLocation: normalizeAPIKeyLocation(opts.APIKeyLocation),
 		APIKeyName:     strings.TrimSpace(opts.APIKeyName),
@@ -334,12 +367,18 @@ func UpdateToolConfig(toolID string, opts ToolUpdateConfigOptions) (ToolDetail, 
 	if authType == "api_key" && apiKeyName == "" {
 		return ToolDetail{}, NewToolAppError("invalid_request", "API Key 参数名不能为空")
 	}
+	category, err := normalizeToolCategory(opts.Category)
+	if err != nil {
+		return ToolDetail{}, err
+	}
 	now := time.Now().Unix()
 	detail.Name = name
 	detail.Description = description
 	detail.ServerURL = serverURL
-	detail.Category = strings.TrimSpace(opts.Category)
+	detail.Category = category
 	detail.Visibility = normalizeVisibility(opts.Visibility)
+	detail.ToolSummary.Category = detail.Category
+	detail.ToolSummary.Visibility = detail.Visibility
 	detail.AuthType = authType
 	detail.APIKeyLocation = apiKeyLocation
 	detail.APIKeyName = apiKeyName
@@ -655,6 +694,60 @@ func updateToolIndexSummary(summary ToolSummary) error {
 	index.UpdatedAt = summary.UpdatedAt
 	sortTools(index.Tools)
 	return writeToolIndex(index)
+}
+
+func hydrateToolSummary(summary ToolSummary) ToolSummary {
+	if summary.Category != "" && summary.Visibility != "" {
+		return summary
+	}
+	var detail ToolDetail
+	if err := readJSON(filepath.Join(toolDir(summary.ID), "tool.json"), &detail); err != nil {
+		return summary
+	}
+	if detail.Category != "" {
+		summary.Category = detail.Category
+	}
+	if detail.Visibility != "" {
+		summary.Visibility = detail.Visibility
+	}
+	if detail.CreatedBy != 0 {
+		summary.CreatedBy = detail.CreatedBy
+	}
+	return summary
+}
+
+func enrichToolCreatorNames(tools []ToolSummary) {
+	if model.DB == nil {
+		return
+	}
+	ids := make([]int, 0)
+	seen := map[int]bool{}
+	for _, tool := range tools {
+		if tool.CreatedBy > 0 && !seen[tool.CreatedBy] {
+			seen[tool.CreatedBy] = true
+			ids = append(ids, tool.CreatedBy)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	var users []model.User
+	if err := model.DB.Select("id, username, display_name").Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return
+	}
+	names := map[int]string{}
+	for _, user := range users {
+		name := strings.TrimSpace(user.DisplayName)
+		if name == "" {
+			name = strings.TrimSpace(user.Username)
+		}
+		names[user.Id] = name
+	}
+	for i := range tools {
+		if name := names[tools[i].CreatedBy]; name != "" {
+			tools[i].CreatedByName = name
+		}
+	}
 }
 
 func CanEditTool(detail ToolDetail, userID int, isAdmin bool) bool {
@@ -1175,6 +1268,14 @@ func normalizeVisibility(value string) string {
 		return "private"
 	}
 	return "public"
+}
+
+func normalizeToolCategory(value string) (string, error) {
+	category := strings.TrimSpace(value)
+	if supportedToolCategories[category] {
+		return category, nil
+	}
+	return "", NewToolAppError("invalid_request", "工具分类必须是商业、工具、开发、媒体、生活之一")
 }
 
 func normalizeToolHeaders(headers []ToolHeader) []ToolHeader {
