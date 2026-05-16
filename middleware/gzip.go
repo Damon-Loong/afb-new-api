@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/andybalholm/brotli"
@@ -25,6 +26,12 @@ func (rc *readCloser) Close() error {
 func DecompressRequestMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if c.Request.Body == nil || c.Request.Method == http.MethodGet {
+			c.Next()
+			return
+		}
+		// multipart 由 FormFile 解析，勿提前包 MaxBytesReader（与 controller 内限制重复，且易导致代理上传断连）
+		if strings.HasPrefix(c.Request.URL.Path, "/v1/files") &&
+			strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
 			c.Next()
 			return
 		}

@@ -23,6 +23,7 @@ import (
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
+	_ "github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
@@ -275,6 +276,7 @@ func InitResources() error {
 
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
+	service.LogStorageInfo()
 
 	// 清理旧的磁盘缓存文件
 	common.CleanupOldCacheFiles()

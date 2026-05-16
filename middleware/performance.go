@@ -16,6 +16,11 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 		// 仅检查 Relay 接口 (/v1, /v1beta 等)
 		// 这里简单判断路径前缀，可以根据实际路由调整
 		path := c.Request.URL.Path
+		// OpenAI 文件存取走本地/OSS，与 /api/market/uploads 同类，不做 Relay 性能熔断
+		if strings.HasPrefix(path, "/v1/files") {
+			c.Next()
+			return
+		}
 		if strings.HasPrefix(path, "/v1/messages") {
 			if err := checkSystemPerformance(); err != nil {
 				c.JSON(err.StatusCode, gin.H{
