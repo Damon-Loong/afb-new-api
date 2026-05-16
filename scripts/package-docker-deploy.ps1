@@ -19,7 +19,7 @@ try {
     # /XD: exclude every directory with these names (any depth). Keeps Mopc-web-site sources & Docker files.
     # deploy-packages: never pack previous *.zip into the next zip (was causing runaway size)
     $excludeDirs = @(
-        ".git", ".github", "node_modules", "dist", "upload", "data", "logs",
+        ".git", ".github", "node_modules", "dist", "upload", "uploads", "data", "logs",
         "deploy-packages",
         "openclaw-afb",
         "backups", "docfile", "UIPic",
