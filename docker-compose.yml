@@ -35,6 +35,7 @@ services:
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
+      - GENERATE_DEFAULT_TOKEN=true  # 账号注册 / 手机验证码首次自动注册时创建初始 sk- API Key
       # 需求市场（即梦）活动同步：默认开启。启动 30 秒后执行首次同步，然后按间隔后台刷新
       - MARKET_JIMENG_SYNC_ENABLED=true
       - MARKET_JIMENG_SYNC_INTERVAL=6h

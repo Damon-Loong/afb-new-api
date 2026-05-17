@@ -189,6 +189,20 @@ func SMSLogin(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "登录失败，请稍后再试"})
 			return
 		}
+		if _, err2 = ensureUserAccessToken(u); err2 != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("sms auto register access token failed phone=%s err=%v", maskE164(e164), err2))
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "登录失败，请稍后再试"})
+			return
+		}
+		tokenName := u.DisplayName + "的初始令牌"
+		if tokenName == "的初始令牌" {
+			tokenName = u.Username + "的初始令牌"
+		}
+		if err2 = createDefaultApiTokenIfEnabled(u.Id, tokenName); err2 != nil {
+			logger.LogError(c.Request.Context(), fmt.Sprintf("sms auto register default token failed phone=%s err=%v", maskE164(e164), err2))
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "登录失败，请稍后再试"})
+			return
+		}
 		user = *u
 	}
 
