@@ -52,7 +52,7 @@ var volcPassthroughSkipRequestHeader = map[string]struct{}{
 	"authorization": {}, "host": {}, "content-length": {},
 	"connection": {}, "proxy-authenticate": {}, "proxy-authorization": {},
 	"te": {}, "trailer": {}, "transfer-encoding": {}, "upgrade": {},
-	"accept-encoding": {}, "cookie": {},
+	"accept-encoding": {}, "cookie": {}, "origin": {},
 }
 
 func volcCopyForwardableRequestHeaders(dst *http.Request, src *http.Request) {
@@ -74,7 +74,11 @@ var volcPassthroughSkipResponseHeader = map[string]struct{}{
 
 func volcWriteUpstreamResponse(c *gin.Context, resp *http.Response, body []byte) {
 	for k, vv := range resp.Header {
-		if _, skip := volcPassthroughSkipResponseHeader[strings.ToLower(k)]; skip {
+		lowerKey := strings.ToLower(k)
+		if _, skip := volcPassthroughSkipResponseHeader[lowerKey]; skip {
+			continue
+		}
+		if strings.HasPrefix(lowerKey, "access-control-") {
 			continue
 		}
 		for _, v := range vv {

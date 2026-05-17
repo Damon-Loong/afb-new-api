@@ -2,8 +2,15 @@
 .vscode
 .zed
 .history
-upload
+upload/
+uploads/
 *.exe
+*.msi
+*.msix
+*.appx
+*.appxbundle
+*.msixbundle
+*.cab
 *.db
 build
 *.db-journal
@@ -26,6 +33,7 @@ plans
 
 electron/node_modules
 electron/dist
+openclaw-afb/windows_installer_app/release/
 data/
 .gomodcache/
 .gocache-temp
