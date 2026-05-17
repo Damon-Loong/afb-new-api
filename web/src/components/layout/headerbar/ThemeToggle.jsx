@@ -65,6 +65,8 @@ const ThemeToggle = ({ theme, onThemeToggle, t }) => {
   return (
     <Dropdown
       position='bottomRight'
+      trigger='click'
+      clickTriggerToHide
       render={
         <Dropdown.Menu>
           {themeOptions.map((option) => (

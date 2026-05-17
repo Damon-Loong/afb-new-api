@@ -19,12 +19,12 @@ type ApiFile struct {
 	ID         int    `json:"-" gorm:"primaryKey;autoIncrement"`
 	FileID     string `json:"-" gorm:"column:file_id;type:varchar(64);uniqueIndex"`
 	UserID     int    `json:"-" gorm:"index"`
-	FileName   string `json:"filename" gorm:"type:varchar(255)"`
+	FileName   string `json:"filename" gorm:"column:filename;type:varchar(255)"`
 	Purpose    string `json:"purpose" gorm:"type:varchar(64);index"`
-	FileSize   int64  `json:"bytes"`
+	FileSize   int64  `json:"bytes" gorm:"column:bytes"`
 	MimeType   string `json:"-" gorm:"type:varchar(128)"`
 	Storage    string `json:"-" gorm:"type:varchar(16)"`
-	StorageKey string `json:"-" gorm:"type:varchar(512)"`
+	StorageKey string `json:"-" gorm:"column:storage_path;type:text"`
 	FileURL    string `json:"-" gorm:"type:text"`
 	Status     string `json:"status" gorm:"type:varchar(32)"`
 	CreatedAt  int64  `json:"created_at"`

@@ -255,6 +255,9 @@ func migrateDB() error {
 		return err
 	}
 	resetLegacyMarketTables()
+	if err := migrateApiFileFilenameColumn(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
@@ -304,6 +307,9 @@ func migrateDB() error {
 
 func migrateDBFast() error {
 	resetLegacyMarketTables()
+	if err := migrateApiFileFilenameColumn(); err != nil {
+		return err
+	}
 
 	var wg sync.WaitGroup
 
@@ -394,6 +400,39 @@ func resetLegacyMarketTables() {
 	if DB.Migrator().HasTable("market_submissions") && !DB.Migrator().HasColumn(&MarketSubmission{}, "ActivityID") {
 		_ = DB.Migrator().DropTable("market_submissions")
 	}
+}
+
+func migrateApiFileFilenameColumn() error {
+	tableName := "api_files"
+	if !DB.Migrator().HasTable(tableName) {
+		return nil
+	}
+
+	columns, err := DB.Migrator().ColumnTypes(&ApiFile{})
+	if err != nil {
+		return fmt.Errorf("failed to inspect api_files columns: %w", err)
+	}
+	columnSet := make(map[string]struct{}, len(columns))
+	for _, column := range columns {
+		columnSet[strings.ToLower(column.Name())] = struct{}{}
+	}
+	_, hasFilename := columnSet["filename"]
+	_, hasFileName := columnSet["file_name"]
+
+	if !hasFilename {
+		if err := DB.Migrator().AddColumn(&ApiFile{}, "FileName"); err != nil {
+			return fmt.Errorf("failed to add api_files.filename: %w", err)
+		}
+		common.SysLog("added api_files.filename")
+		hasFilename = true
+	}
+
+	if hasFilename && hasFileName {
+		if err := DB.Exec(`UPDATE api_files SET filename = file_name WHERE (filename IS NULL OR filename = '') AND file_name IS NOT NULL AND file_name <> ''`).Error; err != nil {
+			return fmt.Errorf("failed to backfill api_files.filename from file_name: %w", err)
+		}
+	}
+	return nil
 }
 
 type sqliteColumnDef struct {

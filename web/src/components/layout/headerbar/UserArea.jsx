@@ -56,6 +56,8 @@ const UserArea = ({
       <div className='relative' ref={dropdownRef}>
         <Dropdown
           position='bottomRight'
+          trigger='click'
+          clickTriggerToHide
           getPopupContainer={() => dropdownRef.current}
           render={
             <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>

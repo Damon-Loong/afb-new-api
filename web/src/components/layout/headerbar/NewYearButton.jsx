@@ -37,6 +37,8 @@ const NewYearButton = ({ isNewYear }) => {
   return (
     <Dropdown
       position='bottomRight'
+      trigger='click'
+      clickTriggerToHide
       render={
         <Dropdown.Menu className='!bg-semi-color-bg-overlay !border-semi-color-border !shadow-lg !rounded-lg dark:!bg-gray-700 dark:!border-gray-600'>
           <Dropdown.Item
