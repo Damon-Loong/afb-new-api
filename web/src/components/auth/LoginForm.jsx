@@ -340,8 +340,8 @@ const LoginForm = () => {
       showError(t('请输入有效的手机号（仅支持 +86）'));
       return;
     }
-    if (!/^\d{6}$/.test(code)) {
-      showError(t('请输入 6 位验证码'));
+    if (!/^\d{4}$/.test(code)) {
+      showError(t('请输入 4 位验证码'));
       return;
     }
     setSmsLoginLoading(true);
@@ -878,7 +878,7 @@ const LoginForm = () => {
                         <Form.Input
                           field='sms_code'
                           label={t('验证码')}
-                          placeholder={t('请输入 6 位验证码')}
+                          placeholder={t('请输入 4 位验证码')}
                           name='sms_code'
                           onChange={(value) => handleChange('sms_code', value)}
                           prefix={<IconTick />}

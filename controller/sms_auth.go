@@ -130,7 +130,7 @@ func SendSMSCode(c *gin.Context) {
 		return
 	}
 
-	code := common.GenerateNumericVerificationCode(6)
+	code := common.GenerateNumericVerificationCode(common.SMSVerificationCodeLength)
 	common.SetSMSCode(purpose, e164, code)
 	if err := service.SendAliyunLoginSMS(c.Request.Context(), phone11, code); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("sms send failed phone=%s err=%v", maskPhone(phone11), err))
@@ -273,7 +273,7 @@ func createUserWithPhone(e164 string) (*model.User, error) {
 	for i := 0; i < 5; i++ {
 		username := fmt.Sprintf("m%s%s", last4, common.GetRandomString(4))
 		username = strings.ToLower(username)
-		display := fmt.Sprintf("用户%s", last4)
+		display := fmt.Sprintf("M%s", last4)
 		pwd := common.GetRandomString(12) + "A1!"
 		u := &model.User{
 			Username:    username,

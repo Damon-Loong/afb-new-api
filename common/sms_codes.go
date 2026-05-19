@@ -23,9 +23,10 @@ var (
 )
 
 const (
-	SMSCodeValidMinutes = 5
-	smsMaxFailCount     = 8
-	smsLockDuration     = 10 * time.Minute
+	SMSCodeValidMinutes        = 5
+	SMSVerificationCodeLength  = 4
+	smsMaxFailCount            = 8
+	smsLockDuration            = 10 * time.Minute
 )
 
 func smsKey(purpose, phone string) string { return purpose + ":" + phone }

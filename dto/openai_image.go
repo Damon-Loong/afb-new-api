@@ -11,6 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type SequentialImageGenerationOptions struct {
+	MaxImages int `json:"max_images"`
+}
+
 type ImageRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt" binding:"required"`
@@ -28,6 +32,9 @@ type ImageRequest struct {
 	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
 	// Stream            bool            `json:"stream,omitempty"`
 	Watermark *bool `json:"watermark,omitempty"`
+	// Volcengine Seedream 组图
+	SequentialImageGeneration        string                            `json:"sequential_image_generation,omitempty"`
+	SequentialImageGenerationOptions *SequentialImageGenerationOptions `json:"sequential_image_generation_options,omitempty"`
 	// zhipu 4v
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
 	UserId           json.RawMessage `json:"user_id,omitempty"`
