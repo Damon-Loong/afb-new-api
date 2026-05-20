@@ -33,6 +33,11 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/mopc/mclaw/download-info", controller.GetMClawDownloadInfo)
 		apiRouter.GET("/mopc/mclaw/download", controller.GetMClawDownload)
+		wechatQRRoute := apiRouter.Group("/wechat-qr")
+		{
+			wechatQRRoute.POST("/update", controller.UpdateWechatQR)
+			wechatQRRoute.GET("/current", controller.GetCurrentWechatQR)
+		}
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		marketRoute := apiRouter.Group("/market")
 		{
