@@ -83,6 +83,7 @@ const LoginForm = () => {
     wechat_verification_code: '',
     phone: '',
     sms_code: '',
+    sms_aff_code: '',
   });
   const { username, password } = inputs;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -104,6 +105,7 @@ const LoginForm = () => {
   const [loginLoading, setLoginLoading] = useState(false);
   const [smsSendLoading, setSmsSendLoading] = useState(false);
   const [smsLoginLoading, setSmsLoginLoading] = useState(false);
+  const [smsIsNewUser, setSmsIsNewUser] = useState(false);
   const [smsCountdown, setSmsCountdown] = useState(0);
   const smsTimerRef = useRef(null);
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
@@ -245,6 +247,16 @@ const LoginForm = () => {
     setInputs((inputs) => ({ ...inputs, [name]: value }));
   }
 
+  function handleSMSPhoneChange(value) {
+    setSmsIsNewUser(false);
+    setInputs((inputs) => ({
+      ...inputs,
+      phone: value,
+      sms_code: '',
+      sms_aff_code: '',
+    }));
+  }
+
   async function handleSubmit(e) {
     if ((hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms) {
       showInfo(t('请先阅读并同意用户协议和隐私政策'));
@@ -315,8 +327,9 @@ const LoginForm = () => {
         phone,
         purpose: 'sms_login',
       });
-      const { success, message } = res.data || {};
+      const { success, message, data } = res.data || {};
       if (success) {
+        setSmsIsNewUser(Boolean(data?.is_new_user));
         showSuccess(t('验证码已发送'));
         startSMSTimer();
       } else {
@@ -346,7 +359,11 @@ const LoginForm = () => {
     }
     setSmsLoginLoading(true);
     try {
-      const res = await API.post('/api/auth/sms/login', { phone, code });
+      const res = await API.post('/api/auth/sms/login', {
+        phone,
+        code,
+        aff_code: smsIsNewUser ? String(inputs.sms_aff_code || '').trim() : undefined,
+      });
       const { success, message, data } = res.data || {};
       if (success) {
         userDispatch({ type: 'login', payload: data });
@@ -870,7 +887,7 @@ const LoginForm = () => {
                       label={t('手机号')}
                       placeholder={t('请输入手机号（仅 +86）')}
                       name='phone'
-                      onChange={(value) => handleChange('phone', value)}
+                      onChange={handleSMSPhoneChange}
                       prefix={<IconPhone />}
                     />
                     <div className='flex'>
@@ -899,6 +916,16 @@ const LoginForm = () => {
                         />
                       </div>
                     </div>
+                    {smsIsNewUser && (
+                      <Form.Input
+                        field='sms_aff_code'
+                        label={t('邀请码')}
+                        placeholder={t('邀请码，可选')}
+                        name='sms_aff_code'
+                        onChange={(value) => handleChange('sms_aff_code', value)}
+                        prefix={<IconTick />}
+                      />
+                    )}
                   </>
                 ) : (
                   <>

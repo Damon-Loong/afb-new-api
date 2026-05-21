@@ -144,12 +144,17 @@ func SendSMSCode(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+	data := gin.H{}
+	if purpose == smsPurposeLogin {
+		data["is_new_user"] = !model.IsPhoneAlreadyTaken(e164)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": data})
 }
 
 type smsLoginRequest struct {
-	Phone string `json:"phone"`
-	Code  string `json:"code"`
+	Phone   string `json:"phone"`
+	Code    string `json:"code"`
+	AffCode string `json:"aff_code"`
 }
 
 // SMSLogin verifies code then login/register user automatically.
@@ -182,8 +187,13 @@ func SMSLogin(c *gin.Context) {
 	var user model.User
 	err := model.DB.Where("phone = ?", e164).First(&user).Error
 	if err != nil {
+		inviterId := 0
+		affCode := strings.TrimSpace(req.AffCode)
+		if affCode != "" {
+			inviterId, _ = model.GetUserIdByAffCode(affCode)
+		}
 		// auto register
-		u, err2 := createUserWithPhone(e164)
+		u, err2 := createUserWithPhone(e164, inviterId)
 		if err2 != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("sms auto register failed phone=%s err=%v", maskE164(e164), err2))
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "登录失败，请稍后再试"})
@@ -265,7 +275,7 @@ func BindPhone(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
-func createUserWithPhone(e164 string) (*model.User, error) {
+func createUserWithPhone(e164 string, inviterId int) (*model.User, error) {
 	last4 := e164
 	if len(e164) >= 4 {
 		last4 = e164[len(e164)-4:]
@@ -284,7 +294,7 @@ func createUserWithPhone(e164 string) (*model.User, error) {
 			Group:       "default",
 			Phone:       &e164,
 		}
-		if err := u.Insert(0); err == nil {
+		if err := u.Insert(inviterId); err == nil {
 			_ = model.DB.Where("id = ?", u.Id).First(u).Error
 			return u, nil
 		}
