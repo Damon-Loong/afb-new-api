@@ -37,6 +37,12 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			wechatQRRoute.POST("/update", controller.UpdateWechatQR)
 			wechatQRRoute.GET("/current", controller.GetCurrentWechatQR)
+			wechatQRRoute.GET("/available", controller.GetAvailableWechatQR)
+			wechatQRRoute.POST("/activate", controller.ActivateWechatQR)
+			wechatQRRoute.POST("/release", controller.ReleaseWechatQR)
+			wechatQRRoute.POST("/heartbeat", controller.HeartbeatWechatQR)
+			wechatQRRoute.GET("/session-status", controller.GetWechatQRSessionStatus)
+			wechatQRRoute.GET("/devices", controller.GetWechatQRDevices)
 		}
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
 		marketRoute := apiRouter.Group("/market")
