@@ -127,7 +127,7 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	isAudioModel := strings.Contains(strings.ToLower(model), "audio")
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		if lastStreamData != "" {
+		if info.RelayFormat != types.RelayFormatOpenAI && lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
 				sr.Error(err)
@@ -141,6 +141,26 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 
 			lastStreamData = data
 			streamItems = append(streamItems, data)
+
+			if info.RelayFormat != types.RelayFormatOpenAI {
+				return
+			}
+
+			isUsageOnlyChunk := false
+			if strings.Contains(data, `"usage"`) {
+				var streamResponse dto.ChatCompletionsStreamResponse
+				if err := common.Unmarshal(common.StringToByteSlice(data), &streamResponse); err == nil && service.ValidUsage(streamResponse.Usage) {
+					isUsageOnlyChunk = !info.ShouldIncludeUsage && !hasStreamContent(streamResponse)
+				}
+			}
+			if isUsageOnlyChunk {
+				return
+			}
+
+			if err := HandleStreamFormat(c, info, data, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
+				common.SysLog("error handling stream format: " + err.Error())
+				sr.Error(err)
+			}
 		}
 	})
 
@@ -167,12 +187,6 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	if err := handleLastResponse(lastStreamData, &responseId, &createAt, &systemFingerprint, &model, &usage,
 		&containStreamUsage, info, &shouldSendLastResp); err != nil {
 		logger.LogError(c, fmt.Sprintf("error handling last response: %s, lastStreamData: [%s]", err.Error(), lastStreamData))
-	}
-
-	if info.RelayFormat == types.RelayFormatOpenAI {
-		if shouldSendLastResp {
-			_ = sendStreamData(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent)
-		}
 	}
 
 	// 处理token计算

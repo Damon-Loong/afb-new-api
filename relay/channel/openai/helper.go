@@ -185,13 +185,17 @@ func handleLastResponse(lastStreamData string, responseId *string, createAt *int
 		*containStreamUsage = true
 		*usage = lastStreamResponse.Usage
 		if !info.ShouldIncludeUsage {
-			*shouldSendLastResp = lo.SomeBy(lastStreamResponse.Choices, func(choice dto.ChatCompletionsStreamResponseChoice) bool {
-				return choice.Delta.GetContentString() != "" || choice.Delta.GetReasoningContent() != ""
-			})
+			*shouldSendLastResp = hasStreamContent(lastStreamResponse)
 		}
 	}
 
 	return nil
+}
+
+func hasStreamContent(streamResponse dto.ChatCompletionsStreamResponse) bool {
+	return lo.SomeBy(streamResponse.Choices, func(choice dto.ChatCompletionsStreamResponseChoice) bool {
+		return choice.Delta.GetContentString() != "" || choice.Delta.GetReasoningContent() != ""
+	})
 }
 
 func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStreamData string,
