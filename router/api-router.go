@@ -35,6 +35,9 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/mopc/mclaw/download", controller.GetMClawDownload)
 		wechatQRRoute := apiRouter.Group("/wechat-qr")
 		{
+			wechatQRRoute.POST("/request", controller.RequestWechatQR)
+			wechatQRRoute.GET("/request-status", controller.GetWechatQRRequestStatus)
+			wechatQRRoute.GET("/task", controller.GetWechatQRTask)
 			wechatQRRoute.POST("/update", controller.UpdateWechatQR)
 			wechatQRRoute.GET("/current", controller.GetCurrentWechatQR)
 			wechatQRRoute.GET("/available", controller.GetAvailableWechatQR)

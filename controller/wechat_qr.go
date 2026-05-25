@@ -18,23 +18,49 @@ const (
 	wechatQRScanTTL              = 30 * time.Minute
 	wechatQRSessionTTL           = time.Hour
 	wechatQRHeartbeatOfflineTime = time.Minute
+	wechatQRAssignTimeout        = 30 * time.Second
+	wechatQRGenerateTimeout      = time.Minute
+	wechatQRWaitScanTimeout      = 2 * time.Minute
 
-	wechatQRStatusWaiting = "waiting"
-	wechatQRStatusActive  = "active"
-	wechatQRStatusEnding  = "ending"
-	wechatQRStatusOffline = "offline"
-	wechatQRStatusError   = "error"
-	wechatQRStatusExpired = "expired"
+	wechatQRStatusIdle        = "idle"
+	wechatQRStatusGenerating  = "generating"
+	wechatQRStatusWaitingScan = "waiting_scan"
+	wechatQRStatusWaiting     = "waiting"
+	wechatQRStatusActive      = "active"
+	wechatQRStatusEnding      = "ending"
+	wechatQRStatusOffline     = "offline"
+	wechatQRStatusError       = "error"
+	wechatQRStatusExpired     = "expired"
+
+	wechatQRRequestStatusPending    = "pending"
+	wechatQRRequestStatusAssigned   = "assigned"
+	wechatQRRequestStatusGenerating = "generating"
+	wechatQRRequestStatusQRReady    = "qr_ready"
+	wechatQRRequestStatusActive     = "active"
+	wechatQRRequestStatusTimeout    = "timeout"
+	wechatQRRequestStatusFailed     = "failed"
+
+	wechatQRTaskActionGenerateQR = "generate_qr"
+
+	wechatQRTaskStatusPending    = "pending"
+	wechatQRTaskStatusGenerating = "generating"
+	wechatQRTaskStatusDone       = "done"
+	wechatQRTaskStatusFailed     = "failed"
+	wechatQRTaskStatusTimeout    = "timeout"
 )
 
 type wechatQRUpdateRequest struct {
 	DeviceID   string `json:"deviceId"`
 	DeviceName string `json:"deviceName"`
+	RequestID  string `json:"requestId"`
+	TaskID     string `json:"taskId"`
 	QRURL      string `json:"qrUrl"`
 }
 
 type wechatQRDeviceRequest struct {
-	DeviceID string `json:"deviceId"`
+	DeviceID  string `json:"deviceId"`
+	RequestID string `json:"requestId"`
+	Reason    string `json:"reason"`
 }
 
 type wechatQRHeartbeatRequest struct {
@@ -44,22 +70,222 @@ type wechatQRHeartbeatRequest struct {
 }
 
 type wechatQRDeviceRecord struct {
+	DeviceID         string
+	DeviceName       string
+	QRURL            string
+	Status           string
+	CurrentRequestID string
+	CurrentTaskID    string
+	UpdatedAt        time.Time
+	QRExpireAt       time.Time
+	LastHeartbeatAt  time.Time
+	ActivatedAt      *time.Time
+	SessionID        string
+	SessionExpireAt  *time.Time
+}
+
+type wechatQRRequestRecord struct {
+	RequestID       string
 	DeviceID        string
 	DeviceName      string
-	QRURL           string
+	TaskID          string
 	Status          string
-	UpdatedAt       time.Time
-	QRExpireAt      time.Time
-	LastHeartbeatAt time.Time
-	ActivatedAt     *time.Time
+	QRURL           string
 	SessionID       string
+	Message         string
+	CreatedAt       time.Time
+	AssignedAt      time.Time
+	GeneratingAt    time.Time
+	QRReadyAt       time.Time
+	ActivatedAt     time.Time
 	SessionExpireAt *time.Time
+	FailedAt        time.Time
+	TimeoutAt       time.Time
+}
+
+type wechatQRTaskRecord struct {
+	TaskID    string
+	RequestID string
+	DeviceID  string
+	Action    string
+	Status    string
+	CreatedAt time.Time
+	ClaimedAt time.Time
+	DoneAt    time.Time
+	FailedAt  time.Time
+	TimeoutAt time.Time
 }
 
 var (
 	wechatQRRecordsMu sync.RWMutex
 	wechatQRRecords   = map[string]wechatQRDeviceRecord{}
+	wechatQRRequests  = map[string]wechatQRRequestRecord{}
+	wechatQRTasks     = map[string]wechatQRTaskRecord{}
 )
+
+func RequestWechatQR(c *gin.Context) {
+	now := time.Now()
+
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
+	candidates := make([]wechatQRDeviceRecord, 0)
+	for _, record := range wechatQRRecords {
+		if isWechatQRDeviceAssignable(record, now) {
+			candidates = append(candidates, record)
+		}
+	}
+
+	if len(candidates) == 0 {
+		wechatQRRecordsMu.Unlock()
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "当前暂无空闲电脑，请稍后再试",
+		})
+		return
+	}
+
+	record := candidates[mathrand.Intn(len(candidates))]
+	requestID := newWechatQRID("req")
+	taskID := newWechatQRID("task")
+
+	request := wechatQRRequestRecord{
+		RequestID:  requestID,
+		DeviceID:   record.DeviceID,
+		DeviceName: record.DeviceName,
+		TaskID:     taskID,
+		Status:     wechatQRRequestStatusAssigned,
+		Message:    "已分配空闲电脑",
+		CreatedAt:  now,
+		AssignedAt: now,
+	}
+	task := wechatQRTaskRecord{
+		TaskID:    taskID,
+		RequestID: requestID,
+		DeviceID:  record.DeviceID,
+		Action:    wechatQRTaskActionGenerateQR,
+		Status:    wechatQRTaskStatusPending,
+		CreatedAt: now,
+	}
+
+	record.Status = wechatQRStatusGenerating
+	record.CurrentRequestID = requestID
+	record.CurrentTaskID = taskID
+	record.QRURL = ""
+	record.QRExpireAt = time.Time{}
+	record.UpdatedAt = now
+
+	wechatQRRequests[requestID] = request
+	wechatQRTasks[taskID] = task
+	wechatQRRecords[record.DeviceID] = record
+	wechatQRRecordsMu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "已分配空闲电脑",
+		"data": gin.H{
+			"requestId":  requestID,
+			"taskId":     taskID,
+			"deviceId":   record.DeviceID,
+			"deviceName": record.DeviceName,
+			"status":     wechatQRRequestStatusAssigned,
+		},
+	})
+}
+
+func GetWechatQRRequestStatus(c *gin.Context) {
+	requestID := strings.TrimSpace(c.Query("requestId"))
+	if requestID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "requestId 不能为空",
+		})
+		return
+	}
+
+	now := time.Now()
+
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+	request, ok := wechatQRRequests[requestID]
+	if !ok {
+		wechatQRRecordsMu.Unlock()
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "请求不存在",
+		})
+		return
+	}
+	record := wechatQRRecords[request.DeviceID]
+	data := wechatQRRequestResponseData(request, record, now)
+	wechatQRRecordsMu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+func GetWechatQRTask(c *gin.Context) {
+	deviceID := strings.TrimSpace(c.Query("deviceId"))
+	if deviceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "deviceId 不能为空",
+		})
+		return
+	}
+
+	now := time.Now()
+
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
+	record, ok := wechatQRRecords[deviceID]
+	if !ok {
+		wechatQRRecordsMu.Unlock()
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "暂无任务",
+			"data":    nil,
+		})
+		return
+	}
+
+	task, taskOK := wechatQRTasks[record.CurrentTaskID]
+	request, requestOK := wechatQRRequests[record.CurrentRequestID]
+	if !taskOK || !requestOK || task.Status != wechatQRTaskStatusPending || task.Action != wechatQRTaskActionGenerateQR {
+		wechatQRRecordsMu.Unlock()
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "暂无任务",
+			"data":    nil,
+		})
+		return
+	}
+
+	task.Status = wechatQRTaskStatusGenerating
+	task.ClaimedAt = now
+	request.Status = wechatQRRequestStatusGenerating
+	request.GeneratingAt = now
+	request.Message = "正在生成二维码"
+	record.Status = wechatQRStatusGenerating
+	record.UpdatedAt = now
+
+	wechatQRTasks[task.TaskID] = task
+	wechatQRRequests[request.RequestID] = request
+	wechatQRRecords[deviceID] = record
+	wechatQRRecordsMu.Unlock()
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"taskId":    task.TaskID,
+			"requestId": task.RequestID,
+			"action":    task.Action,
+		},
+	})
+}
 
 func UpdateWechatQR(c *gin.Context) {
 	if !checkWechatQRToken(c) {
@@ -77,6 +303,8 @@ func UpdateWechatQR(c *gin.Context) {
 
 	deviceID := strings.TrimSpace(req.DeviceID)
 	deviceName := strings.TrimSpace(req.DeviceName)
+	requestID := strings.TrimSpace(req.RequestID)
+	taskID := strings.TrimSpace(req.TaskID)
 	qrURL := strings.TrimSpace(req.QRURL)
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -103,26 +331,68 @@ func UpdateWechatQR(c *gin.Context) {
 	now := time.Now()
 
 	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
 	record := wechatQRRecords[deviceID]
 	record.DeviceID = deviceID
 	if deviceName != "" {
 		record.DeviceName = deviceName
 	}
 	record.QRURL = qrURL
-	record.Status = wechatQRStatusWaiting
 	record.UpdatedAt = now
 	record.QRExpireAt = now.Add(wechatQRScanTTL)
 	record.LastHeartbeatAt = now
 	record.ActivatedAt = nil
 	record.SessionID = ""
 	record.SessionExpireAt = nil
+
+	if requestID != "" || taskID != "" {
+		request, requestOK := wechatQRRequests[requestID]
+		task, taskOK := wechatQRTasks[taskID]
+		if requestID == "" || taskID == "" || !requestOK || !taskOK {
+			wechatQRRecordsMu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "requestId 或 taskId 无效",
+			})
+			return
+		}
+		if request.DeviceID != deviceID || task.DeviceID != deviceID || task.RequestID != requestID {
+			wechatQRRecordsMu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "任务与设备不匹配",
+			})
+			return
+		}
+
+		request.Status = wechatQRRequestStatusQRReady
+		request.QRURL = qrURL
+		request.DeviceName = record.DeviceName
+		request.QRReadyAt = now
+		request.Message = "二维码已生成"
+		task.Status = wechatQRTaskStatusDone
+		task.DoneAt = now
+		record.Status = wechatQRStatusWaitingScan
+		record.CurrentRequestID = requestID
+		record.CurrentTaskID = taskID
+
+		wechatQRRequests[requestID] = request
+		wechatQRTasks[taskID] = task
+	} else {
+		record.Status = wechatQRStatusWaiting
+		record.CurrentRequestID = ""
+		record.CurrentTaskID = ""
+	}
+
 	wechatQRRecords[deviceID] = record
+	data := wechatQRDeviceResponseData(record, now)
 	wechatQRRecordsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "二维码已更新",
-		"data":    wechatQRDeviceResponseData(record, now),
+		"data":    data,
 	})
 }
 
@@ -136,9 +406,13 @@ func GetCurrentWechatQR(c *gin.Context) {
 		return
 	}
 
-	wechatQRRecordsMu.RLock()
+	now := time.Now()
+
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
 	record, ok := wechatQRRecords[deviceID]
-	wechatQRRecordsMu.RUnlock()
+	data := wechatQRDeviceResponseData(record, now)
+	wechatQRRecordsMu.Unlock()
 
 	if !ok {
 		c.JSON(http.StatusOK, gin.H{
@@ -151,7 +425,7 @@ func GetCurrentWechatQR(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "二维码已获取",
-		"data":    wechatQRDeviceResponseData(record, time.Now()),
+		"data":    data,
 	})
 }
 
@@ -159,13 +433,15 @@ func GetAvailableWechatQR(c *gin.Context) {
 	now := time.Now()
 	candidates := make([]wechatQRDeviceRecord, 0)
 
-	wechatQRRecordsMu.RLock()
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
 	for _, record := range wechatQRRecords {
-		if effectiveWechatQRStatus(record, now) == wechatQRStatusWaiting && record.QRURL != "" {
+		status := effectiveWechatQRStatus(record, now)
+		if (status == wechatQRStatusWaiting || status == wechatQRStatusWaitingScan) && record.QRURL != "" {
 			candidates = append(candidates, record)
 		}
 	}
-	wechatQRRecordsMu.RUnlock()
+	wechatQRRecordsMu.Unlock()
 
 	if len(candidates) == 0 {
 		c.JSON(http.StatusOK, gin.H{
@@ -198,6 +474,7 @@ func ActivateWechatQR(c *gin.Context) {
 	}
 
 	deviceID := strings.TrimSpace(req.DeviceID)
+	requestID := strings.TrimSpace(req.RequestID)
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -210,6 +487,8 @@ func ActivateWechatQR(c *gin.Context) {
 	sessionExpireAt := now.Add(wechatQRSessionTTL)
 
 	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
 	record, ok := wechatQRRecords[deviceID]
 	if !ok {
 		wechatQRRecordsMu.Unlock()
@@ -219,19 +498,45 @@ func ActivateWechatQR(c *gin.Context) {
 		})
 		return
 	}
-	sessionID := newWechatQRSessionID()
+	if requestID == "" {
+		requestID = record.CurrentRequestID
+	}
+
+	sessionID := newWechatQRID("wqs")
 	record.Status = wechatQRStatusActive
 	record.ActivatedAt = &now
 	record.SessionID = sessionID
 	record.SessionExpireAt = &sessionExpireAt
 	record.LastHeartbeatAt = now
+
+	if requestID != "" {
+		request, requestOK := wechatQRRequests[requestID]
+		if !requestOK || request.DeviceID != deviceID {
+			wechatQRRecordsMu.Unlock()
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "requestId 无效",
+			})
+			return
+		}
+		request.Status = wechatQRRequestStatusActive
+		request.SessionID = sessionID
+		request.ActivatedAt = now
+		request.SessionExpireAt = &sessionExpireAt
+		request.Message = "连接成功，请在微信中继续使用 AI 助手"
+		wechatQRRequests[requestID] = request
+		record.CurrentRequestID = requestID
+		record.CurrentTaskID = request.TaskID
+	}
+
 	wechatQRRecords[deviceID] = record
+	data := wechatQRDeviceResponseData(record, now)
 	wechatQRRecordsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "设备已激活",
-		"data":    wechatQRDeviceResponseData(record, now),
+		"data":    data,
 	})
 }
 
@@ -250,6 +555,8 @@ func ReleaseWechatQR(c *gin.Context) {
 	}
 
 	deviceID := strings.TrimSpace(req.DeviceID)
+	requestID := strings.TrimSpace(req.RequestID)
+	reason := strings.TrimSpace(req.Reason)
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -261,6 +568,8 @@ func ReleaseWechatQR(c *gin.Context) {
 	now := time.Now()
 
 	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
 	record, ok := wechatQRRecords[deviceID]
 	if !ok {
 		wechatQRRecordsMu.Unlock()
@@ -270,21 +579,65 @@ func ReleaseWechatQR(c *gin.Context) {
 		})
 		return
 	}
+	if requestID == "" {
+		requestID = record.CurrentRequestID
+	}
+
+	if requestID != "" {
+		request, requestOK := wechatQRRequests[requestID]
+		if requestOK && request.DeviceID == deviceID {
+			switch reason {
+			case wechatQRRequestStatusTimeout:
+				request.Status = wechatQRRequestStatusTimeout
+				request.TimeoutAt = now
+				request.Message = "请求已超时"
+			case wechatQRRequestStatusFailed, wechatQRStatusError:
+				request.Status = wechatQRRequestStatusFailed
+				request.FailedAt = now
+				request.Message = "请求已失败"
+			}
+			wechatQRRequests[requestID] = request
+		}
+	}
+
+	if record.CurrentTaskID != "" {
+		task, taskOK := wechatQRTasks[record.CurrentTaskID]
+		if taskOK && task.DeviceID == deviceID && task.Status != wechatQRTaskStatusDone {
+			if reason == "timeout" {
+				task.Status = wechatQRTaskStatusTimeout
+				task.TimeoutAt = now
+			} else {
+				task.Status = wechatQRTaskStatusFailed
+				task.FailedAt = now
+			}
+			wechatQRTasks[task.TaskID] = task
+		}
+	}
+
 	record.ActivatedAt = nil
 	record.SessionID = ""
 	record.SessionExpireAt = nil
-	if record.QRURL != "" && now.Before(record.QRExpireAt) {
-		record.Status = wechatQRStatusWaiting
+	record.CurrentRequestID = ""
+	record.CurrentTaskID = ""
+	record.QRURL = ""
+	record.QRExpireAt = time.Time{}
+	record.UpdatedAt = now
+	if reason == wechatQRStatusError || reason == "error" {
+		record.Status = wechatQRStatusError
+	} else if isWechatQRHeartbeatFresh(record, now) {
+		record.Status = wechatQRStatusIdle
 	} else {
-		record.Status = wechatQRStatusExpired
+		record.Status = wechatQRStatusOffline
 	}
+
 	wechatQRRecords[deviceID] = record
+	data := wechatQRDeviceResponseData(record, now)
 	wechatQRRecordsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "设备已释放",
-		"data":    wechatQRDeviceResponseData(record, now),
+		"data":    data,
 	})
 }
 
@@ -304,7 +657,6 @@ func HeartbeatWechatQR(c *gin.Context) {
 
 	deviceID := strings.TrimSpace(req.DeviceID)
 	deviceName := strings.TrimSpace(req.DeviceName)
-	status := strings.TrimSpace(req.Status)
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -316,22 +668,29 @@ func HeartbeatWechatQR(c *gin.Context) {
 	now := time.Now()
 
 	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
+
 	record := wechatQRRecords[deviceID]
 	record.DeviceID = deviceID
 	if deviceName != "" {
 		record.DeviceName = deviceName
 	}
-	if status != "" && isValidWechatQRStatus(status) {
-		record.Status = status
-	}
 	record.LastHeartbeatAt = now
+	if record.Status == "" || record.Status == wechatQRStatusOffline || record.Status == wechatQRStatusExpired || record.Status == wechatQRStatusWaiting || record.Status == wechatQRStatusEnding {
+		record.Status = wechatQRStatusIdle
+	}
+	if record.CurrentRequestID == "" && record.SessionID == "" && record.Status != wechatQRStatusError {
+		record.Status = wechatQRStatusIdle
+	}
+
 	wechatQRRecords[deviceID] = record
+	data := wechatQRDeviceResponseData(record, now)
 	wechatQRRecordsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "心跳已更新",
-		"data":    wechatQRDeviceResponseData(record, now),
+		"data":    data,
 	})
 }
 
@@ -345,9 +704,13 @@ func GetWechatQRSessionStatus(c *gin.Context) {
 		return
 	}
 
-	wechatQRRecordsMu.RLock()
+	now := time.Now()
+
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
 	record, ok := wechatQRRecords[deviceID]
-	wechatQRRecordsMu.RUnlock()
+	data := wechatQRSessionStatusData(record, now)
+	wechatQRRecordsMu.Unlock()
 
 	if !ok {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -357,10 +720,9 @@ func GetWechatQRSessionStatus(c *gin.Context) {
 		return
 	}
 
-	now := time.Now()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    wechatQRSessionStatusData(record, now),
+		"data":    data,
 	})
 }
 
@@ -368,11 +730,12 @@ func GetWechatQRDevices(c *gin.Context) {
 	now := time.Now()
 	devices := make([]gin.H, 0)
 
-	wechatQRRecordsMu.RLock()
+	wechatQRRecordsMu.Lock()
+	applyWechatQRTimeoutsLocked(now)
 	for _, record := range wechatQRRecords {
 		devices = append(devices, wechatQRDeviceResponseData(record, now))
 	}
-	wechatQRRecordsMu.RUnlock()
+	wechatQRRecordsMu.Unlock()
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -395,29 +758,104 @@ func isValidWechatQRURL(qrURL string) bool {
 	return strings.HasPrefix(qrURL, "https://liteapp.weixin.qq.com/") || strings.Contains(qrURL, "qrcode=")
 }
 
-func isValidWechatQRStatus(status string) bool {
-	switch status {
-	case wechatQRStatusWaiting, wechatQRStatusActive, wechatQRStatusEnding, wechatQRStatusOffline, wechatQRStatusError, wechatQRStatusExpired:
-		return true
-	default:
-		return false
-	}
-}
-
 func effectiveWechatQRStatus(record wechatQRDeviceRecord, now time.Time) string {
-	if !record.LastHeartbeatAt.IsZero() && now.Sub(record.LastHeartbeatAt) > wechatQRHeartbeatOfflineTime {
+	if !isWechatQRHeartbeatFresh(record, now) {
 		return wechatQRStatusOffline
 	}
 	if record.Status == wechatQRStatusActive && record.SessionExpireAt != nil && !now.Before(*record.SessionExpireAt) {
 		return wechatQRStatusEnding
 	}
-	if record.Status == wechatQRStatusWaiting && !record.QRExpireAt.IsZero() && !now.Before(record.QRExpireAt) {
-		return wechatQRStatusExpired
-	}
 	if record.Status == "" {
-		return wechatQRStatusExpired
+		return wechatQRStatusIdle
 	}
 	return record.Status
+}
+
+func isWechatQRHeartbeatFresh(record wechatQRDeviceRecord, now time.Time) bool {
+	return !record.LastHeartbeatAt.IsZero() && now.Sub(record.LastHeartbeatAt) <= wechatQRHeartbeatOfflineTime
+}
+
+func isWechatQRDeviceAssignable(record wechatQRDeviceRecord, now time.Time) bool {
+	return effectiveWechatQRStatus(record, now) == wechatQRStatusIdle &&
+		record.CurrentRequestID == "" &&
+		record.CurrentTaskID == "" &&
+		record.SessionID == ""
+}
+
+func applyWechatQRTimeoutsLocked(now time.Time) {
+	for requestID, request := range wechatQRRequests {
+		switch request.Status {
+		case wechatQRRequestStatusAssigned:
+			baseTime := request.AssignedAt
+			if baseTime.IsZero() {
+				baseTime = request.CreatedAt
+			}
+			if !baseTime.IsZero() && now.Sub(baseTime) > wechatQRAssignTimeout {
+				failWechatQRRequestLocked(requestID, wechatQRRequestStatusFailed, now, "任务领取超时")
+			}
+		case wechatQRRequestStatusGenerating:
+			baseTime := request.GeneratingAt
+			if baseTime.IsZero() {
+				baseTime = request.AssignedAt
+			}
+			if !baseTime.IsZero() && now.Sub(baseTime) > wechatQRGenerateTimeout {
+				failWechatQRRequestLocked(requestID, wechatQRRequestStatusFailed, now, "二维码生成超时")
+			}
+		case wechatQRRequestStatusQRReady:
+			baseTime := request.QRReadyAt
+			if !baseTime.IsZero() && now.Sub(baseTime) > wechatQRWaitScanTimeout {
+				failWechatQRRequestLocked(requestID, wechatQRRequestStatusTimeout, now, "二维码等待扫码超时")
+			}
+		}
+	}
+}
+
+func failWechatQRRequestLocked(requestID string, status string, now time.Time, message string) {
+	request, ok := wechatQRRequests[requestID]
+	if !ok {
+		return
+	}
+	request.Status = status
+	request.Message = message
+	if status == wechatQRRequestStatusTimeout {
+		request.TimeoutAt = now
+	} else {
+		request.FailedAt = now
+	}
+	wechatQRRequests[requestID] = request
+
+	if request.TaskID != "" {
+		task, taskOK := wechatQRTasks[request.TaskID]
+		if taskOK && task.Status != wechatQRTaskStatusDone {
+			if status == wechatQRRequestStatusTimeout {
+				task.Status = wechatQRTaskStatusTimeout
+				task.TimeoutAt = now
+			} else {
+				task.Status = wechatQRTaskStatusFailed
+				task.FailedAt = now
+			}
+			wechatQRTasks[task.TaskID] = task
+		}
+	}
+
+	record, recordOK := wechatQRRecords[request.DeviceID]
+	if !recordOK || record.CurrentRequestID != requestID {
+		return
+	}
+	record.CurrentRequestID = ""
+	record.CurrentTaskID = ""
+	record.QRURL = ""
+	record.QRExpireAt = time.Time{}
+	record.ActivatedAt = nil
+	record.SessionID = ""
+	record.SessionExpireAt = nil
+	record.UpdatedAt = now
+	if isWechatQRHeartbeatFresh(record, now) {
+		record.Status = wechatQRStatusIdle
+	} else {
+		record.Status = wechatQRStatusOffline
+	}
+	wechatQRRecords[record.DeviceID] = record
 }
 
 func wechatQRDeviceResponseData(record wechatQRDeviceRecord, now time.Time) gin.H {
@@ -437,6 +875,8 @@ func wechatQRDeviceResponseData(record wechatQRDeviceRecord, now time.Time) gin.
 		"qrUrl":                 record.QRURL,
 		"hasQrUrl":              record.QRURL != "",
 		"status":                status,
+		"currentRequestId":      record.CurrentRequestID,
+		"currentTaskId":         record.CurrentTaskID,
 		"updatedAt":             zeroTimeToNil(record.UpdatedAt),
 		"qrExpireAt":            zeroTimeToNil(record.QRExpireAt),
 		"expireAt":              zeroTimeToNil(record.QRExpireAt),
@@ -446,6 +886,41 @@ func wechatQRDeviceResponseData(record wechatQRDeviceRecord, now time.Time) gin.
 		"sessionExpireAt":       timePtrToAny(record.SessionExpireAt),
 		"remainingSeconds":      remainingSeconds,
 		"activeDurationSeconds": activeDurationSeconds,
+	}
+}
+
+func wechatQRRequestResponseData(request wechatQRRequestRecord, record wechatQRDeviceRecord, now time.Time) gin.H {
+	qrURL := request.QRURL
+	if qrURL == "" && request.Status == wechatQRRequestStatusQRReady {
+		qrURL = record.QRURL
+	}
+
+	sessionExpireAt := request.SessionExpireAt
+	if sessionExpireAt == nil {
+		sessionExpireAt = record.SessionExpireAt
+	}
+
+	remainingSeconds := 0
+	if sessionExpireAt != nil {
+		remainingSeconds = remainingSecondsUntil(*sessionExpireAt, now)
+	}
+
+	message := request.Message
+	if request.Status == wechatQRRequestStatusActive && message == "" {
+		message = "连接成功，请在微信中继续使用 AI 助手"
+	}
+
+	return gin.H{
+		"requestId":        request.RequestID,
+		"taskId":           request.TaskID,
+		"deviceId":         request.DeviceID,
+		"deviceName":       request.DeviceName,
+		"status":           request.Status,
+		"qrUrl":            qrURL,
+		"sessionId":        request.SessionID,
+		"sessionExpireAt":  timePtrToAny(sessionExpireAt),
+		"remainingSeconds": remainingSeconds,
+		"message":          message,
 	}
 }
 
@@ -493,10 +968,10 @@ func timePtrToAny(t *time.Time) interface{} {
 	return *t
 }
 
-func newWechatQRSessionID() string {
+func newWechatQRID(prefix string) string {
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err == nil {
-		return "wqs_" + hex.EncodeToString(buf)
+		return prefix + "_" + hex.EncodeToString(buf)
 	}
-	return "wqs_" + time.Now().Format("20060102150405.000000000")
+	return prefix + "_" + time.Now().Format("20060102150405.000000000")
 }
