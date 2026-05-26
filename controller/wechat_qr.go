@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -89,6 +91,8 @@ type wechatQRRequestRecord struct {
 	DeviceID        string
 	DeviceName      string
 	TaskID          string
+	UserID          int
+	TokenID         int
 	Status          string
 	QRURL           string
 	SessionID       string
@@ -107,6 +111,8 @@ type wechatQRTaskRecord struct {
 	TaskID    string
 	RequestID string
 	DeviceID  string
+	UserID    int
+	TokenID   int
 	Action    string
 	Status    string
 	CreatedAt time.Time
@@ -125,6 +131,23 @@ var (
 
 func RequestWechatQR(c *gin.Context) {
 	now := time.Now()
+	userID := c.GetInt("id")
+	if userID <= 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "请先登录",
+		})
+		return
+	}
+
+	userToken, ok := getWechatQRUsableUserToken(userID)
+	if !ok {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "请先配置 OpenClaw API Key",
+		})
+		return
+	}
 
 	wechatQRRecordsMu.Lock()
 	applyWechatQRTimeoutsLocked(now)
@@ -154,6 +177,8 @@ func RequestWechatQR(c *gin.Context) {
 		DeviceID:   record.DeviceID,
 		DeviceName: record.DeviceName,
 		TaskID:     taskID,
+		UserID:     userID,
+		TokenID:    userToken.Id,
 		Status:     wechatQRRequestStatusAssigned,
 		Message:    "已分配空闲电脑",
 		CreatedAt:  now,
@@ -163,6 +188,8 @@ func RequestWechatQR(c *gin.Context) {
 		TaskID:    taskID,
 		RequestID: requestID,
 		DeviceID:  record.DeviceID,
+		UserID:    userID,
+		TokenID:   userToken.Id,
 		Action:    wechatQRTaskActionGenerateQR,
 		Status:    wechatQRTaskStatusPending,
 		CreatedAt: now,
@@ -227,6 +254,10 @@ func GetWechatQRRequestStatus(c *gin.Context) {
 }
 
 func GetWechatQRTask(c *gin.Context) {
+	if !checkWechatQRToken(c) {
+		return
+	}
+
 	deviceID := strings.TrimSpace(c.Query("deviceId"))
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -277,12 +308,26 @@ func GetWechatQRTask(c *gin.Context) {
 	wechatQRRecords[deviceID] = record
 	wechatQRRecordsMu.Unlock()
 
+	userToken, ok := getWechatQRTaskUserToken(task.UserID, task.TokenID)
+	if !ok {
+		wechatQRRecordsMu.Lock()
+		failWechatQRRequestLocked(request.RequestID, wechatQRRequestStatusFailed, time.Now(), "用户 OpenClaw API Key 不可用")
+		wechatQRRecordsMu.Unlock()
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "用户 OpenClaw API Key 不可用",
+			"data":    nil,
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data": gin.H{
-			"taskId":    task.TaskID,
-			"requestId": task.RequestID,
-			"action":    task.Action,
+			"taskId":         task.TaskID,
+			"requestId":      task.RequestID,
+			"action":         task.Action,
+			"openclawApiKey": userToken.GetFullKey(),
 		},
 	})
 }
@@ -749,6 +794,52 @@ func checkWechatQRToken(c *gin.Context) bool {
 			"success": false,
 			"message": "unauthorized",
 		})
+		return false
+	}
+	return true
+}
+
+func getWechatQRUsableUserToken(userID int) (*model.Token, bool) {
+	if userID <= 0 {
+		return nil, false
+	}
+	tokens, err := model.GetAllUserTokens(userID, 0, 100)
+	if err != nil {
+		return nil, false
+	}
+	for _, token := range tokens {
+		if isWechatQRUsableToken(token) {
+			return token, true
+		}
+	}
+	return nil, false
+}
+
+func getWechatQRTaskUserToken(userID int, tokenID int) (*model.Token, bool) {
+	if userID <= 0 || tokenID <= 0 {
+		return nil, false
+	}
+	token, err := model.GetTokenByIds(tokenID, userID)
+	if err != nil || !isWechatQRUsableToken(token) {
+		return nil, false
+	}
+	return token, true
+}
+
+func isWechatQRUsableToken(token *model.Token) bool {
+	if token == nil {
+		return false
+	}
+	if strings.TrimSpace(token.GetFullKey()) == "" {
+		return false
+	}
+	if token.Status != common.TokenStatusEnabled {
+		return false
+	}
+	if token.ExpiredTime != -1 && token.ExpiredTime < common.GetTimestamp() {
+		return false
+	}
+	if !token.UnlimitedQuota && token.RemainQuota <= 0 {
 		return false
 	}
 	return true
