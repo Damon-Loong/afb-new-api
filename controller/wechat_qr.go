@@ -22,7 +22,6 @@ const (
 	wechatQRHeartbeatOfflineTime = time.Minute
 	wechatQRAssignTimeout        = 30 * time.Second
 	wechatQRGenerateTimeout      = time.Minute
-	wechatQRWaitScanTimeout      = 2 * time.Minute
 
 	wechatQRStatusIdle        = "idle"
 	wechatQRStatusGenerating  = "generating"
@@ -383,13 +382,6 @@ func UpdateWechatQR(c *gin.Context) {
 	if deviceName != "" {
 		record.DeviceName = deviceName
 	}
-	record.QRURL = qrURL
-	record.UpdatedAt = now
-	record.QRExpireAt = now.Add(wechatQRScanTTL)
-	record.LastHeartbeatAt = now
-	record.ActivatedAt = nil
-	record.SessionID = ""
-	record.SessionExpireAt = nil
 
 	if requestID != "" || taskID != "" {
 		request, requestOK := wechatQRRequests[requestID]
@@ -410,7 +402,24 @@ func UpdateWechatQR(c *gin.Context) {
 			})
 			return
 		}
+		if request.Status == wechatQRRequestStatusActive || record.Status == wechatQRStatusActive {
+			data := wechatQRDeviceResponseData(record, now)
+			wechatQRRecordsMu.Unlock()
+			c.JSON(http.StatusOK, gin.H{
+				"success": true,
+				"message": "设备已激活，忽略二维码更新",
+				"data":    data,
+			})
+			return
+		}
 
+		record.QRURL = qrURL
+		record.UpdatedAt = now
+		record.QRExpireAt = now.Add(wechatQRScanTTL)
+		record.LastHeartbeatAt = now
+		record.ActivatedAt = nil
+		record.SessionID = ""
+		record.SessionExpireAt = nil
 		request.Status = wechatQRRequestStatusQRReady
 		request.QRURL = qrURL
 		request.DeviceName = record.DeviceName
@@ -425,6 +434,13 @@ func UpdateWechatQR(c *gin.Context) {
 		wechatQRRequests[requestID] = request
 		wechatQRTasks[taskID] = task
 	} else {
+		record.QRURL = qrURL
+		record.UpdatedAt = now
+		record.QRExpireAt = now.Add(wechatQRScanTTL)
+		record.LastHeartbeatAt = now
+		record.ActivatedAt = nil
+		record.SessionID = ""
+		record.SessionExpireAt = nil
 		record.Status = wechatQRStatusWaiting
 		record.CurrentRequestID = ""
 		record.CurrentTaskID = ""
@@ -636,7 +652,7 @@ func ReleaseWechatQR(c *gin.Context) {
 				request.Status = wechatQRRequestStatusTimeout
 				request.TimeoutAt = now
 				request.Message = "请求已超时"
-			case wechatQRRequestStatusFailed, wechatQRStatusError:
+			case wechatQRRequestStatusFailed, wechatQRStatusError, "login_ended", "manual_stop":
 				request.Status = wechatQRRequestStatusFailed
 				request.FailedAt = now
 				request.Message = "请求已失败"
@@ -875,6 +891,15 @@ func isWechatQRDeviceAssignable(record wechatQRDeviceRecord, now time.Time) bool
 
 func applyWechatQRTimeoutsLocked(now time.Time) {
 	for requestID, request := range wechatQRRequests {
+		record, recordOK := wechatQRRecords[request.DeviceID]
+		if recordOK &&
+			record.CurrentRequestID == requestID &&
+			(record.Status == wechatQRStatusGenerating || record.Status == wechatQRStatusWaitingScan) &&
+			!isWechatQRHeartbeatFresh(record, now) {
+			failWechatQRRequestLocked(requestID, wechatQRRequestStatusFailed, now, "设备心跳超时")
+			continue
+		}
+
 		switch request.Status {
 		case wechatQRRequestStatusAssigned:
 			baseTime := request.AssignedAt
@@ -891,11 +916,6 @@ func applyWechatQRTimeoutsLocked(now time.Time) {
 			}
 			if !baseTime.IsZero() && now.Sub(baseTime) > wechatQRGenerateTimeout {
 				failWechatQRRequestLocked(requestID, wechatQRRequestStatusFailed, now, "二维码生成超时")
-			}
-		case wechatQRRequestStatusQRReady:
-			baseTime := request.QRReadyAt
-			if !baseTime.IsZero() && now.Sub(baseTime) > wechatQRWaitScanTimeout {
-				failWechatQRRequestLocked(requestID, wechatQRRequestStatusTimeout, now, "二维码等待扫码超时")
 			}
 		}
 	}
