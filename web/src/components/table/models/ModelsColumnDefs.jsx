@@ -273,6 +273,31 @@ const renderNameRule = (rule, record, t) => {
   );
 };
 
+const renderRouterScore = (score, t) => {
+  const value = Number(score || 0);
+  if (value <= 0) {
+    return (
+      <Tag color='grey' size='small' shape='circle'>
+        {t('不参与')}
+      </Tag>
+    );
+  }
+  const levels = [
+    { max: 22, label: t('轻量'), color: 'green' },
+    { max: 37, label: t('日常'), color: 'blue' },
+    { max: 52, label: t('标准'), color: 'cyan' },
+    { max: 67, label: t('进阶'), color: 'amber' },
+    { max: 82, label: t('高级'), color: 'orange' },
+    { max: 100, label: t('旗舰'), color: 'red' },
+  ];
+  const level = levels.find((item) => value <= item.max) || levels[levels.length - 1];
+  return (
+    <Tag color={level.color} size='small' shape='circle'>
+      {level.label} {value}
+    </Tag>
+  );
+};
+
 export const getModelsColumns = ({
   t,
   manageModel,
@@ -302,6 +327,11 @@ export const getModelsColumns = ({
       title: t('匹配类型'),
       dataIndex: 'name_rule',
       render: (val, record) => renderNameRule(val, record, t),
+    },
+    {
+      title: t('路由档位'),
+      dataIndex: 'router_score',
+      render: (val) => renderRouterScore(val, t),
     },
     {
       title: t('参与官方同步'),

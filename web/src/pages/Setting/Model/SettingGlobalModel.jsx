@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import {
   Button,
   Col,
@@ -31,6 +31,7 @@ import {
 import {
   compareObjects,
   API,
+  semiSelectPortalProps,
   showError,
   showSuccess,
   showWarning,
@@ -70,8 +71,39 @@ const defaultGlobalSettingInputs = {
   'global.pass_through_request_enabled': false,
   'global.thinking_model_blacklist': '[]',
   'global.chat_completions_to_responses_policy': '{}',
+  AutoRouteScoringModel: '',
+  AutoRouteEmbeddingModel: '',
   'general_setting.ping_interval_enabled': false,
   'general_setting.ping_interval_seconds': 60,
+};
+
+const endpointIncludes = (endpoints, keyword) => {
+  if (!endpoints) return false;
+  const lowerKeyword = String(keyword || '').toLowerCase();
+  try {
+    const parsed = typeof endpoints === 'string' ? JSON.parse(endpoints) : endpoints;
+    if (Array.isArray(parsed)) {
+      return parsed.some((endpoint) =>
+        String(endpoint || '').toLowerCase().includes(lowerKeyword),
+      );
+    }
+    if (parsed && typeof parsed === 'object') {
+      return Object.keys(parsed).some((endpoint) =>
+        String(endpoint || '').toLowerCase().includes(lowerKeyword),
+      );
+    }
+  } catch (error) {
+    return String(endpoints || '').toLowerCase().includes(lowerKeyword);
+  }
+  return String(endpoints || '').toLowerCase().includes(lowerKeyword);
+};
+
+const endpointIncludesOpenAI = (endpoints) => {
+  return endpointIncludes(endpoints, 'openai');
+};
+
+const endpointIncludesEmbeddings = (endpoints) => {
+  return endpointIncludes(endpoints, 'embedding');
 };
 
 export default function SettingGlobalModel(props) {
@@ -81,8 +113,79 @@ export default function SettingGlobalModel(props) {
   const [inputs, setInputs] = useState(defaultGlobalSettingInputs);
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(defaultGlobalSettingInputs);
+  const [scoringModelOptions, setScoringModelOptions] = useState([]);
+  const [embeddingModelOptions, setEmbeddingModelOptions] = useState([]);
   const chatCompletionsToResponsesPolicyKey =
     'global.chat_completions_to_responses_policy';
+
+  const autoRouteScoringModelOptions = useMemo(() => {
+    const current = String(inputs.AutoRouteScoringModel || '').trim();
+    if (
+      current &&
+      !scoringModelOptions.some((option) => option.value === current)
+    ) {
+      return [
+        {
+          label: `${current}（${t('当前配置')}）`,
+          value: current,
+        },
+        ...scoringModelOptions,
+      ];
+    }
+    return scoringModelOptions;
+  }, [inputs.AutoRouteScoringModel, scoringModelOptions, t]);
+
+  const autoRouteEmbeddingModelOptions = useMemo(() => {
+    const current = String(inputs.AutoRouteEmbeddingModel || '').trim();
+    if (
+      current &&
+      !embeddingModelOptions.some((option) => option.value === current)
+    ) {
+      return [
+        {
+          label: `${current}（${t('当前配置')}）`,
+          value: current,
+        },
+        ...embeddingModelOptions,
+      ];
+    }
+    return embeddingModelOptions;
+  }, [inputs.AutoRouteEmbeddingModel, embeddingModelOptions, t]);
+
+  const fetchAutoRouteModelOptions = async () => {
+    try {
+      const res = await API.get('/api/models/?p=1&page_size=1000');
+      const items = res.data?.data?.items || res.data?.data || [];
+      if (!Array.isArray(items)) {
+        setScoringModelOptions([]);
+        setEmbeddingModelOptions([]);
+        return;
+      }
+      const enabledModels = items
+        .filter((model) => model?.status === 1)
+        .filter((model) => {
+          const modelName = String(model?.model_name || '').trim();
+          return modelName && modelName.toLowerCase() !== 'afb-auto';
+        });
+      const scoringOptions = enabledModels
+        .filter((model) => endpointIncludesOpenAI(model?.endpoints))
+        .map((model) => ({
+          label: model.model_name,
+          value: model.model_name,
+        }));
+      const embeddingOptions = enabledModels
+        .filter((model) => endpointIncludesEmbeddings(model?.endpoints))
+        .map((model) => ({
+          label: model.model_name,
+          value: model.model_name,
+        }));
+      setScoringModelOptions(scoringOptions);
+      setEmbeddingModelOptions(embeddingOptions);
+    } catch (error) {
+      setScoringModelOptions([]);
+      setEmbeddingModelOptions([]);
+    }
+  };
 
   const setChatCompletionsToResponsesPolicyValue = (value) => {
     setInputs((prev) => ({
@@ -103,10 +206,25 @@ export default function SettingGlobalModel(props) {
       const text = typeof value === 'string' ? value.trim() : '';
       return text === '' ? '{}' : value;
     }
+    if (key === 'AutoRouteScoringModel' || key === 'AutoRouteEmbeddingModel') {
+      return typeof value === 'string' ? value.trim() : '';
+    }
     return value;
   };
 
   function onSubmit() {
+    const autoRouteScoringModel = String(
+      inputs.AutoRouteScoringModel || '',
+    ).trim();
+    if (autoRouteScoringModel.toLowerCase() === 'afb-auto') {
+      return showError(t('afb-auto 打分模型不能填写 afb-auto'));
+    }
+    const autoRouteEmbeddingModel = String(
+      inputs.AutoRouteEmbeddingModel || '',
+    ).trim();
+    if (autoRouteEmbeddingModel.toLowerCase() === 'afb-auto') {
+      return showError(t('afb-auto 向量打分模型不能填写 afb-auto'));
+    }
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
     const requestQueue = updateArray.map((item) => {
@@ -179,6 +297,10 @@ export default function SettingGlobalModel(props) {
     }
   }, [props.options]);
 
+  useEffect(() => {
+    fetchAutoRouteModelOptions();
+  }, []);
+
   return (
     <>
       <Spin spinning={loading}>
@@ -202,6 +324,68 @@ export default function SettingGlobalModel(props) {
                   extraText={t(
                     '开启后，所有请求将直接透传给上游，不会进行任何处理（重定向和渠道适配也将失效）,请谨慎开启',
                   )}
+                />
+              </Col>
+            </Row>
+            <Row>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  {...semiSelectPortalProps}
+                  label={t('afb-auto 向量打分模型')}
+                  field={'AutoRouteEmbeddingModel'}
+                  placeholder={t('留空则不使用向量打分')}
+                  optionList={autoRouteEmbeddingModelOptions}
+                  filter
+                  rules={[
+                    {
+                      validator: (rule, value) => {
+                        const text = String(value || '').trim().toLowerCase();
+                        return text === '' || text !== 'afb-auto';
+                      },
+                      message: t('不能填写 afb-auto，避免递归路由'),
+                    },
+                  ]}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutoRouteEmbeddingModel: value || '',
+                    })
+                  }
+                  extraText={t(
+                    '仅展示端点包含 embeddings 的现有启用模型；配置后优先用于 afb-auto 中间难度请求。失败时可回退到文本打分模型。',
+                  )}
+                  showClear
+                  style={{ width: '100%' }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Select
+                  {...semiSelectPortalProps}
+                  label={t('afb-auto 文本打分模型')}
+                  field={'AutoRouteScoringModel'}
+                  placeholder={t('留空则不使用文本打分')}
+                  optionList={autoRouteScoringModelOptions}
+                  filter
+                  rules={[
+                    {
+                      validator: (rule, value) => {
+                        const text = String(value || '').trim().toLowerCase();
+                        return text === '' || text !== 'afb-auto';
+                      },
+                      message: t('不能填写 afb-auto，避免递归路由'),
+                    },
+                  ]}
+                  onChange={(value) =>
+                    setInputs({
+                      ...inputs,
+                      AutoRouteScoringModel: value || '',
+                    })
+                  }
+                  extraText={t(
+                    '仅展示端点包含 openai 的现有启用模型；未配置向量打分时使用，或向量打分失败时作为回退。两者都留空则按中档难度 50 路由。',
+                  )}
+                  showClear
+                  style={{ width: '100%' }}
                 />
               </Col>
             </Row>

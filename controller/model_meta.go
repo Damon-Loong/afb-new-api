@@ -84,6 +84,7 @@ func CreateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	m.RouterScore = clampModelRouterScore(m.RouterScore)
 	if m.ModelName == "" {
 		common.ApiErrorMsg(c, "模型名称不能为空")
 		return
@@ -126,6 +127,7 @@ func UpdateModelMeta(c *gin.Context) {
 			return
 		}
 	} else {
+		m.RouterScore = clampModelRouterScore(m.RouterScore)
 		// 名称冲突检查
 		if dup, err := model.IsModelNameDuplicated(m.Id, m.ModelName); err != nil {
 			common.ApiError(c, err)
@@ -142,6 +144,16 @@ func UpdateModelMeta(c *gin.Context) {
 	}
 	model.RefreshPricing()
 	common.ApiSuccess(c, &m)
+}
+
+func clampModelRouterScore(score int) int {
+	if score < 0 {
+		return 0
+	}
+	if score > 100 {
+		return 100
+	}
+	return score
 }
 
 // DeleteModelMeta 删除模型

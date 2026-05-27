@@ -68,6 +68,51 @@ const nameRuleOptions = [
   { label: '后缀名称匹配', value: 3 },
 ];
 
+const routeScoreLevels = [
+  {
+    label: '不参与',
+    value: 0,
+    description: '不作为 afb-auto 候选模型',
+  },
+  {
+    label: '轻量',
+    value: 15,
+    description: '寒暄、短问答、单句翻译',
+  },
+  {
+    label: '日常',
+    value: 30,
+    description: '普通问答、轻量创作、简单总结',
+  },
+  {
+    label: '标准',
+    value: 45,
+    description: '简单代码、单文件小改动、结构化输出',
+  },
+  {
+    label: '进阶',
+    value: 60,
+    description: '普通排错、较多约束、局部方案设计',
+  },
+  {
+    label: '高级',
+    value: 75,
+    description: '复杂排错、长上下文、多步骤推理',
+  },
+  {
+    label: '旗舰',
+    value: 90,
+    description: '系统架构、高风险决策、深度改造',
+  },
+];
+
+const normalizeRouterScoreLevel = (score) => {
+  const value = Math.min(100, Math.max(0, Number(score || 0)));
+  return routeScoreLevels.reduce((best, level) =>
+    Math.abs(level.value - value) < Math.abs(best.value - value) ? level : best,
+  ).value;
+};
+
 /** 规范化标签；通过 Form.Field 的 convert 写入，勿在 onChange 里再 formApi.setValue，否则会与 Semi withField 内部更新嵌套触发 React 警告 */
 const normalizeTagInputValue = (raw) => {
   if (!Array.isArray(raw)) return [];
@@ -175,6 +220,7 @@ const EditModelModal = (props) => {
     vendor: '',
     vendor_icon: '',
     endpoints: '',
+    router_score: 0,
     name_rule: props.editingModel?.model_name ? 0 : undefined, // 通过未配置模型过来的固定为精确匹配
     status: true,
     sync_official: true,
@@ -207,6 +253,15 @@ const EditModelModal = (props) => {
     [vendors],
   );
 
+  const routeScoreOptionList = useMemo(
+    () =>
+      routeScoreLevels.map((level) => ({
+        label: `${t(level.label)} · ${level.value} - ${t(level.description)}`,
+        value: level.value,
+      })),
+    [t],
+  );
+
   const handleCancel = () => {
     props.handleClose();
   };
@@ -232,6 +287,7 @@ const EditModelModal = (props) => {
         // 处理status/sync_official，将数字转为布尔值
         data.status = data.status === 1;
         data.sync_official = (data.sync_official ?? 1) === 1;
+        data.router_score = normalizeRouterScoreLevel(data.router_score ?? 0);
         if (formApiRef.current) {
           formApiRef.current.setValues({ ...getInitValues(), ...data });
         }
@@ -294,6 +350,10 @@ const EditModelModal = (props) => {
         ...values,
         tags: Array.isArray(values.tags) ? values.tags.join(',') : values.tags,
         endpoints: values.endpoints || '',
+        router_score: Math.min(
+          100,
+          Math.max(0, Number(values.router_score || 0)),
+        ),
         status: values.status ? 1 : 0,
         sync_official: values.sync_official ? 1 : 0,
       };
@@ -424,6 +484,19 @@ const EditModelModal = (props) => {
                         '根据模型名称和匹配规则查找模型元数据，优先级：精确 > 前缀 > 后缀 > 包含',
                       )}
                       style={{ width: '100%' }}
+                    />
+                  </Col>
+
+                  <Col span={24}>
+                    <Form.Select {...semiSelectPortalProps}
+                      field='router_score'
+                      label={t('自动路由档位')}
+                      placeholder={t('请选择 afb-auto 路由档位')}
+                      optionList={routeScoreOptionList}
+                      style={{ width: '100%' }}
+                      extraText={t(
+                        '仅用于 afb-auto 自动路由；档位越高，越适合承接复杂问题。底层仍保存为 0-100 分。',
+                      )}
                     />
                   </Col>
 

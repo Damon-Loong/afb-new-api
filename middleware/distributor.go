@@ -89,6 +89,7 @@ func Distribute() func(c *gin.Context) {
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
+			var tokenModelLimit map[string]bool
 			if modelLimitEnable {
 				s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
 				if !ok {
@@ -96,7 +97,6 @@ func Distribute() func(c *gin.Context) {
 					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorTokenNoModelAccess))
 					return
 				}
-				var tokenModelLimit map[string]bool
 				tokenModelLimit, ok = s.(map[string]bool)
 				if !ok {
 					tokenModelLimit = map[string]bool{}
@@ -131,6 +131,19 @@ func Distribute() func(c *gin.Context) {
 						usingGroup = playgroundRequest.Group
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
+				}
+
+				if _, routeErrMsg := maybeApplyAutoRoute(c, modelRequest, usingGroup, tokenModelLimit, modelLimitEnable); routeErrMsg != "" {
+					statusCode := http.StatusServiceUnavailable
+					errorCode := types.ErrorCodeModelNotFound
+					if strings.Contains(routeErrMsg, "仅支持") {
+						statusCode = http.StatusBadRequest
+						errorCode = types.ErrorCodeInvalidRequest
+					} else if strings.Contains(routeErrMsg, "not allowed") || strings.Contains(routeErrMsg, "权限") {
+						statusCode = http.StatusForbidden
+					}
+					abortWithOpenAiMessage(c, statusCode, routeErrMsg, errorCode)
+					return
 				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {

@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/console_setting"
@@ -345,11 +347,30 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case constant.AutoRouteScoringModelOption:
+		if strings.EqualFold(strings.TrimSpace(option.Value.(string)), constant.AutoRouteModelName) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "打分模型不能设置为 afb-auto，避免递归路由",
+			})
+			return
+		}
+	case constant.AutoRouteEmbeddingModelOption:
+		if strings.EqualFold(strings.TrimSpace(option.Value.(string)), constant.AutoRouteModelName) {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "向量打分模型不能设置为 afb-auto，避免递归路由",
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if option.Key == constant.AutoRouteEmbeddingModelOption {
+		middleware.StartAutoRouteCentroidWarmup("option_update")
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

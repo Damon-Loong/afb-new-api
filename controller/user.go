@@ -573,6 +573,9 @@ func GetUserModels(c *gin.Context) {
 			}
 		}
 	}
+	if model.HasUsableAutoRouteCandidates(models) && !common.StringsContains(models, constant.AutoRouteModelName) {
+		models = append(models, constant.AutoRouteModelName)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

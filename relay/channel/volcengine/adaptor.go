@@ -236,6 +236,92 @@ func detectImageMimeType(filename string) string {
 	}
 }
 
+type volcengineMultimodalEmbeddingRequest struct {
+	Model string           `json:"model"`
+	Input []map[string]any `json:"input"`
+}
+
+func isVolcengineEmbedding(info *relaycommon.RelayInfo) bool {
+	if info == nil || info.RelayMode != constant.RelayModeEmbeddings {
+		return false
+	}
+	return true
+}
+
+func convertVolcengineMultimodalEmbeddingRequest(request dto.EmbeddingRequest) (volcengineMultimodalEmbeddingRequest, error) {
+	input, err := convertVolcengineMultimodalEmbeddingInput(request.Input)
+	if err != nil {
+		return volcengineMultimodalEmbeddingRequest{}, err
+	}
+	return volcengineMultimodalEmbeddingRequest{
+		Model: request.Model,
+		Input: input,
+	}, nil
+}
+
+func convertVolcengineMultimodalEmbeddingInput(input any) ([]map[string]any, error) {
+	switch v := input.(type) {
+	case nil:
+		return nil, errors.New("embedding input is required")
+	case string:
+		return []map[string]any{volcengineTextEmbeddingInput(v)}, nil
+	case []string:
+		items := make([]map[string]any, 0, len(v))
+		for _, item := range v {
+			items = append(items, volcengineTextEmbeddingInput(item))
+		}
+		return items, nil
+	case []any:
+		items := make([]map[string]any, 0, len(v))
+		for _, item := range v {
+			converted, err := convertVolcengineMultimodalEmbeddingItem(item)
+			if err != nil {
+				return nil, err
+			}
+			items = append(items, converted)
+		}
+		return items, nil
+	case map[string]any:
+		item, err := convertVolcengineMultimodalEmbeddingItem(v)
+		if err != nil {
+			return nil, err
+		}
+		return []map[string]any{item}, nil
+	default:
+		return nil, fmt.Errorf("unsupported volcengine multimodal embedding input type %T", input)
+	}
+}
+
+func convertVolcengineMultimodalEmbeddingItem(input any) (map[string]any, error) {
+	switch v := input.(type) {
+	case string:
+		return volcengineTextEmbeddingInput(v), nil
+	case map[string]any:
+		if _, ok := v["type"].(string); ok {
+			return v, nil
+		}
+		if text, ok := v["text"].(string); ok {
+			return volcengineTextEmbeddingInput(text), nil
+		}
+		if imageURL := v["image_url"]; imageURL != nil {
+			return map[string]any{
+				"type":      "image_url",
+				"image_url": imageURL,
+			}, nil
+		}
+		return nil, errors.New("volcengine multimodal embedding input item requires type, text, or image_url")
+	default:
+		return nil, fmt.Errorf("unsupported volcengine multimodal embedding input item type %T", input)
+	}
+}
+
+func volcengineTextEmbeddingInput(text string) map[string]any {
+	return map[string]any{
+		"type": "text",
+		"text": text,
+	}
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
@@ -266,7 +352,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			}
 			return fmt.Sprintf("%s/api/v3/chat/completions", baseUrl), nil
 		case constant.RelayModeEmbeddings:
-			return fmt.Sprintf("%s/api/v3/embeddings", baseUrl), nil
+			return fmt.Sprintf("%s/api/v3/embeddings/multimodal", baseUrl), nil
 		//豆包的图生图也走generations接口: https://www.volcengine.com/docs/82379/1824121
 		case constant.RelayModeImagesGenerations, constant.RelayModeImagesEdits:
 			return fmt.Sprintf("%s/api/v3/images/generations", baseUrl), nil
@@ -325,6 +411,9 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	if isVolcengineEmbedding(info) {
+		return convertVolcengineMultimodalEmbeddingRequest(request)
+	}
 	return request, nil
 }
 

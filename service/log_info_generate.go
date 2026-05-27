@@ -49,6 +49,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 		other["is_model_mapped"] = true
 		other["upstream_model_name"] = relayInfo.UpstreamModelName
 	}
+	appendAutoRouteInfo(ctx, other)
 
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
 	if isSystemPromptOverwritten {
@@ -78,6 +79,41 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
+}
+
+func appendAutoRouteInfo(ctx *gin.Context, other map[string]interface{}) {
+	if ctx == nil || other == nil {
+		return
+	}
+	if common.GetContextKeyBool(ctx, constant.ContextKeyAutoRouteScoring) {
+		other["auto_route_scoring"] = true
+	}
+	requested := common.GetContextKeyString(ctx, constant.ContextKeyAutoRouteRequestedModel)
+	if requested == "" {
+		return
+	}
+	other["requested_model"] = requested
+	if routed := common.GetContextKeyString(ctx, constant.ContextKeyAutoRouteRoutedModel); routed != "" {
+		other["routed_model"] = routed
+	}
+	if difficulty := common.GetContextKeyInt(ctx, constant.ContextKeyAutoRouteDifficulty); difficulty > 0 {
+		other["difficulty"] = difficulty
+	}
+	if source := common.GetContextKeyString(ctx, constant.ContextKeyAutoRouteSource); source != "" {
+		other["route_source"] = source
+	}
+	if scorer := common.GetContextKeyString(ctx, constant.ContextKeyAutoRouteScorerModel); scorer != "" {
+		other["scorer_model"] = scorer
+	}
+	if reason := common.GetContextKeyString(ctx, constant.ContextKeyAutoRouteReason); reason != "" {
+		other["route_reason"] = reason
+	}
+	if common.GetContextKeyBool(ctx, constant.ContextKeyAutoRouteScorerFailed) {
+		other["scorer_failed"] = true
+	}
+	if common.GetContextKeyBool(ctx, constant.ContextKeyAutoRouteUnderpowered) {
+		other["underpowered"] = true
+	}
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {

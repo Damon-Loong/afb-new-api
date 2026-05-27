@@ -42,6 +42,16 @@ const (
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"
 
+	ContextKeyAutoRouteRequestedModel ContextKey = "auto_route_requested_model"
+	ContextKeyAutoRouteRoutedModel    ContextKey = "auto_route_routed_model"
+	ContextKeyAutoRouteDifficulty     ContextKey = "auto_route_difficulty"
+	ContextKeyAutoRouteSource         ContextKey = "auto_route_source"
+	ContextKeyAutoRouteScorerModel    ContextKey = "auto_route_scorer_model"
+	ContextKeyAutoRouteScorerFailed   ContextKey = "auto_route_scorer_failed"
+	ContextKeyAutoRouteUnderpowered   ContextKey = "auto_route_underpowered"
+	ContextKeyAutoRouteReason         ContextKey = "auto_route_reason"
+	ContextKeyAutoRouteScoring        ContextKey = "auto_route_scoring"
+
 	/* user related keys */
 	ContextKeyUserId      ContextKey = "id"
 	ContextKeyUserSetting ContextKey = "user_setting"

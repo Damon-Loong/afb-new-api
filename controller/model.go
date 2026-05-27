@@ -29,6 +29,29 @@ var openAIModels []dto.OpenAIModels
 var openAIModelsMap map[string]dto.OpenAIModels
 var channelId2Models map[int][]string
 
+func autoRouteOpenAIModel() dto.OpenAIModels {
+	return dto.OpenAIModels{
+		Id:      constant.AutoRouteModelName,
+		Object:  "model",
+		Created: 1626777600,
+		OwnedBy: "afb",
+		SupportedEndpointTypes: []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+		},
+	}
+}
+
+func appendAutoRouteModelIfAvailable(models []dto.OpenAIModels, availableModelNames []string) []dto.OpenAIModels {
+	if !model.HasUsableAutoRouteCandidates(availableModelNames) {
+		return models
+	}
+	if lo.ContainsBy(models, func(m dto.OpenAIModels) bool { return m.Id == constant.AutoRouteModelName }) {
+		return models
+	}
+	return append(models, autoRouteOpenAIModel())
+}
+
 func init() {
 	// https://platform.openai.com/docs/models/model-endpoint-compatibility
 	for i := 0; i < constant.APITypeDummy; i++ {
@@ -128,11 +151,21 @@ func ListModels(c *gin.Context, modelType int) {
 		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
 		var tokenModelLimit map[string]bool
 		if ok {
-			tokenModelLimit = s.(map[string]bool)
+			tokenModelLimit, ok = s.(map[string]bool)
+			if !ok {
+				tokenModelLimit = map[string]bool{}
+			}
 		} else {
 			tokenModelLimit = map[string]bool{}
 		}
-		for allowModel, _ := range tokenModelLimit {
+		allowAutoRoute := false
+		allowedRealModels := make([]string, 0, len(tokenModelLimit))
+		for allowModel := range tokenModelLimit {
+			if allowModel == constant.AutoRouteModelName {
+				allowAutoRoute = true
+				continue
+			}
+			allowedRealModels = append(allowedRealModels, allowModel)
 			if !acceptUnsetRatioModel {
 				_, _, exist := ratio_setting.GetModelRatioOrPrice(allowModel)
 				if !exist {
@@ -151,6 +184,9 @@ func ListModels(c *gin.Context, modelType int) {
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
 				})
 			}
+		}
+		if allowAutoRoute {
+			userOpenAiModels = appendAutoRouteModelIfAvailable(userOpenAiModels, allowedRealModels)
 		}
 	} else {
 		userId := c.GetInt("id")
@@ -200,6 +236,7 @@ func ListModels(c *gin.Context, modelType int) {
 				})
 			}
 		}
+		userOpenAiModels = appendAutoRouteModelIfAvailable(userOpenAiModels, models)
 	}
 
 	switch modelType {
