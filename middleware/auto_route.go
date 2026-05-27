@@ -19,7 +19,6 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -50,7 +49,6 @@ const (
 	autoRouteScorerTimeout     = 1500 * time.Millisecond
 	autoRouteMaxScoringRunes   = 6000
 	autoRouteScoringMaxTokens  = uint(120)
-	autoRouteScoringLogRunes   = 2000
 )
 
 type autoRouteCandidate struct {
@@ -136,7 +134,6 @@ func maybeApplyAutoRoute(c *gin.Context, modelRequest *ModelRequest, usingGroup 
 	}
 
 	modelRequest.Model = decision.RoutedModel
-	logger.LogInfo(c, fmt.Sprintf("AFB auto route: difficulty=%d source=%s model=%s", decision.Difficulty, decision.Source, decision.RoutedModel))
 	return true, ""
 }
 
@@ -360,13 +357,11 @@ func scoreAutoRoute(c *gin.Context, embeddingModel string, scoringModel string, 
 			if scoringModel == "" {
 				return autoRouteScoringResult{}, embeddingModel, "scorer_failed", fmt.Errorf("embedding scoring model is not allowed by token model limit")
 			}
-			logger.LogWarn(c, fmt.Sprintf("AFB auto route embedding scorer skipped: model=%s err=not allowed by token model limit", embeddingModel))
 		} else {
 			result, err := scoreAutoRouteDifficultyWithEmbedding(c, embeddingModel, usingGroup, features)
 			if err == nil {
 				return result, embeddingModel, "embedding_scorer", nil
 			}
-			logger.LogWarn(c, fmt.Sprintf("AFB auto route embedding scorer failed: model=%s err=%s", embeddingModel, err.Error()))
 			if scoringModel == "" {
 				return autoRouteScoringResult{}, embeddingModel, "scorer_failed", err
 			}
@@ -724,28 +719,22 @@ func scoreAutoRouteDifficultyWithEmbedding(c *gin.Context, embeddingModel string
 func StartAutoRouteCentroidWarmup(reason string) {
 	embeddingModel := strings.TrimSpace(setting.AutoRouteEmbeddingModel)
 	if embeddingModel == "" || strings.EqualFold(embeddingModel, constant.AutoRouteModelName) {
-		common.SysLog(fmt.Sprintf("AFB auto route centroid warmup skipped: reason=%s embedding_model_empty_or_auto", reason))
 		return
 	}
-	common.SysLog(fmt.Sprintf("AFB auto route centroid warmup scheduled: reason=%s model=%s", reason, embeddingModel))
 	go warmAutoRouteCentroidsForModel(embeddingModel, reason)
 }
 
 func warmAutoRouteCentroidsForModel(embeddingModel string, reason string) {
-	common.SysLog(fmt.Sprintf("AFB auto route centroid warmup selecting channel: reason=%s model=%s", reason, embeddingModel))
-	group, channel, ok := firstAvailableGroupChannelForModel(autoRouteWarmupCandidateGroups(), embeddingModel)
+	_, channel, ok := firstAvailableGroupChannelForModel(autoRouteWarmupCandidateGroups(), embeddingModel)
 	if !ok {
-		common.SysLog(fmt.Sprintf("AFB auto route centroid warmup skipped: reason=%s model=%s has no available channel", reason, embeddingModel))
 		return
 	}
-	common.SysLog(fmt.Sprintf("AFB auto route centroid warmup channel selected: reason=%s model=%s group=%s channel_id=%d channel_type=%d", reason, embeddingModel, group, channel.Id, channel.Type))
 
 	c := newAutoRouteBackgroundContext()
 	common.SetContextKey(c, constant.ContextKeyAutoRouteScoring, true)
 	common.SetContextKey(c, constant.ContextKeyAutoRouteRequestedModel, constant.AutoRouteModelName)
 	common.SetContextKey(c, constant.ContextKeyAutoRouteScorerModel, embeddingModel)
 	if newAPIError := SetupContextForSelectedChannel(c, channel, embeddingModel); newAPIError != nil {
-		common.SysLog(fmt.Sprintf("AFB auto route centroid warmup setup failed: reason=%s model=%s group=%s err=%s", reason, embeddingModel, group, newAPIError.Error()))
 		return
 	}
 
@@ -756,7 +745,6 @@ func warmAutoRouteCentroidsForModel(embeddingModel string, reason string) {
 	relayInfo.InitRequestConversionChain()
 	relayInfo.InitChannelMeta(c)
 	if err := helper.ModelMappedHelper(c, relayInfo, embeddingReq); err != nil {
-		common.SysLog(fmt.Sprintf("AFB auto route centroid warmup model mapping failed: reason=%s model=%s err=%s", reason, embeddingModel, err.Error()))
 		return
 	}
 	scheduleAutoRouteCentroidWarmupForRelayInfo(c, relayInfo, embeddingReq, reason)
@@ -770,29 +758,14 @@ func newAutoRouteBackgroundContext() *gin.Context {
 	return c
 }
 
-func scheduleAutoRouteCentroidWarmupForRelayInfo(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, reason string) {
+func scheduleAutoRouteCentroidWarmupForRelayInfo(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, _ string) {
 	cacheKey := autoRouteEmbeddingTierCacheKey(info, request)
 	if cached, ok := autoRouteEmbeddingTierCache.Load(cacheKey); ok {
 		if entry, ok := cached.(autoRouteEmbeddingTierCacheEntry); ok && len(entry.embeddings) == len(autoRouteEmbeddingTiers) {
-			logger.LogInfo(c, fmt.Sprintf(
-				"AFB auto route centroid warmup already cached: reason=%s model=%s upstream_model=%s channel_id=%d tiers=%d",
-				reason,
-				request.Model,
-				info.UpstreamModelName,
-				info.ChannelId,
-				len(entry.embeddings),
-			))
 			return
 		}
 	}
 	if _, loaded := autoRouteEmbeddingTierWarmupInFlight.LoadOrStore(cacheKey, true); loaded {
-		logger.LogInfo(c, fmt.Sprintf(
-			"AFB auto route centroid warmup already in-flight: reason=%s model=%s upstream_model=%s channel_id=%d",
-			reason,
-			request.Model,
-			info.UpstreamModelName,
-			info.ChannelId,
-		))
 		return
 	}
 
@@ -804,76 +777,18 @@ func scheduleAutoRouteCentroidWarmupForRelayInfo(c *gin.Context, info *relaycomm
 		common.SetContextKey(warmupCtx, constant.ContextKeyAutoRouteScoring, true)
 		common.SetContextKey(warmupCtx, constant.ContextKeyAutoRouteRequestedModel, constant.AutoRouteModelName)
 		common.SetContextKey(warmupCtx, constant.ContextKeyAutoRouteScorerModel, requestCopy.Model)
-		logger.LogInfo(warmupCtx, fmt.Sprintf(
-			"AFB auto route centroid warmup started: reason=%s model=%s upstream_model=%s channel_id=%d channel_type=%d tiers=%d",
-			reason,
-			requestCopy.Model,
-			infoCopy.UpstreamModelName,
-			infoCopy.ChannelId,
-			infoCopy.ChannelType,
-			len(autoRouteEmbeddingTiers),
-		))
 
 		centroids := make([][]float64, 0, len(autoRouteEmbeddingTiers))
-		for index, tier := range autoRouteEmbeddingTiers {
+		for _, tier := range autoRouteEmbeddingTiers {
 			prototypes := autoRouteEmbeddingTierPrototypes(tier)
-			logger.LogInfo(warmupCtx, fmt.Sprintf(
-				"AFB auto route centroid warmup tier begin: reason=%s model=%s tier=%s score=%d item=%d/%d samples=%d",
-				reason,
-				requestCopy.Model,
-				tier.Label,
-				tier.Score,
-				index+1,
-				len(autoRouteEmbeddingTiers),
-				len(prototypes),
-			))
-			startedAt := time.Now()
-			embedding, usage, err := buildAutoRouteTierCentroid(warmupCtx, &infoCopy, &requestCopy, prototypes, index+1, len(autoRouteEmbeddingTiers))
-			elapsed := time.Since(startedAt)
+			embedding, _, err := buildAutoRouteTierCentroid(warmupCtx, &infoCopy, &requestCopy, prototypes)
 			if err != nil {
-				logger.LogWarn(warmupCtx, fmt.Sprintf(
-					"AFB auto route centroid warmup tier failed: reason=%s model=%s tier=%s item=%d/%d elapsed_ms=%d err=%s",
-					reason,
-					requestCopy.Model,
-					tier.Label,
-					index+1,
-					len(autoRouteEmbeddingTiers),
-					elapsed.Milliseconds(),
-					err.Error(),
-				))
 				return
 			}
-			promptTokens := 0
-			totalTokens := 0
-			if usage != nil {
-				promptTokens = usage.PromptTokens
-				totalTokens = usage.TotalTokens
-			}
-			logger.LogInfo(warmupCtx, fmt.Sprintf(
-				"AFB auto route centroid warmup tier ok: reason=%s model=%s tier=%s item=%d/%d elapsed_ms=%d dim=%d samples=%d usage_prompt=%d usage_total=%d",
-				reason,
-				requestCopy.Model,
-				tier.Label,
-				index+1,
-				len(autoRouteEmbeddingTiers),
-				elapsed.Milliseconds(),
-				len(embedding),
-				len(prototypes),
-				promptTokens,
-				totalTokens,
-			))
 			centroids = append(centroids, embedding)
 		}
 
 		autoRouteEmbeddingTierCache.Store(cacheKey, autoRouteEmbeddingTierCacheEntry{embeddings: centroids})
-		logger.LogInfo(warmupCtx, fmt.Sprintf(
-			"AFB auto route centroid warmup stored: reason=%s model=%s upstream_model=%s channel_id=%d tiers=%d",
-			reason,
-			requestCopy.Model,
-			infoCopy.UpstreamModelName,
-			infoCopy.ChannelId,
-			len(centroids),
-		))
 	}()
 }
 
@@ -923,29 +838,16 @@ func doAutoRouteVolcengineEmbeddingRequest(c *gin.Context, info *relaycommon.Rel
 			embeddings := make([][]float64, 0, len(entry.embeddings)+1)
 			embeddings = append(embeddings, queryEmbedding)
 			embeddings = append(embeddings, entry.embeddings...)
-			logger.LogInfo(c, fmt.Sprintf(
-				"AFB auto route embedding tier cache hit: model=%s upstream_model=%s tiers=%d",
-				request.Model,
-				info.UpstreamModelName,
-				len(entry.embeddings),
-			))
 			return embeddings, usage, nil
 		}
 	}
-	logger.LogWarn(c, fmt.Sprintf(
-		"AFB auto route embedding tier cache missing: model=%s upstream_model=%s channel_id=%d tiers=%d; schedule warmup and skip embedding scorer for this request",
-		request.Model,
-		info.UpstreamModelName,
-		info.ChannelId,
-		len(tierInputs),
-	))
 	scheduleAutoRouteCentroidWarmupForRelayInfo(c, info, request, "cache_miss")
 	return nil, nil, fmt.Errorf("embedding tier cache not warmed for model %s", request.Model)
 }
 
-func buildAutoRouteTierCentroid(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, prototypes []string, tierIndex int, tierCount int) ([]float64, *dto.Usage, error) {
+func buildAutoRouteTierCentroid(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, prototypes []string) ([]float64, *dto.Usage, error) {
 	if len(prototypes) == 0 {
-		return nil, nil, fmt.Errorf("embedding tier %d/%d has no prototypes", tierIndex, tierCount)
+		return nil, nil, fmt.Errorf("embedding tier has no prototypes")
 	}
 	vectors := make([][]float64, 0, len(prototypes))
 	totalUsage := &dto.Usage{}
@@ -965,7 +867,7 @@ func buildAutoRouteTierCentroid(c *gin.Context, info *relaycommon.RelayInfo, req
 	}
 	centroid := meanNormalizedAutoRouteEmbeddings(vectors)
 	if len(centroid) == 0 {
-		return nil, nil, fmt.Errorf("embedding tier %d/%d produced empty centroid", tierIndex, tierCount)
+		return nil, nil, fmt.Errorf("embedding tier produced empty centroid")
 	}
 	return centroid, totalUsage, nil
 }
@@ -990,7 +892,7 @@ func autoRouteEmbeddingTierCacheKey(info *relaycommon.RelayInfo, request *dto.Em
 	return fmt.Sprintf("%d:%d:%s:%s:%s", info.ChannelType, info.ChannelId, info.UpstreamModelName, info.OriginModelName, request.Model)
 }
 
-func doAutoRouteEmbeddingSingleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, itemIndex int, itemCount int) ([][]float64, *dto.Usage, error) {
+func doAutoRouteEmbeddingSingleRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, _ int, _ int) ([][]float64, *dto.Usage, error) {
 	adaptor := relay.GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return nil, nil, fmt.Errorf("invalid embedding scoring model api type: %d", info.ApiType)
@@ -1012,47 +914,13 @@ func doAutoRouteEmbeddingSingleRequest(c *gin.Context, info *relaycommon.RelayIn
 			return nil, nil, err
 		}
 	}
-	if common.DebugEnabled {
-		logger.LogInfo(c, fmt.Sprintf(
-			"AFB auto route embedding request: model=%s upstream_model=%s api_type=%d timeout_ms=%d item=%d/%d body=%s",
-			request.Model,
-			info.UpstreamModelName,
-			info.ApiType,
-			autoRouteScorerTimeout.Milliseconds(),
-			itemIndex,
-			itemCount,
-			truncateRunes(string(jsonData), autoRouteScoringLogRunes),
-		))
-	} else {
-		logger.LogInfo(c, fmt.Sprintf(
-			"AFB auto route embedding request: model=%s upstream_model=%s api_type=%d timeout_ms=%d item=%d/%d body_bytes=%d",
-			request.Model,
-			info.UpstreamModelName,
-			info.ApiType,
-			autoRouteScorerTimeout.Milliseconds(),
-			itemIndex,
-			itemCount,
-			len(jsonData),
-		))
-	}
 
 	reqCtx, cancel := context.WithTimeout(c.Request.Context(), autoRouteScorerTimeout)
 	defer cancel()
 	scoreCtx := c.Copy()
 	scoreCtx.Request = c.Request.Clone(reqCtx)
-	startedAt := time.Now()
 	respAny, err := adaptor.DoRequest(scoreCtx, info, bytes.NewBuffer(jsonData))
-	elapsed := time.Since(startedAt)
 	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf(
-			"AFB auto route embedding request failed: model=%s upstream_model=%s item=%d/%d elapsed_ms=%d err=%s",
-			request.Model,
-			info.UpstreamModelName,
-			itemIndex,
-			itemCount,
-			elapsed.Milliseconds(),
-			err.Error(),
-		))
 		return nil, nil, err
 	}
 	httpResp, ok := respAny.(*http.Response)
@@ -1065,74 +933,17 @@ func doAutoRouteEmbeddingSingleRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, nil, err
 	}
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
-		logger.LogWarn(c, fmt.Sprintf(
-			"AFB auto route embedding response error: model=%s upstream_model=%s item=%d/%d status=%d elapsed_ms=%d body=%s",
-			request.Model,
-			info.UpstreamModelName,
-			itemIndex,
-			itemCount,
-			httpResp.StatusCode,
-			elapsed.Milliseconds(),
-			truncateRunes(string(body), autoRouteScoringLogRunes),
-		))
 		return nil, nil, fmt.Errorf("embedding scoring model status %d: %s", httpResp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	embeddings, usage, err := parseAutoRouteEmbeddingResponse(body)
 	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf(
-			"AFB auto route embedding parse failed: model=%s upstream_model=%s item=%d/%d elapsed_ms=%d err=%s raw=%s",
-			request.Model,
-			info.UpstreamModelName,
-			itemIndex,
-			itemCount,
-			elapsed.Milliseconds(),
-			err.Error(),
-			truncateRunes(string(body), autoRouteScoringLogRunes),
-		))
 		return nil, nil, err
 	}
 	if usage.PromptTokens == 0 && usage.TotalTokens == 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 		usage.TotalTokens = usage.PromptTokens
 	}
-	if common.DebugEnabled {
-		logger.LogInfo(c, fmt.Sprintf(
-			"AFB auto route embedding response: model=%s upstream_model=%s item=%d/%d status=%d elapsed_ms=%d vectors=%d usage_prompt=%d usage_total=%d raw=%s",
-			request.Model,
-			info.UpstreamModelName,
-			itemIndex,
-			itemCount,
-			httpResp.StatusCode,
-			elapsed.Milliseconds(),
-			len(embeddings),
-			usage.PromptTokens,
-			usage.TotalTokens,
-			truncateRunes(string(body), autoRouteScoringLogRunes),
-		))
-	} else {
-		logger.LogInfo(c, fmt.Sprintf(
-			"AFB auto route embedding response: model=%s upstream_model=%s item=%d/%d status=%d elapsed_ms=%d vectors=%d dim=%d usage_prompt=%d usage_total=%d raw_bytes=%d",
-			request.Model,
-			info.UpstreamModelName,
-			itemIndex,
-			itemCount,
-			httpResp.StatusCode,
-			elapsed.Milliseconds(),
-			len(embeddings),
-			firstEmbeddingDim(embeddings),
-			usage.PromptTokens,
-			usage.TotalTokens,
-			len(body),
-		))
-	}
 	return embeddings, &usage, nil
-}
-
-func firstEmbeddingDim(embeddings [][]float64) int {
-	if len(embeddings) == 0 {
-		return 0
-	}
-	return len(embeddings[0])
 }
 
 func addAutoRouteEmbeddingUsage(total *dto.Usage, usage dto.Usage) {
@@ -1348,13 +1159,10 @@ func scoreAutoRouteFromEmbeddings(c *gin.Context, embeddings [][]float64, featur
 			secondIdx = i
 		}
 	}
-	bestScore := autoRouteEmbeddingTiers[bestIdx].Score
-	baseScore := bestScore
-	secondTier := "none"
+	baseScore := autoRouteEmbeddingTiers[bestIdx].Score
 	secondScore := 0
 	secondSim := 0.0
 	if secondIdx >= 0 {
-		secondTier = autoRouteEmbeddingTiers[secondIdx].Label
 		secondScore = autoRouteEmbeddingTiers[secondIdx].Score
 		secondSim = sims[secondIdx]
 	}
@@ -1374,41 +1182,10 @@ func scoreAutoRouteFromEmbeddings(c *gin.Context, embeddings [][]float64, featur
 	} else if confidence > 1 {
 		confidence = 1
 	}
-	logger.LogInfo(c, fmt.Sprintf(
-		"AFB auto route embedding score detail: latest=%q scoring=%q prompt_tokens=%d messages=%d history_turns=%d tools=%d schema_bytes=%d image=%t forced_tool=%t sims=%s best_tier=%s best_score=%d second_tier=%s second_score=%d margin=%.4f ambiguous=%t continuation_min=%d base_score=%d difficulty=%d confidence=%.4f",
-		truncateRunes(features.LatestText, 120),
-		truncateRunes(features.ScoringText, 180),
-		features.PromptTokens,
-		features.MessagesCount,
-		features.HistoryTurns,
-		features.ToolsCount,
-		features.SchemaBytes,
-		features.HasImage,
-		features.ForcedTool,
-		formatAutoRouteFloatSlice(sims),
-		autoRouteEmbeddingTiers[bestIdx].Label,
-		bestScore,
-		secondTier,
-		secondScore,
-		margin,
-		ambiguous,
-		continuationMinScore,
-		baseScore,
-		difficulty,
-		confidence,
-	))
 	return autoRouteScoringResult{
 		Difficulty: difficulty,
 		Confidence: confidence,
 	}, nil
-}
-
-func formatAutoRouteFloatSlice(values []float64) string {
-	parts := make([]string, 0, len(values))
-	for _, value := range values {
-		parts = append(parts, fmt.Sprintf("%.4f", value))
-	}
-	return "[" + strings.Join(parts, ",") + "]"
 }
 
 func cosineSimilarity(a []float64, b []float64) float64 {
@@ -1541,8 +1318,7 @@ func scoreAutoRouteDifficulty(c *gin.Context, scorerModel string, usingGroup str
 	relayInfo := relaycommon.GenRelayInfoOpenAI(scoreCtx, scoreReq)
 	relayInfo.InitRequestConversionChain()
 	relayInfo.InitChannelMeta(scoreCtx)
-	thinkingParamMode := applyAutoRouteScoringThinkingParams(scoreReq, relayInfo.ApiType, relayInfo.ChannelType)
-	logger.LogInfo(scoreCtx, fmt.Sprintf("AFB auto route scoring thinking params: channel_type=%d api_type=%d mode=%s", relayInfo.ChannelType, relayInfo.ApiType, thinkingParamMode))
+	applyAutoRouteScoringThinkingParams(scoreReq, relayInfo.ApiType, relayInfo.ChannelType)
 	if err := helper.ModelMappedHelper(scoreCtx, relayInfo, scoreReq); err != nil {
 		return autoRouteScoringResult{}, err
 	}
@@ -1650,30 +1426,13 @@ func doAutoRouteScoringRequest(c *gin.Context, info *relaycommon.RelayInfo, requ
 			return "", nil, err
 		}
 	}
-	logger.LogInfo(c, fmt.Sprintf(
-		"AFB auto route scoring request: model=%s upstream_model=%s api_type=%d timeout_ms=%d body=%s",
-		request.Model,
-		info.UpstreamModelName,
-		info.ApiType,
-		autoRouteScorerTimeout.Milliseconds(),
-		truncateRunes(string(jsonData), autoRouteScoringLogRunes),
-	))
 
 	reqCtx, cancel := context.WithTimeout(c.Request.Context(), autoRouteScorerTimeout)
 	defer cancel()
 	scoreCtx := c.Copy()
 	scoreCtx.Request = c.Request.Clone(reqCtx)
-	startedAt := time.Now()
 	respAny, err := adaptor.DoRequest(scoreCtx, info, bytes.NewBuffer(jsonData))
-	elapsed := time.Since(startedAt)
 	if err != nil {
-		logger.LogWarn(c, fmt.Sprintf(
-			"AFB auto route scoring request failed: model=%s upstream_model=%s elapsed_ms=%d err=%s",
-			request.Model,
-			info.UpstreamModelName,
-			elapsed.Milliseconds(),
-			err.Error(),
-		))
 		return "", nil, err
 	}
 	httpResp, ok := respAny.(*http.Response)
@@ -1683,14 +1442,6 @@ func doAutoRouteScoringRequest(c *gin.Context, info *relaycommon.RelayInfo, requ
 	defer service.CloseResponseBodyGracefully(httpResp)
 	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(httpResp.Body, 1024))
-		logger.LogWarn(c, fmt.Sprintf(
-			"AFB auto route scoring response error: model=%s upstream_model=%s status=%d elapsed_ms=%d body=%s",
-			request.Model,
-			info.UpstreamModelName,
-			httpResp.StatusCode,
-			elapsed.Milliseconds(),
-			truncateRunes(string(body), autoRouteScoringLogRunes),
-		))
 		return "", nil, fmt.Errorf("scoring model status %d: %s", httpResp.StatusCode, strings.TrimSpace(string(body)))
 	}
 	body, err := io.ReadAll(httpResp.Body)
@@ -1718,18 +1469,6 @@ func doAutoRouteScoringRequest(c *gin.Context, info *relaycommon.RelayInfo, requ
 	if content == "" {
 		content = extractAutoRouteScoringTextFromBody(body)
 	}
-	logger.LogInfo(c, fmt.Sprintf(
-		"AFB auto route scoring response: model=%s upstream_model=%s status=%d elapsed_ms=%d usage_prompt=%d usage_completion=%d usage_total=%d content=%s raw=%s",
-		request.Model,
-		info.UpstreamModelName,
-		httpResp.StatusCode,
-		elapsed.Milliseconds(),
-		usage.PromptTokens,
-		usage.CompletionTokens,
-		usage.TotalTokens,
-		truncateRunes(content, autoRouteScoringLogRunes),
-		truncateRunes(string(body), autoRouteScoringLogRunes),
-	))
 	if usage.PromptTokens == 0 && usage.TotalTokens == 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 		usage.CompletionTokens = service.CountTextToken(content, info.UpstreamModelName)

@@ -2,12 +2,178 @@ package claude
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/stretchr/testify/require"
 )
+
+func TestConvertOpenAIResponsesRequest_WithWebSearch(t *testing.T) {
+	input, err := json.Marshal([]map[string]any{
+		{
+			"type":   "message",
+			"role":   "user",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "input_text", "text": "今天北京天气怎么样？"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	instructions, err := json.Marshal("你是一个简洁可靠的助手。")
+	require.NoError(t, err)
+	tools, err := json.Marshal([]map[string]any{
+		{"type": "web_search"},
+	})
+	require.NoError(t, err)
+	toolChoice, err := json.Marshal("auto")
+	require.NoError(t, err)
+	stream := true
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, nil, dto.OpenAIResponsesRequest{
+		Model:        "claude-sonnet-4-5",
+		Input:        input,
+		Instructions: instructions,
+		Stream:       &stream,
+		Tools:        tools,
+		ToolChoice:   toolChoice,
+		Reasoning:    &dto.Reasoning{Effort: "minimal"},
+	})
+	require.NoError(t, err)
+
+	claudeRequest, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	require.Equal(t, "claude-sonnet-4-5", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Stream)
+	require.True(t, *claudeRequest.Stream)
+	require.Len(t, claudeRequest.Messages, 1)
+	require.Equal(t, "user", claudeRequest.Messages[0].Role)
+
+	systemMessages, ok := claudeRequest.System.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, systemMessages, 1)
+	require.Equal(t, "你是一个简洁可靠的助手。", *systemMessages[0].Text)
+
+	toolsOut, ok := claudeRequest.Tools.([]any)
+	require.True(t, ok)
+	require.Len(t, toolsOut, 1)
+	webSearchTool, ok := toolsOut[0].(*dto.ClaudeWebSearchTool)
+	require.True(t, ok)
+	require.Equal(t, ClaudeWebSearchToolType, webSearchTool.Type)
+	require.Equal(t, WebSearchMaxUsesMedium, webSearchTool.MaxUses)
+}
+
+func TestConvertOpenAIResponsesRequest_RemoteImageUsesClaudeURLSource(t *testing.T) {
+	imageURL := "https://gpt-server.oss-cn-beijing.aliyuncs.com/files/example.png"
+	input, err := json.Marshal([]map[string]any{
+		{
+			"type":   "message",
+			"role":   "user",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "input_text", "text": "这是啥"},
+				{"type": "input_image", "image_url": imageURL},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, nil, dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-6",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	claudeRequest, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	require.Len(t, claudeRequest.Messages, 1)
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 2)
+	require.Equal(t, "text", content[0].Type)
+	require.Equal(t, "image", content[1].Type)
+	require.NotNil(t, content[1].Source)
+	require.Equal(t, "url", content[1].Source.Type)
+	require.Equal(t, imageURL, content[1].Source.Url)
+	require.Empty(t, content[1].Source.MediaType)
+	require.Empty(t, content[1].Source.Data)
+}
+
+func TestConvertOpenAIResponsesRequest_DataImageUsesClaudeBase64Source(t *testing.T) {
+	imageData := base64.StdEncoding.EncodeToString([]byte("not really an image"))
+	input, err := json.Marshal([]map[string]any{
+		{
+			"type":   "message",
+			"role":   "user",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "input_text", "text": "这是啥"},
+				{"type": "input_image", "image_url": "data:image/png;base64," + imageData},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(nil, nil, dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-6",
+		Input: input,
+	})
+	require.NoError(t, err)
+
+	claudeRequest, ok := converted.(*dto.ClaudeRequest)
+	require.True(t, ok)
+	require.Len(t, claudeRequest.Messages, 1)
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 2)
+	require.Equal(t, "image", content[1].Type)
+	require.NotNil(t, content[1].Source)
+	require.Equal(t, "base64", content[1].Source.Type)
+	require.Equal(t, "image/png", content[1].Source.MediaType)
+	require.Equal(t, imageData, content[1].Source.Data)
+}
+
+func TestConvertOpenAIResponsesRequest_WithConversationHistory(t *testing.T) {
+	input, err := json.Marshal([]map[string]any{
+		{
+			"type":   "message",
+			"role":   "user",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "input_text", "text": "你好"},
+			},
+		},
+		{
+			"type":   "message",
+			"role":   "assistant",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "output_text", "text": "How can I help you today?"},
+			},
+		},
+		{
+			"type":   "message",
+			"role":   "user",
+			"status": "completed",
+			"content": []map[string]any{
+				{"type": "input_text", "text": "你有联网功能吗"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	chatRequest, err := responsesRequestToOpenAIChatRequest(dto.OpenAIResponsesRequest{
+		Model: "claude-opus-4-6",
+		Input: input,
+	})
+	require.NoError(t, err)
+	require.Len(t, chatRequest.Messages, 3)
+	require.Equal(t, "你好", chatRequest.Messages[0].StringContent())
+	require.Equal(t, "How can I help you today?", chatRequest.Messages[1].StringContent())
+	require.Equal(t, "你有联网功能吗", chatRequest.Messages[2].StringContent())
+}
 
 func TestFormatClaudeResponseInfo_MessageStart(t *testing.T) {
 	claudeInfo := &ClaudeResponseInfo{
@@ -308,6 +474,45 @@ func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedFileContent(t *testing.T)
 	require.Equal(t, "text", content[0].Type)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "see attachment", *content[0].Text)
+}
+
+func TestRequestOpenAI2ClaudeMessage_UsesURLSourceForRemoteImage(t *testing.T) {
+	imageURL := "https://example.com/image.png"
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-opus-4-6",
+		Messages: []dto.Message{
+			{
+				Role: "user",
+				Content: []any{
+					dto.MediaContent{
+						Type: dto.ContentTypeText,
+						Text: "what is this",
+					},
+					dto.MediaContent{
+						Type: dto.ContentTypeImageURL,
+						ImageUrl: &dto.MessageImageUrl{
+							Url: imageURL,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	require.Len(t, claudeRequest.Messages, 1)
+
+	content, ok := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.True(t, ok)
+	require.Len(t, content, 2)
+	require.Equal(t, "text", content[0].Type)
+	require.Equal(t, "image", content[1].Type)
+	require.NotNil(t, content[1].Source)
+	require.Equal(t, "url", content[1].Source.Type)
+	require.Equal(t, imageURL, content[1].Source.Url)
+	require.Empty(t, content[1].Source.MediaType)
+	require.Empty(t, content[1].Source.Data)
 }
 
 func TestRequestOpenAI2ClaudeMessage_SupportsPDFFileContent(t *testing.T) {

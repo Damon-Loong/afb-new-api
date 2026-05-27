@@ -26,10 +26,48 @@ import (
 )
 
 const (
-	WebSearchMaxUsesLow    = 1
-	WebSearchMaxUsesMedium = 5
-	WebSearchMaxUsesHigh   = 10
+	WebSearchMaxUsesLow     = 1
+	WebSearchMaxUsesMedium  = 5
+	WebSearchMaxUsesHigh    = 10
+	ClaudeWebSearchToolType = "web_search_20260209"
 )
+
+func isClaudeRemoteURL(value string) bool {
+	value = strings.ToLower(strings.TrimSpace(value))
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
+}
+
+func claudeMediaSourcePreview(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if strings.HasPrefix(value, "data:") {
+		if comma := strings.Index(value, ","); comma >= 0 {
+			return fmt.Sprintf("%s,<%d chars>", value[:comma], len(value)-comma-1)
+		}
+	}
+	if query := strings.Index(value, "?"); query >= 0 {
+		value = value[:query] + "?..."
+	}
+	if len(value) > 160 {
+		return value[:160] + "..."
+	}
+	return value
+}
+
+func logClaudeMediaSource(c *gin.Context, sourceType string, mediaType string, value string) {
+	if c == nil {
+		return
+	}
+	logger.LogInfo(c, fmt.Sprintf(
+		"claude media source debug: source_type=%s media_type=%s value_len=%d preview=%q",
+		sourceType,
+		mediaType,
+		len(value),
+		claudeMediaSourcePreview(value),
+	))
+}
 
 func stopReasonClaude2OpenAI(reason string) string {
 	return reasonmap.ClaudeStopReasonToOpenAIFinishReason(reason)
@@ -73,7 +111,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	// https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/web-search-tool
 	if textRequest.WebSearchOptions != nil {
 		webSearchTool := dto.ClaudeWebSearchTool{
-			Type: "web_search_20250305",
+			Type: ClaudeWebSearchToolType,
 			Name: "web_search",
 		}
 
@@ -377,8 +415,37 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 							})
 						}
 					default:
+						if mediaMessage.Type == dto.ContentTypeImageURL {
+							imageMedia := mediaMessage.GetImageMedia()
+							if imageMedia != nil {
+								rawURL := strings.TrimSpace(imageMedia.Url)
+								if isClaudeRemoteURL(rawURL) {
+									logClaudeMediaSource(c, "url", "", rawURL)
+									claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+										Type: "image",
+										Source: &dto.ClaudeMessageSource{
+											Type: "url",
+											Url:  rawURL,
+										},
+									})
+									continue
+								}
+							}
+						}
 						source := mediaMessage.ToFileSource()
 						if source == nil {
+							continue
+						}
+						if mediaMessage.Type == dto.ContentTypeImageURL && source.IsURL() {
+							rawURL := strings.TrimSpace(source.GetRawData())
+							logClaudeMediaSource(c, "url", "", rawURL)
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "image",
+								Source: &dto.ClaudeMessageSource{
+									Type: "url",
+									Url:  rawURL,
+								},
+							})
 							continue
 						}
 						base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting image for Claude")
@@ -398,6 +465,7 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 
 						claudeMediaMessage.Source.MediaType = mimeType
 						claudeMediaMessage.Source.Data = base64Data
+						logClaudeMediaSource(c, "base64", mimeType, base64Data)
 						claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
 						continue
 					}
@@ -586,6 +654,113 @@ type ClaudeResponseInfo struct {
 	ResponseText strings.Builder
 	Usage        *dto.Usage
 	Done         bool
+}
+
+func claudeResponsesStatus(status string) json.RawMessage {
+	data, _ := json.Marshal(status)
+	return data
+}
+
+func claudeResponsesOutputFromText(text string) []dto.ResponsesOutput {
+	if text == "" {
+		return nil
+	}
+	return []dto.ResponsesOutput{
+		{
+			Type:   "message",
+			ID:     fmt.Sprintf("msg_%s", common.GetUUID()),
+			Status: "completed",
+			Role:   "assistant",
+			Content: []dto.ResponsesOutputContent{
+				{
+					Type:        "output_text",
+					Text:        text,
+					Annotations: []interface{}{},
+				},
+			},
+		},
+	}
+}
+
+func buildClaudeOpenAIResponsesResponse(claudeInfo *ClaudeResponseInfo, output []dto.ResponsesOutput, usage *dto.Usage) *dto.OpenAIResponsesResponse {
+	responseID := fmt.Sprintf("resp_%s", common.GetUUID())
+	created := common.GetTimestamp()
+	model := ""
+	if claudeInfo != nil {
+		if claudeInfo.ResponseId != "" {
+			responseID = claudeInfo.ResponseId
+		}
+		if claudeInfo.Created > 0 {
+			created = claudeInfo.Created
+		}
+		model = claudeInfo.Model
+	}
+	if usage != nil {
+		usage.OutputTokens = usage.CompletionTokens
+		if usage.InputTokens == 0 {
+			usage.InputTokens = usage.PromptTokens
+		}
+	}
+	return &dto.OpenAIResponsesResponse{
+		ID:        responseID,
+		Object:    "response",
+		CreatedAt: int(created),
+		Status:    claudeResponsesStatus("completed"),
+		Model:     model,
+		Output:    output,
+		Usage:     usage,
+	}
+}
+
+func ResponseClaude2OpenAIResponses(claudeResponse *dto.ClaudeResponse, usage *dto.Usage) *dto.OpenAIResponsesResponse {
+	claudeInfo := &ClaudeResponseInfo{
+		ResponseId: fmt.Sprintf("resp_%s", common.GetUUID()),
+		Created:    common.GetTimestamp(),
+		Model:      "",
+	}
+	if claudeResponse != nil {
+		if claudeResponse.Id != "" {
+			claudeInfo.ResponseId = claudeResponse.Id
+		}
+		claudeInfo.Model = claudeResponse.Model
+	}
+
+	output := make([]dto.ResponsesOutput, 0)
+	if claudeResponse != nil {
+		var textBuilder strings.Builder
+		for _, content := range claudeResponse.Content {
+			switch content.Type {
+			case "text":
+				textBuilder.WriteString(content.GetText())
+			case "tool_use":
+				args, _ := json.Marshal(content.Input)
+				callID := content.Id
+				if callID == "" {
+					callID = fmt.Sprintf("call_%s", common.GetUUID())
+				}
+				output = append(output, dto.ResponsesOutput{
+					Type:      "function_call",
+					ID:        callID,
+					Status:    "completed",
+					CallId:    callID,
+					Name:      content.Name,
+					Arguments: string(args),
+				})
+			}
+		}
+		output = append(claudeResponsesOutputFromText(textBuilder.String()), output...)
+	}
+
+	return buildClaudeOpenAIResponsesResponse(claudeInfo, output, usage)
+}
+
+func sendClaudeResponsesEvent(c *gin.Context, streamResponse dto.ResponsesStreamResponse) {
+	data, err := json.Marshal(streamResponse)
+	if err != nil {
+		common.SysLog("error marshalling responses stream response: " + err.Error())
+		return
+	}
+	helper.ResponseChunkData(c, streamResponse, string(data))
 }
 
 func cacheCreationTokensForOpenAIUsage(usage *dto.Usage) int {
@@ -824,6 +999,33 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			logger.LogError(c, "send_stream_response_failed: "+err.Error())
 		}
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo)
+		switch claudeResponse.Type {
+		case "message_start":
+			if claudeResponse.Message != nil {
+				info.UpstreamModelName = claudeResponse.Message.Model
+				sendClaudeResponsesEvent(c, dto.ResponsesStreamResponse{
+					Type:     "response.created",
+					Response: buildClaudeOpenAIResponsesResponse(claudeInfo, nil, nil),
+				})
+			}
+		case "content_block_start":
+			if claudeResponse.ContentBlock != nil && claudeResponse.ContentBlock.Type == "text" && claudeResponse.ContentBlock.Text != nil {
+				claudeInfo.ResponseText.WriteString(*claudeResponse.ContentBlock.Text)
+				sendClaudeResponsesEvent(c, dto.ResponsesStreamResponse{
+					Type:  "response.output_text.delta",
+					Delta: *claudeResponse.ContentBlock.Text,
+				})
+			}
+		case "content_block_delta":
+			if claudeResponse.Delta != nil && claudeResponse.Delta.Text != nil && *claudeResponse.Delta.Text != "" {
+				sendClaudeResponsesEvent(c, dto.ResponsesStreamResponse{
+					Type:  "response.output_text.delta",
+					Delta: *claudeResponse.Delta.Text,
+				})
+			}
+		}
 	}
 	return nil
 }
@@ -863,6 +1065,12 @@ func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, clau
 			}
 		}
 		helper.Done(c)
+	} else if info.RelayFormat == types.RelayFormatOpenAIResponses {
+		openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		sendClaudeResponsesEvent(c, dto.ResponsesStreamResponse{
+			Type:     "response.completed",
+			Response: buildClaudeOpenAIResponsesResponse(claudeInfo, claudeResponsesOutputFromText(claudeInfo.ResponseText.String()), &openAIUsage),
+		})
 	}
 }
 
@@ -918,6 +1126,13 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		openaiResponse := ResponseClaude2OpenAI(&claudeResponse)
 		openaiResponse.Usage = buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
 		responseData, err = json.Marshal(openaiResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
+	case types.RelayFormatOpenAIResponses:
+		openAIUsage := buildOpenAIStyleUsageFromClaudeUsage(claudeInfo.Usage)
+		responsesResponse := ResponseClaude2OpenAIResponses(&claudeResponse, &openAIUsage)
+		responseData, err = json.Marshal(responsesResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}

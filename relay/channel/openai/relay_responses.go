@@ -78,6 +78,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 
 	var usage = &dto.Usage{}
 	var responseTextBuilder strings.Builder
+	usageSource := "fallback"
+	debugUsage := common.DebugEnabled || gin.Mode() != gin.ReleaseMode
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -93,6 +95,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		case "response.completed":
 			if streamResponse.Response != nil {
 				if streamResponse.Response.Usage != nil {
+					usageSource = "upstream_response_completed"
 					if streamResponse.Response.Usage.InputTokens != 0 {
 						usage.PromptTokens = streamResponse.Response.Usage.InputTokens
 					}
@@ -105,6 +108,17 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					if streamResponse.Response.Usage.InputTokensDetails != nil {
 						usage.PromptTokensDetails.CachedTokens = streamResponse.Response.Usage.InputTokensDetails.CachedTokens
 					}
+					if debugUsage {
+						logger.LogInfo(c, fmt.Sprintf("Responses stream upstream usage present: model=%s prompt=%d completion=%d total=%d cached=%d",
+							info.UpstreamModelName,
+							usage.PromptTokens,
+							usage.CompletionTokens,
+							usage.TotalTokens,
+							usage.PromptTokensDetails.CachedTokens,
+						))
+					}
+				} else if debugUsage {
+					logger.LogInfo(c, fmt.Sprintf("Responses stream completed without upstream usage: model=%s", info.UpstreamModelName))
 				}
 				if streamResponse.Response.HasImageGenerationCall() {
 					c.Set("image_generation_call", true)
@@ -137,14 +151,31 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			// 非正常结束，使用输出文本的 token 数量
 			completionTokens := service.CountTextToken(tempStr, info.UpstreamModelName)
 			usage.CompletionTokens = completionTokens
+			if usageSource == "fallback" {
+				usageSource = "fallback_completion_text"
+			}
 		}
 	}
 
 	if usage.PromptTokens == 0 && usage.CompletionTokens != 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
+		if usageSource == "fallback" || usageSource == "fallback_completion_text" {
+			usageSource = "fallback_estimated_prompt"
+		}
 	}
 
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	if debugUsage {
+		logger.LogInfo(c, fmt.Sprintf("Responses stream final usage: source=%s model=%s prompt=%d completion=%d total=%d cached=%d output_chars=%d",
+			usageSource,
+			info.UpstreamModelName,
+			usage.PromptTokens,
+			usage.CompletionTokens,
+			usage.TotalTokens,
+			usage.PromptTokensDetails.CachedTokens,
+			responseTextBuilder.Len(),
+		))
+	}
 
 	return usage, nil
 }
