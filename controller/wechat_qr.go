@@ -21,7 +21,7 @@ const (
 	wechatQRSessionTTL           = time.Hour
 	wechatQRHeartbeatOfflineTime = time.Minute
 	wechatQRAssignTimeout        = 30 * time.Second
-	wechatQRGenerateTimeout      = time.Minute
+	wechatQRGenerateTimeout      = 5 * time.Minute
 
 	wechatQRStatusIdle        = "idle"
 	wechatQRStatusGenerating  = "generating"
