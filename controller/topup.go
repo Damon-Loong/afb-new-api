@@ -24,7 +24,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	// 获取支付方式
-	payMethods := operation_setting.PayMethods
+	payMethods := normalizeTopupPayMethods(operation_setting.PayMethods)
 
 	// 如果启用了 Stripe 支付，添加到支付方法列表
 	if isStripeTopUpEnabled() {
@@ -42,7 +42,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Stripe",
 				"type":      "stripe",
 				"color":     "rgba(var(--semi-purple-5), 1)",
-				"min_topup": strconv.Itoa(setting.StripeMinTopUp),
+				"min_topup": strconv.FormatInt(getDisplayTopupMinInt(setting.StripeMinTopUp), 10),
 			}
 			payMethods = append(payMethods, stripeMethod)
 		}
@@ -64,7 +64,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Waffo (Global Payment)",
 				"type":      model.PaymentMethodWaffo,
 				"color":     "rgba(var(--semi-blue-5), 1)",
-				"min_topup": strconv.Itoa(setting.WaffoMinTopUp),
+				"min_topup": strconv.FormatInt(getDisplayTopupMinInt(setting.WaffoMinTopUp), 10),
 			}
 			payMethods = append(payMethods, waffoMethod)
 		}
@@ -85,7 +85,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "Waffo Pancake",
 				"type":      model.PaymentMethodWaffoPancake,
 				"color":     "rgba(var(--semi-orange-5), 1)",
-				"min_topup": strconv.Itoa(setting.WaffoPancakeMinTopUp),
+				"min_topup": strconv.FormatInt(getDisplayTopupMinInt(setting.WaffoPancakeMinTopUp), 10),
 			})
 		}
 	}
@@ -105,7 +105,7 @@ func GetTopUpInfo(c *gin.Context) {
 				"name":      "微信支付",
 				"type":      model.PaymentMethodWeChatPay,
 				"color":     "rgba(var(--semi-green-5), 1)",
-				"min_topup": strconv.FormatFloat(setting.WeChatPayMinTopUp, 'f', -1, 64),
+				"min_topup": getDisplayTopupMinDecimal(decimal.NewFromFloat(setting.WeChatPayMinTopUp)).String(),
 			})
 		}
 	}
@@ -125,15 +125,44 @@ func GetTopUpInfo(c *gin.Context) {
 		}(),
 		"creem_products":          setting.CreemProducts,
 		"pay_methods":             payMethods,
-		"min_topup":               operation_setting.MinTopUp,
-		"wechatpay_min_topup":     setting.WeChatPayMinTopUp,
-		"stripe_min_topup":        setting.StripeMinTopUp,
-		"waffo_min_topup":         setting.WaffoMinTopUp,
-		"waffo_pancake_min_topup": setting.WaffoPancakeMinTopUp,
+		"min_topup":               getDisplayTopupMinInt(operation_setting.MinTopUp),
+		"wechatpay_min_topup":     getDisplayTopupMinDecimal(decimal.NewFromFloat(setting.WeChatPayMinTopUp)).String(),
+		"stripe_min_topup":        getDisplayTopupMinInt(setting.StripeMinTopUp),
+		"waffo_min_topup":         getDisplayTopupMinInt(setting.WaffoMinTopUp),
+		"waffo_pancake_min_topup": getDisplayTopupMinInt(setting.WaffoPancakeMinTopUp),
 		"amount_options":          operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":                operation_setting.GetPaymentSetting().AmountDiscount,
 	}
 	common.ApiSuccess(c, data)
+}
+
+func getDisplayTopupMinInt(minTopup int) int64 {
+	minDec := decimal.NewFromInt(int64(minTopup))
+	return getDisplayTopupMinDecimal(minDec).IntPart()
+}
+
+func getDisplayTopupMinDecimal(minTopup decimal.Decimal) decimal.Decimal {
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return minTopup.Mul(decimal.NewFromFloat(common.QuotaPerUnit)).Round(0)
+	}
+	return minTopup
+}
+
+func normalizeTopupPayMethods(methods []map[string]string) []map[string]string {
+	next := make([]map[string]string, 0, len(methods))
+	for _, method := range methods {
+		copied := make(map[string]string, len(method))
+		for key, value := range method {
+			copied[key] = value
+		}
+		if rawMin, ok := copied["min_topup"]; ok && rawMin != "" {
+			if minDec, err := decimal.NewFromString(rawMin); err == nil {
+				copied["min_topup"] = getDisplayTopupMinDecimal(minDec).String()
+			}
+		}
+		next = append(next, copied)
+	}
+	return next
 }
 
 type EpayRequest struct {

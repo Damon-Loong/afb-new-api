@@ -39,6 +39,18 @@ export function isAdmin() {
   return user.role >= 10;
 }
 
+function ratioToDisplayPricePerMillion(modelRatio) {
+  const ratio = Number(modelRatio);
+  const quotaPerUnit = Number(localStorage.getItem('quota_per_unit'));
+  if (!Number.isFinite(ratio)) {
+    return 0;
+  }
+  if (!Number.isFinite(quotaPerUnit) || quotaPerUnit <= 0) {
+    return ratio * 2;
+  }
+  return (ratio * 1000000) / quotaPerUnit;
+}
+
 export function isRoot() {
   let user = localStorage.getItem('user');
   if (!user) return false;
@@ -649,7 +661,8 @@ export const calculateModelPrice = ({
   if (record.quota_type === 0) {
     // 按量计费
     const isTokensDisplay = quotaDisplayType === 'TOKENS';
-    const inputRatioPriceUSD = record.model_ratio * 2 * usedGroupRatio;
+    const inputRatioPriceUSD =
+      ratioToDisplayPricePerMillion(record.model_ratio) * usedGroupRatio;
     const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
     const hasRatioValue = (value) =>

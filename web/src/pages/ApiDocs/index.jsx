@@ -483,14 +483,14 @@ curl "${baseUrl}/api/user/self" \\
             name: 'data.aff_quota',
             type: 'number',
             description: t(
-              '当前可转入余额的邀请奖励额度，原始 quota 单位。换算公式：aff_quota / quota_per_unit。',
+              '当前可转入余额的奖励额度，原始 quota 单位。换算公式：aff_quota / quota_per_unit。',
             ),
           },
           {
             name: 'data.aff_history_quota',
             type: 'number',
             description: t(
-              '历史累计邀请奖励额度，原始 quota 单位。换算公式：aff_history_quota / quota_per_unit。',
+              '历史累计奖励额度，原始 quota 单位。换算公式：aff_history_quota / quota_per_unit。',
             ),
           },
           {

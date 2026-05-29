@@ -48,9 +48,9 @@ const InvitationCard = ({
         </Avatar>
         <div>
           <Typography.Text className='text-lg font-medium'>
-            {t('邀请奖励')}
+            {t('奖励')}
           </Typography.Text>
-          <div className='text-xs'>{t('邀请好友获得额外奖励')}</div>
+          <div className='text-xs'>{t('邀请好友或发布 Skill 获得奖励')}</div>
         </div>
       </div>
 

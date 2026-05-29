@@ -37,7 +37,7 @@ const TransferModal = ({
       title={
         <div className='flex items-center'>
           <CreditCard className='mr-2' size={18} />
-          {t('划转邀请额度')}
+          {t('划转奖励')}
         </div>
       }
       visible={openTransfer}
@@ -49,7 +49,7 @@ const TransferModal = ({
       <div className='space-y-4'>
         <div>
           <Typography.Text strong className='block mb-2'>
-            {t('可用邀请额度')}
+            {t('可用奖励')}
           </Typography.Text>
           <Input
             value={renderQuota(userState?.user?.aff_quota)}

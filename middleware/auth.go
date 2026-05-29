@@ -162,6 +162,19 @@ func TryUserAuth() func(c *gin.Context) {
 		id := session.Get("id")
 		if id != nil {
 			c.Set("id", id)
+		} else if accessToken := c.Request.Header.Get("Authorization"); accessToken != "" {
+			if user, err := model.ValidateAccessToken(accessToken); err == nil && user != nil && user.Username != "" {
+				apiUserIdStr := c.Request.Header.Get("New-Api-User")
+				apiUserId, parseErr := strconv.Atoi(apiUserIdStr)
+				if parseErr == nil && apiUserId == user.Id && user.Status != common.UserStatusDisabled {
+					c.Set("username", user.Username)
+					c.Set("role", user.Role)
+					c.Set("id", user.Id)
+					c.Set("group", user.Group)
+					c.Set("user_group", user.Group)
+					c.Set("use_access_token", true)
+				}
+			}
 		}
 		c.Next()
 	}

@@ -820,7 +820,7 @@ const TopUp = () => {
     }
   };
 
-  // 划转邀请额度
+  // 划转奖励额度
   const transfer = async () => {
     if (transferAmount < getQuotaPerUnit()) {
       showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));

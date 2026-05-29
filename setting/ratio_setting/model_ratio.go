@@ -15,6 +15,8 @@ const (
 	RMB     = USD / USD2RMB
 )
 
+const legacyDefaultQuotaPerUnit = 500 * 1000.0
+
 // modelRatio
 // https://platform.openai.com/docs/models/model-endpoint-compatibility
 // https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
@@ -342,7 +344,7 @@ var defaultCompletionRatio = map[string]float64{
 // InitRatioSettings initializes all model related settings maps
 func InitRatioSettings() {
 	modelPriceMap.AddAll(defaultModelPrice)
-	modelRatioMap.AddAll(defaultModelRatio)
+	modelRatioMap.AddAll(getDefaultModelRatioCopy())
 	completionRatioMap.AddAll(defaultCompletionRatio)
 	cacheRatioMap.AddAll(defaultCacheRatio)
 	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
@@ -411,13 +413,13 @@ func GetModelRatio(name string) (float64, bool, string) {
 			}
 			//return 0, true, name
 		}
-		return 37.5, operation_setting.SelfUseModeEnabled, name
+		return 37.5 * getDefaultModelRatioScale(), operation_setting.SelfUseModeEnabled, name
 	}
 	return ratio, true, name
 }
 
 func DefaultModelRatio2JSONString() string {
-	jsonBytes, err := common.Marshal(defaultModelRatio)
+	jsonBytes, err := common.Marshal(getDefaultModelRatioCopy())
 	if err != nil {
 		common.SysError("error marshalling model ratio: " + err.Error())
 	}
@@ -425,7 +427,24 @@ func DefaultModelRatio2JSONString() string {
 }
 
 func GetDefaultModelRatioMap() map[string]float64 {
-	return defaultModelRatio
+	return getDefaultModelRatioCopy()
+}
+
+func getDefaultModelRatioCopy() map[string]float64 {
+	scale := getDefaultModelRatioScale()
+	next := make(map[string]float64, len(defaultModelRatio))
+	for model, ratio := range defaultModelRatio {
+		next[model] = ratio * scale
+	}
+	return next
+}
+
+func getDefaultModelRatioScale() float64 {
+	scale := common.QuotaPerUnit / legacyDefaultQuotaPerUnit
+	if scale <= 0 {
+		return 1
+	}
+	return scale
 }
 
 func GetDefaultModelPriceMap() map[string]float64 {

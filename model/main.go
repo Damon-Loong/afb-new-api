@@ -288,6 +288,8 @@ func migrateDB() error {
 		&MarketActivityPolicy{},
 		&MarketSubmission{},
 		&MarketUpload{},
+		&Skill{},
+		&UserSkill{},
 		&ApiFile{},
 	)
 	if err != nil {
@@ -345,6 +347,8 @@ func migrateDBFast() error {
 		{&MarketActivityPolicy{}, "MarketActivityPolicy"},
 		{&MarketSubmission{}, "MarketSubmission"},
 		{&MarketUpload{}, "MarketUpload"},
+		{&Skill{}, "Skill"},
+		{&UserSkill{}, "UserSkill"},
 		{&ApiFile{}, "ApiFile"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大

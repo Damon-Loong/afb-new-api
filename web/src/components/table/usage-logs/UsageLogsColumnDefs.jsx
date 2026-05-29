@@ -132,6 +132,18 @@ function renderType(type, t) {
           {t('退款')}
         </Tag>
       );
+    case 7:
+      return (
+        <Tag color='green' shape='circle'>
+          {t('市场消耗')}
+        </Tag>
+      );
+    case 8:
+      return (
+        <Tag color='violet' shape='circle'>
+          {t('市场奖励')}
+        </Tag>
+      );
     default:
       return (
         <Tag color='grey' shape='circle'>

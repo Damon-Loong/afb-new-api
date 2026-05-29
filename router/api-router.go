@@ -74,10 +74,15 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		toolsRoute := apiRouter.Group("/tools")
 		{
-			toolsRoute.GET("", controller.GetTools)
-			toolsRoute.GET("/", controller.GetTools)
+			toolsRoute.GET("", middleware.TryUserAuth(), controller.GetTools)
+			toolsRoute.GET("/", middleware.TryUserAuth(), controller.GetTools)
 			toolsRoute.POST("/parse", controller.ParseToolOpenAPI)
 			toolsRoute.POST("/upload", middleware.UserAuth(), controller.UploadToolOpenAPI)
+			toolsRoute.POST("/skill", middleware.UserAuth(), controller.UploadSkillPackage)
+			toolsRoute.GET("/public-skills", middleware.TryUserAuth(), controller.GetPublicSkills)
+			toolsRoute.GET("/skills", middleware.UserAuth(), controller.GetMySkills)
+			toolsRoute.POST("/skills/:skill_id/acquire", middleware.UserAuth(), controller.AcquireSkill)
+			toolsRoute.POST("/import", middleware.UserAuth(), controller.ImportTool)
 			toolsRoute.POST("/manual", middleware.UserAuth(), controller.CreateManualTool)
 			toolsRoute.GET("/check-name", controller.CheckToolName)
 			toolsRoute.POST("/:tool_id/install", middleware.UserAuth(), controller.InstallTool)
@@ -88,6 +93,11 @@ func SetApiRouter(router *gin.Engine) {
 			toolsRoute.GET("/:tool_id/download", controller.DownloadTool)
 			toolsRoute.GET("/:tool_id", controller.GetTool)
 			toolsRoute.DELETE("/:tool_id", controller.DeleteTool)
+		}
+		incomeRoute := apiRouter.Group("/income")
+		incomeRoute.Use(middleware.UserAuth())
+		{
+			incomeRoute.GET("/summary", controller.GetIncomeSummary)
 		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		// SMS auth (CN +86)

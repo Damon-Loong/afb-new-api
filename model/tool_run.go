@@ -18,6 +18,10 @@ type ToolRun struct {
 	RequestArgs     string `json:"request_args" gorm:"type:text"`
 	ResponsePreview string `json:"response_preview" gorm:"type:text"`
 	ErrorMessage    string `json:"error_message" gorm:"type:text"`
+	BillingStatus   string `json:"billing_status" gorm:"type:varchar(32);index"`
+	BillingError    string `json:"billing_error" gorm:"type:text"`
+	ChargedQuota    int    `json:"charged_quota" gorm:"type:int;default:0"`
+	RewardQuota     int    `json:"reward_quota" gorm:"type:int;default:0"`
 	StartedAt       int64  `json:"started_at" gorm:"bigint;index"`
 	FinishedAt      int64  `json:"finished_at" gorm:"bigint"`
 	DurationMS      int64  `json:"duration_ms" gorm:"bigint"`

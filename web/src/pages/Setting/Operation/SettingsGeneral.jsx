@@ -128,20 +128,6 @@ export default function GeneralSettings(props) {
     }
   };
 
-  const showTokensOption = useMemo(() => {
-    const initialType = props.options?.['general_setting.quota_display_type'];
-    const initialQuotaPerUnit = parseFloat(props.options?.QuotaPerUnit);
-    const legacyTokensMode =
-      initialType === undefined &&
-      props.options?.DisplayInCurrencyEnabled !== undefined &&
-      !props.options.DisplayInCurrencyEnabled;
-    return (
-      initialType === 'TOKENS' ||
-      legacyTokensMode ||
-      (!isNaN(initialQuotaPerUnit) && initialQuotaPerUnit !== 500000)
-    );
-  }, [props.options]);
-
   const quotaDisplayType = inputs['general_setting.quota_display_type'];
 
   const quotaDisplayTypeDesc = useMemo(() => {
@@ -289,11 +275,9 @@ export default function GeneralSettings(props) {
                   <Form.Select.Option value='CNY'>
                     CNY (¥)
                   </Form.Select.Option>
-                  {showTokensOption && (
-                    <Form.Select.Option value='TOKENS'>
-                      Tokens
-                    </Form.Select.Option>
-                  )}
+                  <Form.Select.Option value='TOKENS'>
+                    Tokens
+                  </Form.Select.Option>
                   <Form.Select.Option value='CUSTOM'>
                     {t('自定义货币')}
                   </Form.Select.Option>

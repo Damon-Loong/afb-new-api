@@ -27,20 +27,19 @@ import (
 )
 
 const (
-	defaultTimeoutSeconds       = 10
-	defaultEndpoint             = "/api/ratio_config"
-	maxConcurrentFetches        = 8
-	maxRatioConfigBytes         = 10 << 20 // 10MB
-	floatEpsilon                = 1e-9
-	officialRatioPresetID       = -100
-	officialRatioPresetName     = "官方倍率预设"
-	officialRatioPresetBaseURL  = "https://basellm.github.io"
-	modelsDevPresetID           = -101
-	modelsDevPresetName         = "models.dev 价格预设"
-	modelsDevPresetBaseURL      = "https://models.dev"
-	modelsDevHost               = "models.dev"
-	modelsDevPath               = "/api.json"
-	modelsDevInputCostRatioBase = 1000.0
+	defaultTimeoutSeconds      = 10
+	defaultEndpoint            = "/api/ratio_config"
+	maxConcurrentFetches       = 8
+	maxRatioConfigBytes        = 10 << 20 // 10MB
+	floatEpsilon               = 1e-9
+	officialRatioPresetID      = -100
+	officialRatioPresetName    = "官方倍率预设"
+	officialRatioPresetBaseURL = "https://basellm.github.io"
+	modelsDevPresetID          = -101
+	modelsDevPresetName        = "models.dev 价格预设"
+	modelsDevPresetBaseURL     = "https://models.dev"
+	modelsDevHost              = "models.dev"
+	modelsDevPath              = "/api.json"
 )
 
 func nearlyEqual(a, b float64) bool {
@@ -601,9 +600,7 @@ func isModelsDevAPIEndpoint(rawURL string) bool {
 
 // convertOpenRouterToRatioData parses OpenRouter's /v1/models response and converts
 // per-token USD pricing into the local ratio format.
-// model_ratio = prompt_price_per_token * 1_000_000 * (USD / 1000)
-//
-//	since 1 ratio unit = $0.002/1K tokens and USD=500, the factor is 500_000
+// model_ratio = prompt_price_per_token * QuotaPerUnit
 //
 // completion_ratio = completion_price / prompt_price (output/input multiplier)
 func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
@@ -658,8 +655,8 @@ func convertOpenRouterToRatioData(reader io.Reader) (map[string]any, error) {
 			continue
 		}
 
-		// Normal case: promptPrice > 0
-		ratio := promptPrice * 1000 * ratio_setting.USD
+		// Normal case: promptPrice > 0. OpenRouter prices are USD per token.
+		ratio := promptPrice * common.QuotaPerUnit
 		ratio = roundRatioValue(ratio)
 		modelRatioMap[m.ID] = ratio
 
@@ -781,7 +778,7 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 // provider pricing metadata into local ratio format.
 // models.dev costs are USD per 1M tokens:
 //
-//	model_ratio = input_cost_per_1M / 2
+//	model_ratio = input_cost_per_1M * QuotaPerUnit / 1_000_000
 //	completion_ratio = output_cost / input_cost
 //	cache_ratio = cache_read_cost / input_cost
 //
@@ -842,7 +839,7 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 			continue
 		}
 
-		modelRatio := candidate.Input * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
+		modelRatio := candidate.Input * common.QuotaPerUnit / 1000000
 		modelRatioMap[modelName] = roundRatioValue(modelRatio)
 
 		if candidate.Output != nil {

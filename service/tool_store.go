@@ -67,6 +67,9 @@ type ToolSummary struct {
 	CreatedByName string `json:"created_by_name,omitempty"`
 	Category      string `json:"category,omitempty"`
 	Visibility    string `json:"visibility,omitempty"`
+	SourceURL     string `json:"source_url,omitempty"`
+	CallPrice     int    `json:"call_price,omitempty"`
+	Installed     bool   `json:"installed,omitempty"`
 }
 
 type ToolDetail struct {
@@ -114,6 +117,20 @@ type ValidationWarning struct {
 type ToolIndex struct {
 	UpdatedAt int64         `json:"updated_at"`
 	Tools     []ToolSummary `json:"tools"`
+	Total     int           `json:"total"`
+	Limit     int           `json:"limit"`
+	Offset    int           `json:"offset"`
+	HasMore   bool          `json:"has_more"`
+}
+
+type ToolListOptions struct {
+	Keyword      string
+	Category     string
+	UserID       int
+	CreatedBy    int
+	AcquiredOnly bool
+	Limit        int
+	Offset       int
 }
 
 type ToolParseResult struct {
@@ -140,6 +157,8 @@ type ToolUploadOptions struct {
 	APIKeyValue    string
 	CreatedBy      int
 	CommonHeaders  []ToolHeader
+	SourceURL      string
+	CallPrice      int
 }
 
 type ToolManualCreateOptions struct {
@@ -155,6 +174,8 @@ type ToolManualCreateOptions struct {
 	APIKeyValue    string
 	CreatedBy      int
 	CommonHeaders  []ToolHeader
+	SourceURL      string
+	CallPrice      int
 	Action         ToolManualActionOptions
 	Actions        []ToolManualActionOptions
 }
@@ -201,12 +222,26 @@ type ToolActionUpdateConfigOptions struct {
 }
 
 func ListTools(keyword string, category string) (ToolIndex, error) {
+	return ListToolsWithOptions(ToolListOptions{Keyword: keyword, Category: category})
+}
+
+func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
 	index, err := readToolIndex()
 	if err != nil {
 		return ToolIndex{}, err
 	}
-	keyword = strings.ToLower(strings.TrimSpace(keyword))
-	category = strings.ToLower(strings.TrimSpace(category))
+	keyword := strings.ToLower(strings.TrimSpace(opts.Keyword))
+	category := strings.ToLower(strings.TrimSpace(opts.Category))
+	limit := normalizeListLimit(opts.Limit)
+	offset := normalizeListOffset(opts.Offset)
+	installed := map[string]bool{}
+	if opts.UserID > 0 {
+		var installedErr error
+		installed, installedErr = GetInstalledToolIDs(opts.UserID)
+		if installedErr != nil {
+			return ToolIndex{}, installedErr
+		}
+	}
 	filtered := make([]ToolSummary, 0, len(index.Tools))
 	indexChanged := false
 	for i, tool := range index.Tools {
@@ -223,6 +258,13 @@ func ListTools(keyword string, category string) (ToolIndex, error) {
 		if category != "" && strings.ToLower(strings.TrimSpace(tool.Category)) != category {
 			continue
 		}
+		if opts.CreatedBy != 0 && tool.CreatedBy != opts.CreatedBy {
+			continue
+		}
+		tool.Installed = installed[tool.ID]
+		if opts.AcquiredOnly && !tool.Installed {
+			continue
+		}
 		filtered = append(filtered, tool)
 	}
 	if indexChanged {
@@ -230,7 +272,19 @@ func ListTools(keyword string, category string) (ToolIndex, error) {
 		sortTools(index.Tools)
 		_ = writeToolIndex(index)
 	}
-	index.Tools = filtered
+	total := len(filtered)
+	end := offset + limit
+	if offset > total {
+		offset = total
+	}
+	if end > total {
+		end = total
+	}
+	index.Tools = filtered[offset:end]
+	index.Total = total
+	index.Limit = limit
+	index.Offset = offset
+	index.HasMore = end < total
 	enrichToolCreatorNames(index.Tools)
 	return index, nil
 }
@@ -338,6 +392,8 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 			CreatedBy:     opts.CreatedBy,
 			Category:      category,
 			Visibility:    normalizeVisibility(opts.Visibility),
+			SourceURL:     strings.TrimSpace(opts.SourceURL),
+			CallPrice:     normalizeToolCallPrice(opts.CallPrice),
 		},
 		OpenAPIVersion: parsed.OpenAPIVersion,
 		SourceFormat:   parsed.SourceFormat,
@@ -505,6 +561,8 @@ func CreateManualTool(opts ToolManualCreateOptions) (ToolDetail, error) {
 			CreatedBy:     opts.CreatedBy,
 			Category:      category,
 			Visibility:    normalizeVisibility(opts.Visibility),
+			SourceURL:     strings.TrimSpace(opts.SourceURL),
+			CallPrice:     normalizeToolCallPrice(opts.CallPrice),
 		},
 		OpenAPIVersion: parsed.OpenAPIVersion,
 		SourceFormat:   parsed.SourceFormat,
@@ -908,6 +966,9 @@ func hydrateToolSummary(summary ToolSummary) ToolSummary {
 	}
 	if detail.CreatedBy != 0 {
 		summary.CreatedBy = detail.CreatedBy
+	}
+	if detail.CallPrice != 0 {
+		summary.CallPrice = detail.CallPrice
 	}
 	return summary
 }
@@ -1491,6 +1552,30 @@ func normalizeToolHeaders(headers []ToolHeader) []ToolHeader {
 		normalized = append(normalized, ToolHeader{Name: name, Value: value})
 	}
 	return normalized
+}
+
+func normalizeToolCallPrice(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
+}
+
+func normalizeListLimit(value int) int {
+	if value <= 0 {
+		return 20
+	}
+	if value > 50 {
+		return 50
+	}
+	return value
+}
+
+func normalizeListOffset(value int) int {
+	if value < 0 {
+		return 0
+	}
+	return value
 }
 
 func normalizeToolActionMethod(value string) string {

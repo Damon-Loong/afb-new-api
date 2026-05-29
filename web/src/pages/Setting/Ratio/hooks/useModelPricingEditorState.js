@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import {
+  API,
+  getQuotaPerUnit,
+  showError,
+  showSuccess,
+} from '../../../../helpers';
 
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
@@ -77,10 +82,23 @@ const parseOptionJSON = (rawValue) => {
   }
 };
 
+const getEffectiveQuotaPerUnit = () => {
+  const quotaPerUnit = Number(getQuotaPerUnit());
+  return Number.isFinite(quotaPerUnit) && quotaPerUnit > 0
+    ? quotaPerUnit
+    : 500000;
+};
+
+const pricePerMillionToModelRatio = (price) => {
+  const num = toNumberOrNull(price);
+  if (num === null) return '';
+  return formatNumber((num * getEffectiveQuotaPerUnit()) / 1000000);
+};
+
 const ratioToBasePrice = (ratio) => {
   const num = toNumberOrNull(ratio);
   if (num === null) return '';
-  return formatNumber(num * 2);
+  return formatNumber((num * 1000000) / getEffectiveQuotaPerUnit());
 };
 
 const normalizeCompletionRatioMeta = (rawMeta) => {
@@ -353,7 +371,7 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  result.ModelRatio = toNormalizedNumber(inputPrice / 2);
+  result.ModelRatio = toNormalizedNumber(pricePerMillionToModelRatio(inputPrice));
 
   if (!model.completionRatioLocked && completionPrice !== null) {
     result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
@@ -472,7 +490,7 @@ export const buildPreviewRows = (model, t) => {
     {
       key: 'ModelRatio',
       label: 'ModelRatio',
-      value: formatNumber(inputPrice / 2),
+      value: pricePerMillionToModelRatio(inputPrice),
     },
     {
       key: 'CompletionRatio',

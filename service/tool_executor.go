@@ -12,7 +12,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/bytedance/gopkg/util/gopool"
+	"gorm.io/gorm"
 )
 
 const toolExecutionTimeout = 30 * time.Second
@@ -92,6 +95,26 @@ func RunUserToolAction(userID int, isAdmin bool, toolID string, actionID string,
 	if err := model.ToolDB.Create(&run).Error; err != nil {
 		return ToolActionRunResult{}, err
 	}
+	if err := ensureToolRunBalance(userID, detail); err != nil {
+		run.Status = "failed"
+		run.ErrorMessage = err.Error()
+		run.BillingStatus = "failed"
+		run.BillingError = err.Error()
+		run.FinishedAt = time.Now().Unix()
+		_ = model.ToolDB.Save(&run).Error
+		return ToolActionRunResult{
+			RunID:          run.ID,
+			ToolID:         toolID,
+			ActionID:       action.ID,
+			FunctionName:   action.OperationID,
+			Status:         run.Status,
+			ErrorMessage:   err.Error(),
+			Arguments:      args,
+			ToolCallID:     req.ToolCallID,
+			ConversationID: req.ConversationID,
+			MessageID:      req.MessageID,
+		}, err
+	}
 
 	start := time.Now()
 	result, statusCode, execErr := executeOpenAPIToolAction(detail, action, args)
@@ -124,9 +147,13 @@ func RunUserToolAction(userID int, isAdmin bool, toolID string, actionID string,
 	}
 
 	run.Status = "success"
+	if detail.CallPrice > 0 && detail.CreatedBy > 0 && detail.CreatedBy != userID {
+		run.BillingStatus = "pending"
+	}
 	if err := model.ToolDB.Save(&run).Error; err != nil {
 		return ToolActionRunResult{}, err
 	}
+	queueSuccessfulToolRunBilling(run.ID, userID, detail)
 	return ToolActionRunResult{
 		RunID:          run.ID,
 		ToolID:         toolID,
@@ -142,6 +169,114 @@ func RunUserToolAction(userID int, isAdmin bool, toolID string, actionID string,
 		ConversationID: req.ConversationID,
 		MessageID:      req.MessageID,
 	}, nil
+}
+
+func ensureToolRunBalance(userID int, detail ToolDetail) error {
+	price := detail.CallPrice
+	if price <= 0 || detail.CreatedBy <= 0 || detail.CreatedBy == userID {
+		return nil
+	}
+	quota, err := model.GetUserQuota(userID, false)
+	if err != nil {
+		return NewToolAppError("quota_check_failed", "Token 余额检查失败，请稍后重试")
+	}
+	if quota < price {
+		return NewToolAppError("insufficient_quota", "Token 余额不足，无法调用该 MCP")
+	}
+	return nil
+}
+
+func queueSuccessfulToolRunBilling(runID int64, userID int, detail ToolDetail) {
+	price := detail.CallPrice
+	authorID := detail.CreatedBy
+	if runID <= 0 || userID <= 0 || price <= 0 || authorID <= 0 || authorID == userID {
+		return
+	}
+	toolID := detail.ID
+	toolName := strings.TrimSpace(detail.Name)
+	if toolName == "" {
+		toolName = toolID
+	}
+	gopool.Go(func() {
+		if err := billSuccessfulToolRun(runID, userID, authorID, price, toolID, toolName); err != nil {
+			common.SysLog(fmt.Sprintf("failed to bill mcp tool run: run_id=%d user_id=%d tool_id=%s error=%s", runID, userID, toolID, err.Error()))
+		}
+	})
+}
+
+func billSuccessfulToolRun(runID int64, userID int, authorID int, price int, toolID string, toolName string) error {
+	if err := model.DB.Transaction(func(tx *gorm.DB) error {
+		consume := tx.Model(&model.User{}).
+			Where("id = ? AND quota >= ?", userID, price).
+			Updates(map[string]interface{}{
+				"quota":         gorm.Expr("quota - ?", price),
+				"used_quota":    gorm.Expr("used_quota + ?", price),
+				"request_count": gorm.Expr("request_count + ?", 1),
+			})
+		if consume.Error != nil {
+			return consume.Error
+		}
+		if consume.RowsAffected == 0 {
+			return NewToolAppError("insufficient_quota", "Token 余额不足")
+		}
+		reward := tx.Model(&model.User{}).
+			Where("id = ?", authorID).
+			Updates(map[string]interface{}{
+				"aff_quota":   gorm.Expr("aff_quota + ?", price),
+				"aff_history": gorm.Expr("aff_history + ?", price),
+			})
+		if reward.Error != nil {
+			return reward.Error
+		}
+		if reward.RowsAffected == 0 {
+			return NewToolAppError("author_not_found", "工具作者不存在")
+		}
+		return nil
+	}); err != nil {
+		_ = updateToolRunBilling(runID, "failed", 0, 0, err.Error())
+		return err
+	}
+
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    userID,
+		LogType:   model.LogTypeMarketConsume,
+		Content:   fmt.Sprintf("调用 MCP「%s」扣除 %d Token", toolName, price),
+		ModelName: "mcp:" + toolName,
+		Quota:     price,
+		Other: map[string]interface{}{
+			"billing_type": "mcp_call",
+			"tool_id":      toolID,
+			"tool_run_id":  runID,
+			"author_id":    authorID,
+		},
+	})
+	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		UserId:    authorID,
+		LogType:   model.LogTypeMarketReward,
+		Content:   fmt.Sprintf("MCP「%s」被调用，获得奖励 %d Token", toolName, price),
+		ModelName: "mcp:" + toolName,
+		Quota:     price,
+		Other: map[string]interface{}{
+			"billing_type": "mcp_reward",
+			"tool_id":      toolID,
+			"tool_run_id":  runID,
+			"caller_id":    userID,
+		},
+	})
+	_, _ = model.GetUserQuota(userID, true)
+	return updateToolRunBilling(runID, "charged", price, price, "")
+}
+
+func updateToolRunBilling(runID int64, status string, chargedQuota int, rewardQuota int, billingErr string) error {
+	if model.ToolDB == nil || runID <= 0 {
+		return nil
+	}
+	return model.ToolDB.Model(&model.ToolRun{}).Where("id = ?", runID).Updates(map[string]interface{}{
+		"billing_status": status,
+		"billing_error":  truncateForToolRun(billingErr, 1000),
+		"charged_quota":  chargedQuota,
+		"reward_quota":   rewardQuota,
+	}).Error
 }
 
 func findToolAction(actions []ToolAction, actionID string) (ToolAction, bool) {

@@ -41,14 +41,20 @@ type Log struct {
 
 // don't use iota, avoid change log type value
 const (
-	LogTypeUnknown = 0
-	LogTypeTopup   = 1
-	LogTypeConsume = 2
-	LogTypeManage  = 3
-	LogTypeSystem  = 4
-	LogTypeError   = 5
-	LogTypeRefund  = 6
+	LogTypeUnknown       = 0
+	LogTypeTopup         = 1
+	LogTypeConsume       = 2
+	LogTypeManage        = 3
+	LogTypeSystem        = 4
+	LogTypeError         = 5
+	LogTypeRefund        = 6
+	LogTypeMarketConsume = 7
+	LogTypeMarketReward  = 8
 )
+
+func IsConsumeLogType(logType int) bool {
+	return logType == LogTypeConsume || logType == LogTypeMarketConsume
+}
 
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
@@ -73,7 +79,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 }
 
 func RecordLog(userId int, logType int, content string) {
-	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+	if IsConsumeLogType(logType) && !common.LogConsumeEnabled {
 		return
 	}
 	username, _ := GetUsernameById(userId, false)
@@ -92,7 +98,7 @@ func RecordLog(userId int, logType int, content string) {
 
 // RecordLogWithAdminInfo 记录操作日志，并将管理员相关信息存入 Other.admin_info，
 func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo map[string]interface{}) {
-	if logType == LogTypeConsume && !common.LogConsumeEnabled {
+	if IsConsumeLogType(logType) && !common.LogConsumeEnabled {
 		return
 	}
 	username, _ := GetUsernameById(userId, false)
@@ -265,7 +271,7 @@ type RecordTaskBillingLogParams struct {
 }
 
 func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
-	if params.LogType == LogTypeConsume && !common.LogConsumeEnabled {
+	if IsConsumeLogType(params.LogType) && !common.LogConsumeEnabled {
 		return
 	}
 	username, _ := GetUsernameById(params.UserId, false)
@@ -432,6 +438,13 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
+func statLogTypes(logType int) []int {
+	if logType == LogTypeUnknown {
+		return []int{LogTypeConsume, LogTypeMarketConsume}
+	}
+	return []int{logType}
+}
+
 func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
 	tx := LOG_DB.Table("logs").Select("sum(quota) quota")
 
@@ -469,8 +482,9 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
 	}
 
-	tx = tx.Where("type = ?", LogTypeConsume)
-	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	logTypes := statLogTypes(logType)
+	tx = tx.Where("type IN ?", logTypes)
+	rpmTpmQuery = rpmTpmQuery.Where("type IN ?", logTypes)
 
 	// 只统计最近60秒的rpm和tpm
 	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
@@ -505,7 +519,7 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	if modelName != "" {
 		tx = tx.Where("model_name = ?", modelName)
 	}
-	tx.Where("type = ?", LogTypeConsume).Scan(&token)
+	tx.Where("type IN ?", statLogTypes(logType)).Scan(&token)
 	return token
 }
 
