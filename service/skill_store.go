@@ -23,7 +23,9 @@ type SkillCreateOptions struct {
 
 type SkillListItem struct {
 	model.Skill
-	Acquired bool `json:"acquired"`
+	Acquired       bool   `json:"acquired"`
+	CreatedByName  string `json:"created_by_name,omitempty"`
+	CurrentEarning int    `json:"current_earning"`
 }
 
 type SkillListOptions struct {
@@ -90,7 +92,7 @@ func CreateSkill(opts SkillCreateOptions) (model.Skill, error) {
 	return skill, nil
 }
 
-func ListUserSkills(userID int) ([]model.Skill, error) {
+func ListUserSkills(userID int) ([]SkillListItem, error) {
 	if userID <= 0 {
 		return nil, NewToolAppError("invalid_request", "用户未登录")
 	}
@@ -98,7 +100,18 @@ func ListUserSkills(userID int) ([]model.Skill, error) {
 	if err := model.DB.Where("user_id = ?", userID).Order("updated_at desc").Find(&skills).Error; err != nil {
 		return nil, err
 	}
-	return skills, nil
+	earnings, err := getSkillEarnings(skills)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]SkillListItem, 0, len(skills))
+	for _, skill := range skills {
+		items = append(items, SkillListItem{
+			Skill:          skill,
+			CurrentEarning: earnings[skill.ID],
+		})
+	}
+	return items, nil
 }
 
 func ListPublicSkills(userID int) ([]SkillListItem, error) {
@@ -152,8 +165,9 @@ func ListPublicSkillsWithOptions(opts SkillListOptions) (SkillListResult, error)
 		}
 	}
 	items := make([]SkillListItem, 0, len(skills))
+	creatorNames := enrichSkillCreatorNames(skills)
 	for _, skill := range skills {
-		item := SkillListItem{Skill: skill, Acquired: acquired[skill.ID]}
+		item := SkillListItem{Skill: skill, Acquired: acquired[skill.ID], CreatedByName: creatorNames[skill.UserID]}
 		if !item.Acquired {
 			item.PackageURL = ""
 			item.SkillMarkdown = ""
@@ -167,6 +181,58 @@ func ListPublicSkillsWithOptions(opts SkillListOptions) (SkillListResult, error)
 		Offset:  offset,
 		HasMore: int64(offset+len(items)) < total,
 	}, nil
+}
+
+func enrichSkillCreatorNames(skills []model.Skill) map[int]string {
+	names := map[int]string{}
+	if len(skills) == 0 || model.DB == nil {
+		return names
+	}
+	ids := make([]int, 0)
+	seen := map[int]bool{}
+	for _, skill := range skills {
+		if skill.UserID > 0 && !seen[skill.UserID] {
+			seen[skill.UserID] = true
+			ids = append(ids, skill.UserID)
+		}
+	}
+	if len(ids) == 0 {
+		return names
+	}
+	var users []model.User
+	if err := model.DB.Select("id, username, phone").Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return names
+	}
+	for _, user := range users {
+		names[user.Id] = normalizeIncomeUserName(user.Id, strings.TrimSpace(user.Username), user.Phone)
+	}
+	return names
+}
+
+func getSkillEarnings(skills []model.Skill) (map[int]int, error) {
+	earnings := map[int]int{}
+	if len(skills) == 0 {
+		return earnings, nil
+	}
+	ids := make([]int, 0, len(skills))
+	for _, skill := range skills {
+		ids = append(ids, skill.ID)
+	}
+	var rows []struct {
+		SkillID int
+		Quota   int
+	}
+	if err := model.DB.Table("user_skills").
+		Select("skill_id, COALESCE(SUM(paid_quota), 0) AS quota").
+		Where("skill_id IN ? AND paid_quota > 0", ids).
+		Group("skill_id").
+		Scan(&rows).Error; err != nil {
+		return earnings, err
+	}
+	for _, row := range rows {
+		earnings[row.SkillID] = row.Quota
+	}
+	return earnings, nil
 }
 
 func AcquireSkill(userID int, skillID int) (SkillAcquireResult, error) {

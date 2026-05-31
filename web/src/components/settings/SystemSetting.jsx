@@ -75,6 +75,7 @@ const SystemSetting = () => {
     MClawDownloadWindowsUrl: '',
     MClawDownloadMacosUrl: '',
     MClawDownloadLinuxUrl: '',
+    ClaudeCodeCliDownloadUrl: '',
     SMTPServer: '',
     SMTPPort: '',
     SMTPAccount: '',
@@ -416,6 +417,15 @@ const SystemSetting = () => {
     };
     await updateOptions([
       { key: 'MClawDownloadLinks', value: JSON.stringify(links) },
+    ]);
+  };
+
+  const submitClaudeCodeCliDownloadUrl = async () => {
+    await updateOptions([
+      {
+        key: 'ClaudeCodeCliDownloadUrl',
+        value: inputs.ClaudeCodeCliDownloadUrl || '',
+      },
     ]);
   };
 
@@ -1813,6 +1823,30 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitMClawDownloadLinks}>
                     保存 MClaw 下载配置
+                  </Button>
+                </Form.Section>
+              </Card>
+
+              <Card>
+                <Form.Section text='Claude Code CLI 下载配置'>
+                  <Text>
+                    配置 Claude Code CLI
+                    安装包下载地址，前端可通过接口获取或跳转下载。
+                  </Text>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='ClaudeCodeCliDownloadUrl'
+                        label='CLI 下载链接'
+                        placeholder='https://example.com/ClaudeCode.zip'
+                      />
+                    </Col>
+                  </Row>
+                  <Button onClick={submitClaudeCodeCliDownloadUrl}>
+                    保存 Claude Code CLI 下载配置
                   </Button>
                 </Form.Section>
               </Card>

@@ -51,6 +51,53 @@ func GetMClawDownloadInfo(c *gin.Context) {
 	})
 }
 
+func GetClaudeCodeCLIDownload(c *gin.Context) {
+	downloadURL, ok := getClaudeCodeCLIDownloadURL(c)
+	if !ok {
+		return
+	}
+
+	c.Redirect(http.StatusFound, downloadURL)
+}
+
+func GetClaudeCodeCLIDownloadInfo(c *gin.Context) {
+	downloadURL, ok := getClaudeCodeCLIDownloadURL(c)
+	if !ok {
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"url": downloadURL,
+		},
+	})
+}
+
+func getClaudeCodeCLIDownloadURL(c *gin.Context) (string, bool) {
+	common.OptionMapRWMutex.RLock()
+	downloadURL := strings.TrimSpace(common.OptionMap["ClaudeCodeCliDownloadUrl"])
+	common.OptionMapRWMutex.RUnlock()
+
+	if downloadURL == "" {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Claude Code CLI download link is not configured",
+		})
+		return "", false
+	}
+	if !strings.HasPrefix(downloadURL, "http://") && !strings.HasPrefix(downloadURL, "https://") {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Claude Code CLI download link is invalid",
+		})
+		return "", false
+	}
+
+	return downloadURL, true
+}
+
 func getMClawDownloadLink(c *gin.Context) (string, mclawDownloadLink, bool) {
 	platform := strings.ToLower(strings.TrimSpace(c.Query("platform")))
 	if platform == "" {

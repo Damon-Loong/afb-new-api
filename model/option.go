@@ -69,6 +69,7 @@ func InitOptionMap() {
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["MClawDownloadLinks"] = `{"windows":{"url":""},"macos":{"url":""},"linux":{"url":""}}`
+	common.OptionMap["ClaudeCodeCliDownloadUrl"] = ""
 	common.OptionMap["Footer"] = common.Footer
 	common.OptionMap["SystemName"] = common.SystemName
 	common.OptionMap["Logo"] = common.Logo

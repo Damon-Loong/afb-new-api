@@ -50,26 +50,27 @@ func NewToolAppError(code string, message string) *ToolAppError {
 }
 
 type ToolSummary struct {
-	ID            string `json:"id"`
-	Slug          string `json:"slug"`
-	Name          string `json:"name"`
-	Description   string `json:"description"`
-	Version       string `json:"version"`
-	Type          string `json:"type"`
-	AuthType      string `json:"auth_type"`
-	ServerURL     string `json:"server_url"`
-	ActionCount   int    `json:"action_count"`
-	Status        string `json:"status"`
-	CreatedAt     int64  `json:"created_at"`
-	UpdatedAt     int64  `json:"updated_at"`
-	DownloadCount int64  `json:"download_count"`
-	CreatedBy     int    `json:"created_by,omitempty"`
-	CreatedByName string `json:"created_by_name,omitempty"`
-	Category      string `json:"category,omitempty"`
-	Visibility    string `json:"visibility,omitempty"`
-	SourceURL     string `json:"source_url,omitempty"`
-	CallPrice     int    `json:"call_price,omitempty"`
-	Installed     bool   `json:"installed,omitempty"`
+	ID             string `json:"id"`
+	Slug           string `json:"slug"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Version        string `json:"version"`
+	Type           string `json:"type"`
+	AuthType       string `json:"auth_type"`
+	ServerURL      string `json:"server_url"`
+	ActionCount    int    `json:"action_count"`
+	Status         string `json:"status"`
+	CreatedAt      int64  `json:"created_at"`
+	UpdatedAt      int64  `json:"updated_at"`
+	DownloadCount  int64  `json:"download_count"`
+	CreatedBy      int    `json:"created_by,omitempty"`
+	CreatedByName  string `json:"created_by_name,omitempty"`
+	Category       string `json:"category,omitempty"`
+	Visibility     string `json:"visibility,omitempty"`
+	SourceURL      string `json:"source_url,omitempty"`
+	CallPrice      int    `json:"call_price,omitempty"`
+	CurrentEarning int    `json:"current_earning"`
+	Installed      bool   `json:"installed,omitempty"`
 }
 
 type ToolDetail struct {
@@ -271,6 +272,9 @@ func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
 		index.UpdatedAt = time.Now().Unix()
 		sortTools(index.Tools)
 		_ = writeToolIndex(index)
+	}
+	if err := enrichToolEarnings(filtered); err != nil {
+		return ToolIndex{}, err
 	}
 	total := len(filtered)
 	end := offset + limit
@@ -989,22 +993,55 @@ func enrichToolCreatorNames(tools []ToolSummary) {
 		return
 	}
 	var users []model.User
-	if err := model.DB.Select("id, username, display_name").Where("id IN ?", ids).Find(&users).Error; err != nil {
+	if err := model.DB.Select("id, username, phone").Where("id IN ?", ids).Find(&users).Error; err != nil {
 		return
 	}
 	names := map[int]string{}
 	for _, user := range users {
-		name := strings.TrimSpace(user.DisplayName)
-		if name == "" {
-			name = strings.TrimSpace(user.Username)
-		}
-		names[user.Id] = name
+		names[user.Id] = normalizeIncomeUserName(user.Id, strings.TrimSpace(user.Username), user.Phone)
 	}
 	for i := range tools {
 		if name := names[tools[i].CreatedBy]; name != "" {
 			tools[i].CreatedByName = name
 		}
 	}
+}
+
+func enrichToolEarnings(tools []ToolSummary) error {
+	if len(tools) == 0 {
+		return nil
+	}
+	if err := ensureToolDB(); err != nil {
+		return err
+	}
+	ids := make([]string, 0, len(tools))
+	for _, tool := range tools {
+		if tool.ID != "" {
+			ids = append(ids, tool.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var rows []struct {
+		ToolID string
+		Quota  int
+	}
+	if err := model.ToolDB.Model(&model.ToolRun{}).
+		Select("tool_id, COALESCE(SUM(reward_quota), 0) AS quota").
+		Where("tool_id IN ? AND billing_status = ? AND reward_quota > 0", ids, "charged").
+		Group("tool_id").
+		Scan(&rows).Error; err != nil {
+		return err
+	}
+	earnings := map[string]int{}
+	for _, row := range rows {
+		earnings[row.ToolID] = row.Quota
+	}
+	for i := range tools {
+		tools[i].CurrentEarning = earnings[tools[i].ID]
+	}
+	return nil
 }
 
 func CanEditTool(detail ToolDetail, userID int, isAdmin bool) bool {

@@ -33,6 +33,8 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/mopc/mclaw/download-info", controller.GetMClawDownloadInfo)
 		apiRouter.GET("/mopc/mclaw/download", controller.GetMClawDownload)
+		apiRouter.GET("/mopc/claude-code-cli/download-info", controller.GetClaudeCodeCLIDownloadInfo)
+		apiRouter.GET("/mopc/claude-code-cli/download", controller.GetClaudeCodeCLIDownload)
 		wechatQRRoute := apiRouter.Group("/wechat-qr")
 		{
 			wechatQRRoute.POST("/request", middleware.UserAuth(), controller.RequestWechatQR)
@@ -98,6 +100,8 @@ func SetApiRouter(router *gin.Engine) {
 		incomeRoute.Use(middleware.UserAuth())
 		{
 			incomeRoute.GET("/summary", controller.GetIncomeSummary)
+			incomeRoute.GET("/sources", controller.GetIncomeSources)
+			incomeRoute.GET("/source-flows", controller.GetIncomeSourceFlows)
 		}
 		apiRouter.GET("/verification", middleware.EmailVerificationRateLimit(), middleware.TurnstileCheck(), controller.SendEmailVerification)
 		// SMS auth (CN +86)

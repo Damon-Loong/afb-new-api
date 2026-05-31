@@ -347,6 +347,15 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "ClaudeCodeCliDownloadUrl":
+		link := strings.TrimSpace(option.Value.(string))
+		if link != "" && !strings.HasPrefix(link, "http://") && !strings.HasPrefix(link, "https://") {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "Claude Code CLI 下载链接必须以 http:// 或 https:// 开头",
+			})
+			return
+		}
 	case constant.AutoRouteScoringModelOption:
 		if strings.EqualFold(strings.TrimSpace(option.Value.(string)), constant.AutoRouteModelName) {
 			c.JSON(http.StatusOK, gin.H{
