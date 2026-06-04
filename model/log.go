@@ -3,11 +3,9 @@ package model
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -150,46 +148,49 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
-	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
-	log := &Log{
-		UserId:           userId,
-		Username:         username,
-		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeError,
-		Content:          content,
-		PromptTokens:     0,
-		CompletionTokens: 0,
-		TokenName:        tokenName,
-		ModelName:        modelName,
-		Quota:            0,
-		ChannelId:        channelId,
-		TokenId:          tokenId,
-		UseTime:          useTimeSeconds,
-		IsStream:         isStream,
-		Group:            group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
+	clientIP := c.ClientIP()
+
+	gopool.Go(func() {
+		otherStr := common.MapToJsonStr(other)
+		// 判断是否需要记录 IP
+		needRecordIp := false
+		if settingMap, err := GetUserSetting(userId, false); err == nil {
+			if settingMap.RecordIpLog {
+				needRecordIp = true
 			}
-			return ""
-		}(),
-		RequestId: requestId,
-		Other:     otherStr,
-	}
-	err := LOG_DB.Create(log).Error
-	if err != nil {
-		logger.LogError(c, "failed to record log: "+err.Error())
-	}
+		}
+		log := &Log{
+			UserId:           userId,
+			Username:         username,
+			CreatedAt:        common.GetTimestamp(),
+			Type:             LogTypeError,
+			Content:          content,
+			PromptTokens:     0,
+			CompletionTokens: 0,
+			TokenName:        tokenName,
+			ModelName:        modelName,
+			Quota:            0,
+			ChannelId:        channelId,
+			TokenId:          tokenId,
+			UseTime:          useTimeSeconds,
+			IsStream:         isStream,
+			Group:            group,
+			Ip: func() string {
+				if needRecordIp {
+					return clientIP
+				}
+				return ""
+			}(),
+			RequestId: requestId,
+			Other:     otherStr,
+		}
+		err := LOG_DB.Create(log).Error
+		if err != nil {
+			common.SysLog("failed to record error log: " + err.Error())
+		}
+	})
 }
 
 type RecordConsumeLogParams struct {
@@ -211,51 +212,52 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if !common.LogConsumeEnabled {
 		return
 	}
-	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
-	otherStr := common.MapToJsonStr(params.Other)
-	// 判断是否需要记录 IP
-	needRecordIp := false
-	if settingMap, err := GetUserSetting(userId, false); err == nil {
-		if settingMap.RecordIpLog {
-			needRecordIp = true
-		}
-	}
-	log := &Log{
-		UserId:           userId,
-		Username:         username,
-		CreatedAt:        common.GetTimestamp(),
-		Type:             LogTypeConsume,
-		Content:          params.Content,
-		PromptTokens:     params.PromptTokens,
-		CompletionTokens: params.CompletionTokens,
-		TokenName:        params.TokenName,
-		ModelName:        params.ModelName,
-		Quota:            params.Quota,
-		ChannelId:        params.ChannelId,
-		TokenId:          params.TokenId,
-		UseTime:          params.UseTimeSeconds,
-		IsStream:         params.IsStream,
-		Group:            params.Group,
-		Ip: func() string {
-			if needRecordIp {
-				return c.ClientIP()
+	clientIP := c.ClientIP()
+
+	gopool.Go(func() {
+		otherStr := common.MapToJsonStr(params.Other)
+		// 判断是否需要记录 IP
+		needRecordIp := false
+		if settingMap, err := GetUserSetting(userId, false); err == nil {
+			if settingMap.RecordIpLog {
+				needRecordIp = true
 			}
-			return ""
-		}(),
-		RequestId: requestId,
-		Other:     otherStr,
-	}
-	err := LOG_DB.Create(log).Error
-	if err != nil {
-		logger.LogError(c, "failed to record log: "+err.Error())
-	}
-	if common.DataExportEnabled {
-		gopool.Go(func() {
+		}
+		log := &Log{
+			UserId:           userId,
+			Username:         username,
+			CreatedAt:        common.GetTimestamp(),
+			Type:             LogTypeConsume,
+			Content:          params.Content,
+			PromptTokens:     params.PromptTokens,
+			CompletionTokens: params.CompletionTokens,
+			TokenName:        params.TokenName,
+			ModelName:        params.ModelName,
+			Quota:            params.Quota,
+			ChannelId:        params.ChannelId,
+			TokenId:          params.TokenId,
+			UseTime:          params.UseTimeSeconds,
+			IsStream:         params.IsStream,
+			Group:            params.Group,
+			Ip: func() string {
+				if needRecordIp {
+					return clientIP
+				}
+				return ""
+			}(),
+			RequestId: requestId,
+			Other:     otherStr,
+		}
+		err := LOG_DB.Create(log).Error
+		if err != nil {
+			common.SysLog("failed to record consume log: " + err.Error())
+		}
+		if common.DataExportEnabled {
 			LogQuotaData(userId, username, params.ModelName, params.Quota, common.GetTimestamp(), params.PromptTokens+params.CompletionTokens)
-		})
-	}
+		}
+	})
 }
 
 type RecordTaskBillingLogParams struct {
