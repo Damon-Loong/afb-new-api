@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -65,6 +67,8 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return types.NewError(err, types.ErrorCodeChannelModelMappedError, types.ErrOptionWithSkipRetry())
 	}
 
+	applyResponsesSystemPromptIfNeeded(c, info, request)
+
 	adaptor := GetAdaptor(info.ApiType)
 	if adaptor == nil {
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
@@ -75,6 +79,9 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
+		}
+		if debugBytes, bErr := storage.Bytes(); bErr == nil {
+			logger.LogInfo(c, fmt.Sprintf("TEMP Responses pass-through upstream body: %s", string(debugBytes)))
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
@@ -102,9 +109,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 			}
 		}
 
-		if common.DebugEnabled {
-			println("requestBody: ", string(jsonData))
-		}
+		logger.LogInfo(c, fmt.Sprintf("TEMP Responses final upstream body: %s", string(jsonData)))
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 
@@ -158,4 +163,34 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		service.PostTextConsumeQuota(c, info, usageDto, nil)
 	}
 	return nil
+}
+
+func applyResponsesSystemPromptIfNeeded(c *gin.Context, info *relaycommon.RelayInfo, request *dto.OpenAIResponsesRequest) {
+	if info == nil || request == nil || info.ChannelSetting.SystemPrompt == "" {
+		return
+	}
+	systemPrompt := strings.TrimSpace(info.ChannelSetting.SystemPrompt)
+	if systemPrompt == "" {
+		return
+	}
+	existing := ""
+	if len(request.Instructions) > 0 {
+		if err := json.Unmarshal(request.Instructions, &existing); err != nil {
+			existing = strings.TrimSpace(string(request.Instructions))
+		}
+	}
+	existing = strings.TrimSpace(existing)
+	if existing == "" {
+		if b, err := common.Marshal(systemPrompt); err == nil {
+			request.Instructions = b
+		}
+		return
+	}
+	if !info.ChannelSetting.SystemPromptOverride {
+		return
+	}
+	common.SetContextKey(c, appconstant.ContextKeySystemPromptOverride, true)
+	if b, err := common.Marshal(systemPrompt + "\n" + existing); err == nil {
+		request.Instructions = b
+	}
 }

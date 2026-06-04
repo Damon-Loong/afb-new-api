@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -35,8 +36,7 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 	// For example, Postman will report error, and we cannot check the response at all.
 	if src != nil {
 		for k, v := range src.Header {
-			// avoid setting Content-Length
-			if k == "Content-Length" {
+			if !IsUpstreamResponseHeaderAllowed(k) || len(v) == 0 {
 				continue
 			}
 			c.Writer.Header().Set(k, v[0])
@@ -58,4 +58,23 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 		logger.LogError(c, fmt.Sprintf("failed to copy response body: %s", err.Error()))
 	}
 	c.Writer.Flush()
+}
+
+func IsUpstreamResponseHeaderAllowed(key string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(key))
+	if normalized == "" {
+		return false
+	}
+	if normalized == "content-length" {
+		return false
+	}
+	if strings.HasPrefix(normalized, "access-control-") {
+		return false
+	}
+	switch normalized {
+	case "vary", "allow", "connection", "transfer-encoding":
+		return false
+	default:
+		return true
+	}
 }
