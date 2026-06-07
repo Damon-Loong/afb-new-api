@@ -31,6 +31,7 @@ func modelPriceNotConfiguredError(modelName string, userId int) error {
 
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
 const claudeCacheCreation1hMultiplier = 6 / 3.75
+const preConsumeCacheRatioMultiplier = 0.2
 
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.GroupRatioInfo {
@@ -105,7 +106,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
 		ratio := modelRatio * groupRatioInfo.GroupRatio
 		if cacheRatio > 0 && cacheRatio < 1 {
-			ratio *= 0.8
+			ratio *= preConsumeCacheRatioMultiplier
 		}
 		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
 	} else {
