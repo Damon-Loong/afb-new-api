@@ -290,6 +290,11 @@ func migrateDB() error {
 		&MarketUpload{},
 		&Skill{},
 		&UserSkill{},
+		&Tool{},
+		&ToolAction{},
+		&ToolSecret{},
+		&UserTool{},
+		&ToolRun{},
 		&ApiFile{},
 	)
 	if err != nil {
@@ -349,6 +354,11 @@ func migrateDBFast() error {
 		{&MarketUpload{}, "MarketUpload"},
 		{&Skill{}, "Skill"},
 		{&UserSkill{}, "UserSkill"},
+		{&Tool{}, "Tool"},
+		{&ToolAction{}, "ToolAction"},
+		{&ToolSecret{}, "ToolSecret"},
+		{&UserTool{}, "UserTool"},
+		{&ToolRun{}, "ToolRun"},
 		{&ApiFile{}, "ApiFile"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大

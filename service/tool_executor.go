@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -429,11 +428,18 @@ func applyToolAuth(headers *http.Header, targetURL *string, detail ToolDetail) e
 }
 
 func readToolSecret(toolID string) (toolSecret, error) {
-	var secret toolSecret
-	if err := readJSON(filepath.Join(toolSecretDir(), sanitizeID(toolID)+".json"), &secret); err != nil {
+	if model.DB == nil {
 		return toolSecret{}, NewToolAppError("tool_auth_missing", "工具密钥未配置")
 	}
-	return secret, nil
+	var secret model.ToolSecret
+	if err := model.DB.Where("tool_id = ?", sanitizeID(toolID)).First(&secret).Error; err != nil {
+		return toolSecret{}, NewToolAppError("tool_auth_missing", "工具密钥未配置")
+	}
+	return toolSecret{
+		APIKeyLocation: secret.APIKeyLocation,
+		APIKeyName:     secret.APIKeyName,
+		APIKeyValue:    secret.APIKeyValue,
+	}, nil
 }
 
 func parseToolResponse(content []byte) any {

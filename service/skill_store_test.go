@@ -66,3 +66,35 @@ func TestAcquireSkillRewardsAuthorPendingQuota(t *testing.T) {
 	require.Equal(t, 300, userSkill.PaidQuota)
 	require.Equal(t, skill.PackageURL, userSkill.PackageURL)
 }
+
+func TestCreateSkillRejectsDuplicateTitle(t *testing.T) {
+	setupSkillStoreTestDB(t)
+
+	author := model.User{Id: 10, Username: "skill_author", AffCode: "auth"}
+	require.NoError(t, model.DB.Create(&author).Error)
+
+	_, err := CreateSkill(SkillCreateOptions{
+		UserID:        author.Id,
+		Title:         "Demo Skill",
+		Description:   "A demo skill",
+		PackageURL:    "https://example.test/demo.skill",
+		DownloadPrice: 0,
+		Visibility:    "public",
+		Publish:       true,
+	})
+	require.NoError(t, err)
+
+	_, err = CreateSkill(SkillCreateOptions{
+		UserID:        author.Id,
+		Title:         "  demo skill  ",
+		Description:   "Another demo skill",
+		PackageURL:    "https://example.test/demo-2.skill",
+		DownloadPrice: 0,
+		Visibility:    "public",
+		Publish:       true,
+	})
+	require.Error(t, err)
+	var appErr *ToolAppError
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "skill_name_conflict", appErr.Code)
+}

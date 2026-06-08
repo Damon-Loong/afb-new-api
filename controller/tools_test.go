@@ -11,7 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 const toolControllerOpenAPIJSON = `{
@@ -42,8 +45,24 @@ func setupToolControllerRouter(t *testing.T) *gin.Engine {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	root := t.TempDir()
-	t.Setenv("TOOL_DATA_DIR", filepath.Join(root, "data", "tools"))
-	t.Setenv("TOOL_SECRET_DIR", filepath.Join(root, "data", "tool-secrets"))
+	oldDB := model.DB
+	oldToolDB := model.ToolDB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(root, "tool-main-test.db")+"?_busy_timeout=30000"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("init main test db failed: %v", err)
+	}
+	model.DB = db
+	model.ToolDB = nil
+	if err := model.InitToolDB(); err != nil {
+		t.Fatalf("init tool db failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+		model.DB = oldDB
+		model.ToolDB = oldToolDB
+	})
 	router := gin.New()
 	tools := router.Group("/api/tools")
 	tools.GET("", GetTools)

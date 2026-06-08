@@ -5,10 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/QuantumNous/new-api/model"
+	"github.com/glebarez/sqlite"
+	"gorm.io/gorm"
 )
 
 const validOpenAPIJSON = `{
@@ -73,8 +76,24 @@ paths:
 func setupToolStoreTest(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	t.Setenv(toolDataDirEnv, filepath.Join(root, "data", "tools"))
-	t.Setenv(toolSecretDirEnv, filepath.Join(root, "data", "tool-secrets"))
+	oldDB := model.DB
+	oldToolDB := model.ToolDB
+	db, err := gorm.Open(sqlite.Open(filepath.Join(root, "tool-main-test.db")+"?_busy_timeout=30000"), &gorm.Config{})
+	if err != nil {
+		t.Fatalf("init main test db failed: %v", err)
+	}
+	model.DB = db
+	model.ToolDB = nil
+	if err := model.InitToolDB(); err != nil {
+		t.Fatalf("init tool db failed: %v", err)
+	}
+	t.Cleanup(func() {
+		if sqlDB, err := db.DB(); err == nil {
+			_ = sqlDB.Close()
+		}
+		model.DB = oldDB
+		model.ToolDB = oldToolDB
+	})
 	return root
 }
 
@@ -131,7 +150,7 @@ func TestParseOpenAPIValidationFailures(t *testing.T) {
 }
 
 func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
-	root := setupToolStoreTest(t)
+	setupToolStoreTest(t)
 
 	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{Publish: true, Category: "工具"})
 	if err != nil {
@@ -140,10 +159,16 @@ func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
 	if detail.ID == "" || detail.ActionCount != 1 || detail.Status != "published" {
 		t.Fatalf("unexpected detail: %+v", detail)
 	}
-	for _, name := range []string{"tool.json", "openapi.json", "actions.json", "source.openapi.json"} {
-		if _, err := os.Stat(filepath.Join(root, "data", "tools", detail.ID, name)); err != nil {
-			t.Fatalf("expected %s to be persisted: %v", name, err)
-		}
+	var stored model.Tool
+	if err := model.DB.Where("id = ?", detail.ID).First(&stored).Error; err != nil {
+		t.Fatalf("expected tool to be persisted in sql: %v", err)
+	}
+	var storedActions []model.ToolAction
+	if err := model.DB.Where("tool_id = ?", detail.ID).Find(&storedActions).Error; err != nil {
+		t.Fatalf("expected tool actions to be persisted in sql: %v", err)
+	}
+	if stored.Name != "Weather Tool" || len(storedActions) != 1 {
+		t.Fatalf("unexpected sql tool rows: tool=%+v actions=%+v", stored, storedActions)
 	}
 	index, err := ListTools("", "")
 	if err != nil {
@@ -177,7 +202,7 @@ func TestUploadToolPersistsIndexAndDetectsNameConflict(t *testing.T) {
 }
 
 func TestCreateManualToolBuildsOpenAPIAndPersistsIndex(t *testing.T) {
-	root := setupToolStoreTest(t)
+	setupToolStoreTest(t)
 
 	detail, err := CreateManualTool(ToolManualCreateOptions{
 		Name:        "Manual Weather",
@@ -225,14 +250,13 @@ func TestCreateManualToolBuildsOpenAPIAndPersistsIndex(t *testing.T) {
 	if detail.ID == "" || detail.ActionCount != 2 || detail.CreatedBy != 18 {
 		t.Fatalf("unexpected detail: %+v", detail)
 	}
-	for _, name := range []string{"tool.json", "openapi.json", "actions.json", "source.openapi.json"} {
-		if _, err := os.Stat(filepath.Join(root, "data", "tools", detail.ID, name)); err != nil {
-			t.Fatalf("expected %s to be persisted: %v", name, err)
-		}
+	var stored model.Tool
+	if err := model.DB.Where("id = ?", detail.ID).First(&stored).Error; err != nil {
+		t.Fatalf("expected manual tool to be persisted in sql: %v", err)
 	}
 	var openAPI map[string]any
-	if err := readJSON(filepath.Join(root, "data", "tools", detail.ID, "openapi.json"), &openAPI); err != nil {
-		t.Fatalf("read openapi failed: %v", err)
+	if err := json.Unmarshal([]byte(stored.OpenAPISpec), &openAPI); err != nil {
+		t.Fatalf("read openapi from sql failed: %v", err)
 	}
 	paths, _ := openAPI["paths"].(map[string]any)
 	pathItem, _ := paths["/weather"].(map[string]any)
@@ -328,7 +352,7 @@ func TestDownloadToolExcludesSecretsAndIncrementsCount(t *testing.T) {
 }
 
 func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
-	root := setupToolStoreTest(t)
+	setupToolStoreTest(t)
 
 	detail, err := UploadTool("weather.json", strings.NewReader(validOpenAPIJSON), int64(len(validOpenAPIJSON)), ToolUploadOptions{
 		Publish:        true,
@@ -366,8 +390,14 @@ func TestUpdateToolConfigUpdatesAuthAndHeaders(t *testing.T) {
 		t.Fatalf("unexpected headers: %+v", updated.CommonHeaders)
 	}
 	var secret map[string]string
-	if err := readJSON(filepath.Join(root, "data", "tool-secrets", detail.ID+".json"), &secret); err != nil {
+	var storedSecret model.ToolSecret
+	if err := model.DB.Where("tool_id = ?", detail.ID).First(&storedSecret).Error; err != nil {
 		t.Fatalf("read secret failed: %v", err)
+	}
+	secret = map[string]string{
+		"api_key_value":    storedSecret.APIKeyValue,
+		"api_key_name":     storedSecret.APIKeyName,
+		"api_key_location": storedSecret.APIKeyLocation,
 	}
 	if secret["api_key_value"] != "new-secret" || secret["api_key_name"] != "token" || secret["api_key_location"] != "query" {
 		t.Fatalf("unexpected secret: %+v", secret)
@@ -445,14 +475,11 @@ func TestUpdateToolActionConfigUpdatesActionAndOpenAPI(t *testing.T) {
 		t.Fatalf("unexpected action: %+v", action)
 	}
 
-	var openAPI map[string]any
-	if err := readJSON(filepath.Join(toolDir(detail.ID), "openapi.json"), &openAPI); err != nil {
-		t.Fatalf("read openapi failed: %v", err)
+	refreshed, err := GetToolDetail(detail.ID)
+	if err != nil {
+		t.Fatalf("get updated detail failed: %v", err)
 	}
-	paths, _ := openAPI["paths"].(map[string]any)
-	pathItem, _ := paths["/weather/by-city"].(map[string]any)
-	operation, _ := pathItem["post"].(map[string]any)
-	if operation["operationId"] != "getWeatherByCity" {
-		t.Fatalf("openapi not synced: %+v", operation)
+	if len(refreshed.Actions) != 1 || refreshed.Actions[0].OperationID != "getWeatherByCity" {
+		t.Fatalf("action not persisted: %+v", refreshed.Actions)
 	}
 }

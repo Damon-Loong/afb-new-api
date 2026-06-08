@@ -362,19 +362,18 @@ func listCreatedToolIDs(userID int) ([]string, error) {
 }
 
 func listCreatedToolSummaries(userID int) ([]ToolSummary, error) {
-	index, err := readToolIndex()
-	if err != nil {
+	if model.DB == nil {
+		return nil, NewToolAppError("tool_database_unavailable", "工具数据库不可用")
+	}
+	var rows []model.Tool
+	if err := model.DB.Where("created_by = ?", userID).
+		Order("updated_at desc, created_at desc").
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	tools := make([]ToolSummary, 0)
-	for i, tool := range index.Tools {
-		hydrated := hydrateToolSummary(tool)
-		if hydrated != tool {
-			index.Tools[i] = hydrated
-		}
-		if hydrated.CreatedBy == userID && hydrated.ID != "" {
-			tools = append(tools, hydrated)
-		}
+	tools := make([]ToolSummary, 0, len(rows))
+	for _, row := range rows {
+		tools = append(tools, toolSummaryFromModel(row))
 	}
 	return tools, nil
 }

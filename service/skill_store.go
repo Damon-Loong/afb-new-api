@@ -59,6 +59,13 @@ func CreateSkill(opts SkillCreateOptions) (model.Skill, error) {
 	if title == "" {
 		return model.Skill{}, NewToolAppError("invalid_request", "Skill 标题不能为空")
 	}
+	titleTaken, err := skillTitleExists(title)
+	if err != nil {
+		return model.Skill{}, err
+	}
+	if titleTaken {
+		return model.Skill{}, NewToolAppError("skill_name_conflict", "Skill 标题已存在")
+	}
 	description := strings.TrimSpace(opts.Description)
 	if description == "" {
 		return model.Skill{}, NewToolAppError("invalid_request", "Skill 描述不能为空")
@@ -90,6 +97,23 @@ func CreateSkill(opts SkillCreateOptions) (model.Skill, error) {
 		return model.Skill{}, err
 	}
 	return skill, nil
+}
+
+func skillTitleExists(title string) (bool, error) {
+	if model.DB == nil {
+		return false, errors.New("database unavailable")
+	}
+	normalizedTitle := strings.ToLower(strings.TrimSpace(title))
+	if normalizedTitle == "" {
+		return false, nil
+	}
+	var count int64
+	if err := model.DB.Model(&model.Skill{}).
+		Where("LOWER(title) = ?", normalizedTitle).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func ListUserSkills(userID int) ([]SkillListItem, error) {

@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -20,11 +19,10 @@ import (
 
 	"github.com/QuantumNous/new-api/model"
 	"gopkg.in/yaml.v3"
+	"gorm.io/gorm"
 )
 
 const (
-	toolDataDirEnv    = "TOOL_DATA_DIR"
-	toolSecretDirEnv  = "TOOL_SECRET_DIR"
 	toolMaxUploadSize = 5 * 1024 * 1024
 )
 
@@ -226,11 +224,182 @@ func ListTools(keyword string, category string) (ToolIndex, error) {
 	return ListToolsWithOptions(ToolListOptions{Keyword: keyword, Category: category})
 }
 
-func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
-	index, err := readToolIndex()
-	if err != nil {
-		return ToolIndex{}, err
+func toolSummaryFromModel(row model.Tool) ToolSummary {
+	return ToolSummary{
+		ID:             row.ID,
+		Slug:           row.Slug,
+		Name:           row.Name,
+		Description:    row.Description,
+		Version:        row.Version,
+		Type:           row.Type,
+		AuthType:       row.AuthType,
+		ServerURL:      row.ServerURL,
+		ActionCount:    row.ActionCount,
+		Status:         row.Status,
+		CreatedAt:      row.CreatedAt,
+		UpdatedAt:      row.UpdatedAt,
+		DownloadCount:  row.DownloadCount,
+		CreatedBy:      row.CreatedBy,
+		Category:       row.Category,
+		Visibility:     row.Visibility,
+		SourceURL:      row.SourceURL,
+		CallPrice:      row.CallPrice,
+		CurrentEarning: 0,
 	}
+}
+
+func toolDetailFromModel(row model.Tool, actionRows []model.ToolAction) ToolDetail {
+	actions := make([]ToolAction, 0, len(actionRows))
+	for _, action := range actionRows {
+		actions = append(actions, toolActionFromModel(action))
+	}
+	var headers []ToolHeader
+	_ = json.Unmarshal([]byte(row.CommonHeaders), &headers)
+	var warnings []ValidationWarning
+	_ = json.Unmarshal([]byte(row.Warnings), &warnings)
+	return ToolDetail{
+		ToolSummary:    toolSummaryFromModel(row),
+		OpenAPIVersion: row.OpenAPIVersion,
+		SourceFormat:   row.SourceFormat,
+		Actions:        actions,
+		Warnings:       warnings,
+		Category:       row.Category,
+		Visibility:     row.Visibility,
+		APIKeyLocation: row.APIKeyLocation,
+		APIKeyName:     row.APIKeyName,
+		CommonHeaders:  headers,
+		CanEdit:        false,
+	}
+}
+
+func toolActionFromModel(row model.ToolAction) ToolAction {
+	inputSchema := map[string]any{}
+	if row.InputSchema != "" {
+		_ = json.Unmarshal([]byte(row.InputSchema), &inputSchema)
+	}
+	var outputSchema any
+	if row.OutputSchema != "" {
+		_ = json.Unmarshal([]byte(row.OutputSchema), &outputSchema)
+	}
+	return ToolAction{
+		ID:            row.ActionID,
+		ToolID:        row.ToolID,
+		Name:          row.Name,
+		DisplayName:   row.DisplayName,
+		Description:   row.Description,
+		OperationID:   row.OperationID,
+		Method:        row.Method,
+		Path:          row.Path,
+		InputSchema:   inputSchema,
+		OutputSchema:  outputSchema,
+		Enabled:       row.Enabled,
+		RiskLevel:     row.RiskLevel,
+		ParameterHint: row.ParameterHint,
+		ResponseHint:  row.ResponseHint,
+	}
+}
+
+func mustJSONString(value any) string {
+	if value == nil {
+		return ""
+	}
+	content, err := json.Marshal(value)
+	if err != nil {
+		return ""
+	}
+	return string(content)
+}
+
+func saveToolDetailSQL(detail ToolDetail, parsed *ToolParseResult) error {
+	if model.DB == nil {
+		return NewToolAppError("tool_database_unavailable", "工具数据库不可用")
+	}
+	now := time.Now().Unix()
+	if detail.CreatedAt == 0 {
+		detail.CreatedAt = now
+	}
+	if detail.UpdatedAt == 0 {
+		detail.UpdatedAt = now
+	}
+	openAPISpec := ""
+	rawSpec := ""
+	if parsed != nil {
+		openAPISpec = mustJSONString(parsed.OpenAPI)
+		rawSpec = string(parsed.Raw)
+	}
+	return model.DB.Transaction(func(tx *gorm.DB) error {
+		if parsed == nil {
+			var existing model.Tool
+			if err := tx.Where("id = ?", detail.ID).First(&existing).Error; err == nil {
+				openAPISpec = existing.OpenAPISpec
+				rawSpec = existing.RawSpec
+			}
+		}
+		row := model.Tool{
+			ID:             detail.ID,
+			Slug:           detail.Slug,
+			Name:           detail.Name,
+			Description:    detail.Description,
+			Version:        detail.Version,
+			Type:           detail.Type,
+			AuthType:       detail.AuthType,
+			ServerURL:      detail.ServerURL,
+			ActionCount:    len(detail.Actions),
+			Status:         detail.Status,
+			DownloadCount:  detail.DownloadCount,
+			CreatedBy:      detail.CreatedBy,
+			Category:       detail.Category,
+			Visibility:     detail.Visibility,
+			SourceURL:      detail.SourceURL,
+			CallPrice:      detail.CallPrice,
+			SourceFormat:   detail.SourceFormat,
+			OpenAPIVersion: detail.OpenAPIVersion,
+			APIKeyLocation: detail.APIKeyLocation,
+			APIKeyName:     detail.APIKeyName,
+			CommonHeaders:  mustJSONString(detail.CommonHeaders),
+			Warnings:       mustJSONString(detail.Warnings),
+			OpenAPISpec:    openAPISpec,
+			RawSpec:        rawSpec,
+			CreatedAt:      detail.CreatedAt,
+			UpdatedAt:      detail.UpdatedAt,
+		}
+		if err := tx.Save(&row).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("tool_id = ?", detail.ID).Delete(&model.ToolAction{}).Error; err != nil {
+			return err
+		}
+		for i, action := range detail.Actions {
+			actionID := strings.TrimSpace(action.ID)
+			if actionID == "" {
+				actionID = "action_" + action.Name
+			}
+			actionRow := model.ToolAction{
+				ToolID:        detail.ID,
+				ActionID:      actionID,
+				Name:          action.Name,
+				DisplayName:   action.DisplayName,
+				Description:   action.Description,
+				OperationID:   action.OperationID,
+				Method:        action.Method,
+				Path:          action.Path,
+				InputSchema:   mustJSONString(action.InputSchema),
+				OutputSchema:  mustJSONString(action.OutputSchema),
+				Enabled:       action.Enabled,
+				RiskLevel:     action.RiskLevel,
+				ParameterHint: action.ParameterHint,
+				ResponseHint:  action.ResponseHint,
+				SortOrder:     i,
+			}
+			if err := tx.Create(&actionRow).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
 	keyword := strings.ToLower(strings.TrimSpace(opts.Keyword))
 	category := strings.ToLower(strings.TrimSpace(opts.Category))
 	limit := normalizeListLimit(opts.Limit)
@@ -243,35 +412,34 @@ func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
 			return ToolIndex{}, installedErr
 		}
 	}
-	filtered := make([]ToolSummary, 0, len(index.Tools))
-	indexChanged := false
-	for i, tool := range index.Tools {
-		hydrated := hydrateToolSummary(tool)
-		if hydrated != tool {
-			index.Tools[i] = hydrated
-			indexChanged = true
-		}
-		tool = hydrated
-		haystack := strings.ToLower(tool.Name + " " + tool.Description)
-		if keyword != "" && !strings.Contains(haystack, keyword) {
-			continue
-		}
-		if category != "" && strings.ToLower(strings.TrimSpace(tool.Category)) != category {
-			continue
-		}
-		if opts.CreatedBy != 0 && tool.CreatedBy != opts.CreatedBy {
-			continue
-		}
+	if model.DB == nil {
+		return ToolIndex{}, NewToolAppError("tool_database_unavailable", "工具数据库不可用")
+	}
+	query := model.DB.Model(&model.Tool{})
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("LOWER(name) LIKE ? OR LOWER(description) LIKE ?", like, like)
+	}
+	if category != "" {
+		query = query.Where("LOWER(category) = ?", category)
+	}
+	if opts.CreatedBy != 0 {
+		query = query.Where("created_by = ?", opts.CreatedBy)
+	} else {
+		query = query.Where("status = ? AND visibility = ?", "published", "public")
+	}
+	var rows []model.Tool
+	if err := query.Order("updated_at desc, created_at desc").Find(&rows).Error; err != nil {
+		return ToolIndex{}, err
+	}
+	filtered := make([]ToolSummary, 0, len(rows))
+	for _, row := range rows {
+		tool := toolSummaryFromModel(row)
 		tool.Installed = installed[tool.ID]
 		if opts.AcquiredOnly && !tool.Installed {
 			continue
 		}
 		filtered = append(filtered, tool)
-	}
-	if indexChanged {
-		index.UpdatedAt = time.Now().Unix()
-		sortTools(index.Tools)
-		_ = writeToolIndex(index)
 	}
 	if err := enrichToolEarnings(filtered); err != nil {
 		return ToolIndex{}, err
@@ -284,11 +452,14 @@ func ListToolsWithOptions(opts ToolListOptions) (ToolIndex, error) {
 	if end > total {
 		end = total
 	}
-	index.Tools = filtered[offset:end]
-	index.Total = total
-	index.Limit = limit
-	index.Offset = offset
-	index.HasMore = end < total
+	index := ToolIndex{
+		UpdatedAt: time.Now().Unix(),
+		Tools:     filtered[offset:end],
+		Total:     total,
+		Limit:     limit,
+		Offset:    offset,
+		HasMore:   end < total,
+	}
 	enrichToolCreatorNames(index.Tools)
 	return index, nil
 }
@@ -298,18 +469,18 @@ func GetToolDetail(toolID string) (ToolDetail, error) {
 	if toolID == "" {
 		return ToolDetail{}, NewToolAppError("invalid_request", "工具 ID 无效")
 	}
-	var detail ToolDetail
-	if err := readJSON(filepath.Join(toolDir(toolID), "tool.json"), &detail); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ToolDetail{}, NewToolAppError("tool_not_found", "工具不存在")
-		}
-		return ToolDetail{}, NewToolAppError("storage_read_failed", "读取工具失败")
+	if model.DB == nil {
+		return ToolDetail{}, NewToolAppError("tool_database_unavailable", "工具数据库不可用")
 	}
-	var actions []ToolAction
-	if err := readJSON(filepath.Join(toolDir(toolID), "actions.json"), &actions); err == nil {
-		detail.Actions = actions
+	var tool model.Tool
+	if err := model.DB.Where("id = ?", toolID).First(&tool).Error; err != nil {
+		return ToolDetail{}, NewToolAppError("tool_not_found", "工具不存在")
 	}
-	return detail, nil
+	var actions []model.ToolAction
+	if err := model.DB.Where("tool_id = ?", toolID).Order("sort_order asc, id asc").Find(&actions).Error; err != nil {
+		return ToolDetail{}, err
+	}
+	return toolDetailFromModel(tool, actions), nil
 }
 
 func ParseOpenAPIUpload(filename string, reader io.Reader, size int64) (ToolParseResult, error) {
@@ -351,15 +522,11 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 	if err != nil {
 		return ToolDetail{}, err
 	}
-	index, err := readToolIndex()
-	if err != nil {
-		return ToolDetail{}, err
-	}
 	slug := slugify(parsed.Name)
 	if slug == "" {
 		slug = "tool"
 	}
-	if hasToolConflict(index.Tools, parsed.Name, slug) {
+	if hasToolConflictSQL(parsed.Name, slug, "") {
 		return ToolDetail{}, NewToolAppError("tool_name_conflict", "工具名称或 slug 已存在")
 	}
 	now := time.Now().Unix()
@@ -416,12 +583,6 @@ func UploadTool(filename string, reader io.Reader, size int64, opts ToolUploadOp
 		if err := persistToolSecret(toolID, detail.APIKeyLocation, detail.APIKeyName, opts.APIKeyValue); err != nil {
 			return ToolDetail{}, err
 		}
-	}
-	index.Tools = append(index.Tools, detail.ToolSummary)
-	sortTools(index.Tools)
-	index.UpdatedAt = now
-	if err := writeToolIndex(index); err != nil {
-		return ToolDetail{}, err
 	}
 	return detail, nil
 }
@@ -494,15 +655,11 @@ func CreateManualTool(opts ToolManualCreateOptions) (ToolDetail, error) {
 		methodPaths[methodPathKey] = true
 	}
 
-	index, err := readToolIndex()
-	if err != nil {
-		return ToolDetail{}, err
-	}
 	slug := slugify(name)
 	if slug == "" {
 		slug = "tool"
 	}
-	if hasToolConflict(index.Tools, name, slug) {
+	if hasToolConflictSQL(name, slug, "") {
 		return ToolDetail{}, NewToolAppError("tool_name_conflict", "工具名称或 slug 已存在")
 	}
 	category, err := normalizeToolCategory(opts.Category)
@@ -586,12 +743,6 @@ func CreateManualTool(opts ToolManualCreateOptions) (ToolDetail, error) {
 			return ToolDetail{}, err
 		}
 	}
-	index.Tools = append(index.Tools, detail.ToolSummary)
-	sortTools(index.Tools)
-	index.UpdatedAt = now
-	if err := writeToolIndex(index); err != nil {
-		return ToolDetail{}, err
-	}
 	return detail, nil
 }
 
@@ -650,15 +801,12 @@ func UpdateToolConfig(toolID string, opts ToolUpdateConfigOptions) (ToolDetail, 
 			}
 		}
 	} else {
-		_ = os.Remove(filepath.Join(toolSecretDir(), toolID+".json"))
+		_ = model.DB.Where("tool_id = ?", toolID).Delete(&model.ToolSecret{}).Error
 		detail.APIKeyLocation = ""
 		detail.APIKeyName = ""
 	}
 
-	if err := writeJSON(filepath.Join(toolDir(toolID), "tool.json"), detail); err != nil {
-		return ToolDetail{}, err
-	}
-	if err := updateToolIndexSummary(detail.ToolSummary); err != nil {
+	if err := saveToolDetailSQL(detail, nil); err != nil {
 		return ToolDetail{}, err
 	}
 	return detail, nil
@@ -746,16 +894,7 @@ func UpdateToolActionConfig(toolID string, actionID string, opts ToolActionUpdat
 	detail.UpdatedAt = time.Now().Unix()
 	detail.ToolSummary.UpdatedAt = detail.UpdatedAt
 
-	if err := writeJSON(filepath.Join(toolDir(toolID), "actions.json"), detail.Actions); err != nil {
-		return ToolDetail{}, err
-	}
-	if err := writeJSON(filepath.Join(toolDir(toolID), "tool.json"), detail); err != nil {
-		return ToolDetail{}, err
-	}
-	if err := syncToolActionToOpenAPI(toolID, oldAction, nextAction); err != nil {
-		return ToolDetail{}, err
-	}
-	if err := updateToolIndexSummary(detail.ToolSummary); err != nil {
+	if err := saveToolDetailSQL(detail, nil); err != nil {
 		return ToolDetail{}, err
 	}
 	return detail, nil
@@ -766,44 +905,33 @@ func CheckToolName(name string) (map[string]any, error) {
 	if name == "" {
 		return nil, NewToolAppError("invalid_request", "工具名称不能为空")
 	}
-	index, err := readToolIndex()
-	if err != nil {
-		return nil, err
-	}
 	slug := slugify(name)
-	available := !hasToolConflict(index.Tools, name, slug)
+	available := !hasToolConflictSQL(name, slug, "")
 	return map[string]any{
 		"available":      available,
 		"reason":         map[bool]string{true: "", false: "tool_name_conflict"}[available],
-		"suggested_slug": suggestSlug(index.Tools, slug),
+		"suggested_slug": suggestSlugSQL(slug),
 	}, nil
 }
 
 func DeleteTool(toolID string) error {
 	toolID = sanitizeID(toolID)
-	index, err := readToolIndex()
-	if err != nil {
-		return err
+	if toolID == "" {
+		return NewToolAppError("invalid_request", "工具 ID 无效")
 	}
-	found := false
-	tools := make([]ToolSummary, 0, len(index.Tools))
-	for _, tool := range index.Tools {
-		if tool.ID == toolID {
-			found = true
-			continue
-		}
-		tools = append(tools, tool)
+	if model.DB == nil {
+		return NewToolAppError("tool_database_unavailable", "工具数据库不可用")
 	}
-	if !found {
+	result := model.DB.Where("id = ?", toolID).Delete(&model.Tool{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
 		return NewToolAppError("tool_not_found", "工具不存在")
 	}
-	index.Tools = tools
-	index.UpdatedAt = time.Now().Unix()
-	if err := writeToolIndex(index); err != nil {
-		return err
-	}
-	_ = os.RemoveAll(toolDir(toolID))
-	_ = os.Remove(filepath.Join(toolSecretDir(), toolID+".json"))
+	_ = model.DB.Where("tool_id = ?", toolID).Delete(&model.ToolAction{}).Error
+	_ = model.DB.Where("tool_id = ?", toolID).Delete(&model.ToolSecret{}).Error
+	_ = model.DB.Where("tool_id = ?", toolID).Delete(&model.UserTool{}).Error
 	return nil
 }
 
@@ -812,7 +940,7 @@ func BuildToolDownload(toolID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	downloadDir := filepath.Join(toolDir(toolID), "download")
+	downloadDir := filepath.Join(os.TempDir(), "new-api-tool-downloads", sanitizeID(toolID))
 	if err := os.MkdirAll(downloadDir, 0755); err != nil {
 		return "", NewToolAppError("storage_write_failed", "创建下载目录失败")
 	}
@@ -822,7 +950,7 @@ func BuildToolDownload(toolID string) (string, error) {
 		return "", NewToolAppError("storage_write_failed", "创建下载包失败")
 	}
 	zipWriter := zip.NewWriter(file)
-	writeErr := addToolZipFiles(zipWriter, toolID, detail.SourceFormat)
+	writeErr := addToolZipFiles(zipWriter, detail)
 	closeZipErr := zipWriter.Close()
 	closeFileErr := file.Close()
 	if writeErr != nil {
@@ -837,144 +965,83 @@ func BuildToolDownload(toolID string) (string, error) {
 	return zipPath, nil
 }
 
-func addToolZipFiles(zipWriter *zip.Writer, toolID string, sourceFormat string) error {
-	sourceName := "source.openapi.json"
-	if sourceFormat == "yaml" {
-		sourceName = "source.openapi.yaml"
+func addToolZipFiles(zipWriter *zip.Writer, detail ToolDetail) error {
+	var row model.Tool
+	if model.DB != nil {
+		_ = model.DB.Where("id = ?", detail.ID).First(&row).Error
 	}
-	files := []string{"tool.json", "openapi.json", "actions.json", sourceName}
-	for _, name := range files {
-		content, err := os.ReadFile(filepath.Join(toolDir(toolID), name))
-		if err != nil {
-			return NewToolAppError("storage_read_failed", "读取下载包内容失败")
+	toolJSON, err := json.MarshalIndent(detail, "", "  ")
+	if err != nil {
+		return NewToolAppError("storage_write_failed", "序列化工具数据失败")
+	}
+	actionsJSON, err := json.MarshalIndent(detail.Actions, "", "  ")
+	if err != nil {
+		return NewToolAppError("storage_write_failed", "序列化工具函数失败")
+	}
+	if err := addZipFile(zipWriter, "tool.json", toolJSON); err != nil {
+		return err
+	}
+	if err := addZipFile(zipWriter, "actions.json", actionsJSON); err != nil {
+		return err
+	}
+	if row.OpenAPISpec != "" {
+		if err := addZipFile(zipWriter, "openapi.json", []byte(row.OpenAPISpec)); err != nil {
+			return err
 		}
-		writer, err := zipWriter.Create(name)
-		if err != nil {
-			return NewToolAppError("storage_write_failed", "写入下载包失败")
+	}
+	if row.RawSpec != "" {
+		sourceName := "source.openapi.json"
+		if detail.SourceFormat == "yaml" {
+			sourceName = "source.openapi.yaml"
 		}
-		if _, err := writer.Write(content); err != nil {
-			return NewToolAppError("storage_write_failed", "写入下载包失败")
+		if err := addZipFile(zipWriter, sourceName, []byte(row.RawSpec)); err != nil {
+			return err
+		}
+	}
+	if detail.SourceURL != "" {
+		if err := addZipFile(zipWriter, "source_url.txt", []byte(detail.SourceURL+"\n")); err != nil {
+			return err
 		}
 	}
 	readme := []byte("# OpenAPI 工具定义包\n\n本包包含工具元信息、规范化 OpenAPI、原始 OpenAPI 文件和 Action 列表，不包含 API Key 或密钥。\n")
-	writer, err := zipWriter.Create("README.md")
+	return addZipFile(zipWriter, "README.md", readme)
+}
+
+func addZipFile(zipWriter *zip.Writer, name string, content []byte) error {
+	writer, err := zipWriter.Create(name)
 	if err != nil {
 		return NewToolAppError("storage_write_failed", "写入下载包失败")
 	}
-	if _, err := writer.Write(readme); err != nil {
+	if _, err := writer.Write(content); err != nil {
 		return NewToolAppError("storage_write_failed", "写入下载包失败")
 	}
 	return nil
 }
 
 func persistTool(detail ToolDetail, parsed ToolParseResult) error {
-	dir := toolDir(detail.ID)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return NewToolAppError("storage_write_failed", "创建工具目录失败")
-	}
-	sourceName := "source.openapi.json"
-	if parsed.SourceFormat == "yaml" {
-		sourceName = "source.openapi.yaml"
-	}
-	if err := os.WriteFile(filepath.Join(dir, sourceName), parsed.Raw, 0644); err != nil {
-		return NewToolAppError("storage_write_failed", "保存原始 OpenAPI 失败")
-	}
-	if err := writeJSON(filepath.Join(dir, "openapi.json"), parsed.OpenAPI); err != nil {
-		return err
-	}
-	if err := writeJSON(filepath.Join(dir, "actions.json"), detail.Actions); err != nil {
-		return err
-	}
-	if err := writeJSON(filepath.Join(dir, "tool.json"), detail); err != nil {
-		return err
-	}
-	return nil
+	return saveToolDetailSQL(detail, &parsed)
 }
 
 func persistToolSecret(toolID string, location string, name string, value string) error {
-	if err := os.MkdirAll(toolSecretDir(), 0700); err != nil {
-		return NewToolAppError("storage_write_failed", "创建密钥目录失败")
+	if model.DB == nil {
+		return NewToolAppError("tool_database_unavailable", "工具数据库不可用")
 	}
-	secret := map[string]string{
-		"api_key_location": location,
-		"api_key_name":     name,
-		"api_key_value":    value,
-	}
-	if err := writeJSON(filepath.Join(toolSecretDir(), toolID+".json"), secret); err != nil {
-		return err
-	}
-	return nil
+	return model.DB.Save(&model.ToolSecret{
+		ToolID:         toolID,
+		APIKeyLocation: location,
+		APIKeyName:     name,
+		APIKeyValue:    value,
+	}).Error
 }
 
 func incrementDownloadCount(toolID string) error {
-	index, err := readToolIndex()
-	if err != nil {
-		return err
+	if model.DB == nil {
+		return NewToolAppError("tool_database_unavailable", "工具数据库不可用")
 	}
-	detail, err := GetToolDetail(toolID)
-	if err != nil {
-		return err
-	}
-	now := time.Now().Unix()
-	detail.DownloadCount++
-	detail.UpdatedAt = now
-	for i := range index.Tools {
-		if index.Tools[i].ID == toolID {
-			index.Tools[i].DownloadCount = detail.DownloadCount
-			index.Tools[i].UpdatedAt = now
-			break
-		}
-	}
-	index.UpdatedAt = now
-	sortTools(index.Tools)
-	if err := writeJSON(filepath.Join(toolDir(toolID), "tool.json"), detail); err != nil {
-		return err
-	}
-	return writeToolIndex(index)
-}
-
-func updateToolIndexSummary(summary ToolSummary) error {
-	index, err := readToolIndex()
-	if err != nil {
-		return err
-	}
-	found := false
-	for i := range index.Tools {
-		if index.Tools[i].ID == summary.ID {
-			index.Tools[i] = summary
-			found = true
-			break
-		}
-	}
-	if !found {
-		index.Tools = append(index.Tools, summary)
-	}
-	index.UpdatedAt = summary.UpdatedAt
-	sortTools(index.Tools)
-	return writeToolIndex(index)
-}
-
-func hydrateToolSummary(summary ToolSummary) ToolSummary {
-	if summary.Category != "" && summary.Visibility != "" {
-		return summary
-	}
-	var detail ToolDetail
-	if err := readJSON(filepath.Join(toolDir(summary.ID), "tool.json"), &detail); err != nil {
-		return summary
-	}
-	if detail.Category != "" {
-		summary.Category = detail.Category
-	}
-	if detail.Visibility != "" {
-		summary.Visibility = detail.Visibility
-	}
-	if detail.CreatedBy != 0 {
-		summary.CreatedBy = detail.CreatedBy
-	}
-	if detail.CallPrice != 0 {
-		summary.CallPrice = detail.CallPrice
-	}
-	return summary
+	return model.DB.Model(&model.Tool{}).Where("id = ?", toolID).Updates(map[string]interface{}{
+		"download_count": gorm.Expr("download_count + ?", 1),
+		"updated_at":     time.Now().Unix(),
+	}).Error
 }
 
 func enrichToolCreatorNames(tools []ToolSummary) {
@@ -1434,96 +1501,49 @@ func slugify(value string) string {
 	return strings.Trim(builder.String(), "-")
 }
 
-func hasToolConflict(tools []ToolSummary, name string, slug string) bool {
-	normalizedName := strings.ToLower(strings.TrimSpace(name))
-	for _, tool := range tools {
-		if strings.ToLower(strings.TrimSpace(tool.Name)) == normalizedName || tool.Slug == slug {
-			return true
-		}
+func hasToolConflictSQL(name string, slug string, excludeID string) bool {
+	if model.DB == nil {
+		return false
 	}
-	return false
+	query := model.DB.Model(&model.Tool{})
+	conditions := make([]string, 0, 2)
+	args := make([]any, 0, 2)
+	if normalizedName := strings.ToLower(strings.TrimSpace(name)); normalizedName != "" {
+		conditions = append(conditions, "LOWER(name) = ?")
+		args = append(args, normalizedName)
+	}
+	if normalizedSlug := strings.ToLower(strings.TrimSpace(slug)); normalizedSlug != "" {
+		conditions = append(conditions, "LOWER(slug) = ?")
+		args = append(args, normalizedSlug)
+	}
+	if len(conditions) == 0 {
+		return false
+	}
+	query = query.Where(strings.Join(conditions, " OR "), args...)
+	if strings.TrimSpace(excludeID) != "" {
+		query = query.Where("id <> ?", strings.TrimSpace(excludeID))
+	}
+	var count int64
+	if err := query.Count(&count).Error; err != nil {
+		return true
+	}
+	return count > 0
 }
 
-func suggestSlug(tools []ToolSummary, base string) string {
+func suggestSlugSQL(base string) string {
 	if base == "" {
 		base = "tool"
 	}
-	used := map[string]bool{}
-	for _, tool := range tools {
-		used[tool.Slug] = true
-	}
-	if !used[base] {
+	if !hasToolConflictSQL("", base, "") {
 		return base
 	}
-	for i := 2; ; i++ {
+	for i := 2; i < 1000; i++ {
 		candidate := fmt.Sprintf("%s-%d", base, i)
-		if !used[candidate] {
+		if !hasToolConflictSQL("", candidate, "") {
 			return candidate
 		}
 	}
-}
-
-func readToolIndex() (ToolIndex, error) {
-	path := filepath.Join(toolDataDir(), "index.json")
-	var index ToolIndex
-	if err := readJSON(path, &index); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return ToolIndex{UpdatedAt: time.Now().Unix(), Tools: []ToolSummary{}}, nil
-		}
-		return ToolIndex{}, NewToolAppError("storage_read_failed", "读取工具索引失败")
-	}
-	if index.Tools == nil {
-		index.Tools = []ToolSummary{}
-	}
-	sortTools(index.Tools)
-	return index, nil
-}
-
-func writeToolIndex(index ToolIndex) error {
-	if err := os.MkdirAll(toolDataDir(), 0755); err != nil {
-		return NewToolAppError("storage_write_failed", "创建工具数据目录失败")
-	}
-	return writeJSON(filepath.Join(toolDataDir(), "index.json"), index)
-}
-
-func readJSON(path string, value any) error {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(content, value)
-}
-
-func writeJSON(path string, value any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return NewToolAppError("storage_write_failed", "创建数据目录失败")
-	}
-	content, err := json.MarshalIndent(value, "", "  ")
-	if err != nil {
-		return NewToolAppError("storage_write_failed", "序列化工具数据失败")
-	}
-	if err := os.WriteFile(path, content, 0644); err != nil {
-		return NewToolAppError("storage_write_failed", "写入工具数据失败")
-	}
-	return nil
-}
-
-func toolDataDir() string {
-	if dir := strings.TrimSpace(os.Getenv(toolDataDirEnv)); dir != "" {
-		return dir
-	}
-	return filepath.Join("data", "tools")
-}
-
-func toolSecretDir() string {
-	if dir := strings.TrimSpace(os.Getenv(toolSecretDirEnv)); dir != "" {
-		return dir
-	}
-	return filepath.Join("data", "tool-secrets")
-}
-
-func toolDir(toolID string) string {
-	return filepath.Join(toolDataDir(), toolID)
+	return base + "-" + randomHex(3)
 }
 
 func sanitizeID(value string) string {
@@ -1709,60 +1729,6 @@ func buildManualOpenAPI(
 		},
 		"paths": paths,
 	}
-}
-
-func syncToolActionToOpenAPI(toolID string, oldAction ToolAction, nextAction ToolAction) error {
-	openAPIPath := filepath.Join(toolDir(toolID), "openapi.json")
-	var openAPI map[string]any
-	if err := readJSON(openAPIPath, &openAPI); err != nil {
-		return nil
-	}
-	paths, ok := openAPI["paths"].(map[string]any)
-	if !ok {
-		paths = map[string]any{}
-		openAPI["paths"] = paths
-	}
-	oldPathItem, _ := paths[oldAction.Path].(map[string]any)
-	oldMethodKey := strings.ToLower(oldAction.Method)
-	nextMethodKey := strings.ToLower(nextAction.Method)
-	operation, _ := oldPathItem[oldMethodKey].(map[string]any)
-	if operation == nil {
-		operation = map[string]any{}
-	}
-	if oldPathItem != nil {
-		delete(oldPathItem, oldMethodKey)
-		if len(oldPathItem) == 0 {
-			delete(paths, oldAction.Path)
-		}
-	}
-	operation["operationId"] = nextAction.OperationID
-	operation["summary"] = nextAction.DisplayName
-	operation["description"] = nextAction.Description
-	operation["parameters"] = buildOpenAPIParametersFromInputSchema(nextAction.InputSchema)
-	if requestBody := buildOpenAPIRequestBodyFromInputSchema(nextAction.InputSchema); requestBody != nil {
-		operation["requestBody"] = requestBody
-	} else {
-		delete(operation, "requestBody")
-	}
-	if nextAction.OutputSchema != nil {
-		operation["responses"] = map[string]any{
-			"200": map[string]any{
-				"description": "OK",
-				"content": map[string]any{
-					"application/json": map[string]any{
-						"schema": nextAction.OutputSchema,
-					},
-				},
-			},
-		}
-	}
-	nextPathItem, _ := paths[nextAction.Path].(map[string]any)
-	if nextPathItem == nil {
-		nextPathItem = map[string]any{}
-		paths[nextAction.Path] = nextPathItem
-	}
-	nextPathItem[nextMethodKey] = operation
-	return writeJSON(openAPIPath, openAPI)
 }
 
 func buildOpenAPIParametersFromInputSchema(schema map[string]any) []any {

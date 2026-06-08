@@ -1,35 +1,13 @@
 package service
 
 import (
-	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/QuantumNous/new-api/model"
 )
 
 func setupUserToolStoreTest(t *testing.T) {
 	t.Helper()
-	root := setupToolStoreTest(t)
-	t.Setenv("TOOL_SQL_DSN", "")
-	t.Setenv("TOOL_SQLITE_PATH", filepath.Join(root, "data", "tool-local-test.db"))
-	if model.ToolDB != nil {
-		if sqlDB, err := model.ToolDB.DB(); err == nil {
-			_ = sqlDB.Close()
-		}
-		model.ToolDB = nil
-	}
-	if err := model.InitToolDB(); err != nil {
-		t.Fatalf("init tool db failed: %v", err)
-	}
-	t.Cleanup(func() {
-		if model.ToolDB != nil {
-			if sqlDB, err := model.ToolDB.DB(); err == nil {
-				_ = sqlDB.Close()
-			}
-			model.ToolDB = nil
-		}
-	})
+	setupToolStoreTest(t)
 }
 
 func TestInstallListAndUninstallUserTool(t *testing.T) {

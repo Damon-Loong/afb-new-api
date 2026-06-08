@@ -51,7 +51,55 @@ var (
 	ErrPaymentMethodMismatch = errors.New("payment method mismatch")
 	ErrTopUpNotFound         = errors.New("topup not found")
 	ErrTopUpStatusInvalid    = errors.New("topup status invalid")
+	ErrPaymentOrderNotFound  = errors.New("payment order not found")
 )
+
+type PaymentOrderStatus struct {
+	OrderID   string `json:"order_id"`
+	OrderType string `json:"order_type"`
+	Status    string `json:"status"`
+	Paid      bool   `json:"paid"`
+	Terminal  bool   `json:"terminal"`
+}
+
+func buildPaymentOrderStatus(orderID string, orderType string, status string) *PaymentOrderStatus {
+	return &PaymentOrderStatus{
+		OrderID:   orderID,
+		OrderType: orderType,
+		Status:    status,
+		Paid:      status == common.TopUpStatusSuccess,
+		Terminal:  status == common.TopUpStatusSuccess || status == common.TopUpStatusFailed || status == common.TopUpStatusExpired,
+	}
+}
+
+func GetWeChatPayOrderStatusForUser(userId int, tradeNo string) (*PaymentOrderStatus, error) {
+	if userId <= 0 || tradeNo == "" {
+		return nil, ErrPaymentOrderNotFound
+	}
+
+	var topUp TopUp
+	err := DB.Select("trade_no", "status").
+		Where("user_id = ? AND trade_no = ? AND payment_method = ?", userId, tradeNo, PaymentMethodWeChatPay).
+		First(&topUp).Error
+	if err == nil {
+		return buildPaymentOrderStatus(topUp.TradeNo, "topup", topUp.Status), nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	var order SubscriptionOrder
+	err = DB.Select("trade_no", "status").
+		Where("user_id = ? AND trade_no = ? AND payment_method = ?", userId, tradeNo, PaymentMethodWeChatPay).
+		First(&order).Error
+	if err == nil {
+		return buildPaymentOrderStatus(order.TradeNo, "subscription", order.Status), nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPaymentOrderNotFound
+	}
+	return nil, err
+}
 
 func (topUp *TopUp) Insert() error {
 	var err error

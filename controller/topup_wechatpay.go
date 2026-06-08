@@ -26,10 +26,10 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
-	"github.com/wechatpay-apiv3/wechatpay-go/core/notify"
-	"github.com/wechatpay-apiv3/wechatpay-go/core/option"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/auth/verifiers"
 	"github.com/wechatpay-apiv3/wechatpay-go/core/downloader"
+	"github.com/wechatpay-apiv3/wechatpay-go/core/notify"
+	"github.com/wechatpay-apiv3/wechatpay-go/core/option"
 	"github.com/wechatpay-apiv3/wechatpay-go/services/payments"
 	"github.com/wechatpay-apiv3/wechatpay-go/services/payments/native"
 	"github.com/wechatpay-apiv3/wechatpay-go/utils"
@@ -351,6 +351,25 @@ func RequestWeChatPayPay(c *gin.Context) {
 	})
 }
 
+func GetWeChatPayOrderStatus(c *gin.Context) {
+	tradeNo := strings.TrimSpace(c.Query("order_id"))
+	if tradeNo == "" {
+		common.ApiErrorMsg(c, "缺少订单号")
+		return
+	}
+
+	status, err := model.GetWeChatPayOrderStatusForUser(c.GetInt("id"), tradeNo)
+	if err != nil {
+		if errors.Is(err, model.ErrPaymentOrderNotFound) {
+			common.ApiErrorMsg(c, "订单不存在")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, status)
+}
+
 // WeChatPayWebhook handles WeChat Pay payment notifications (API v3).
 func WeChatPayWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -441,4 +460,3 @@ func WeChatPayWebhook(c *gin.Context) {
 
 	c.Status(http.StatusOK)
 }
-
