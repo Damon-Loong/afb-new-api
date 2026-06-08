@@ -147,6 +147,8 @@ type RelayInfo struct {
 	SubscriptionAmountTotal                int64
 	SubscriptionAmountUsedBeforePreConsume int64
 	SubscriptionAmountUsedAfterPreConsume  int64
+	SubscriptionOverdraftBeforePreConsume  int64
+	SubscriptionOverdraftAfterPreConsume   int64
 	IsClaudeBetaQuery                      bool // /v1/messages?beta=true
 	IsChannelTest                          bool // channel test request
 	RetryIndex                             int

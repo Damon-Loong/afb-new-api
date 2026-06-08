@@ -112,6 +112,31 @@ func TestPreConsumeUserSubscriptionPrefersNonOverdraftCandidate(t *testing.T) {
 	assert.Equal(t, int64(0), second.OverdraftQuota)
 }
 
+func TestPreConsumeUserSubscriptionPrefersNonOverdraftSamePlanSameEndTime(t *testing.T) {
+	truncateTables(t)
+
+	insertSubscriptionOverdraftPlan(t, 1007, SubscriptionResetDaily)
+	now := time.Now()
+	endTime := now.Add(24 * time.Hour).Unix()
+	nextReset := now.Add(time.Hour).Unix()
+	insertUserSubscriptionForOverdraftTest(t, 2008, 3007, 1007, 9700, nextReset)
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", 2008).Update("end_time", endTime).Error)
+	insertUserSubscriptionForOverdraftTest(t, 2009, 3007, 1007, 0, nextReset)
+	require.NoError(t, DB.Model(&UserSubscription{}).Where("id = ?", 2009).Update("end_time", endTime).Error)
+
+	res, err := PreConsumeUserSubscription("req-prefer-non-overdraft-same-plan", 3007, "gpt-test", 0, 700)
+	require.NoError(t, err)
+	assert.Equal(t, 2009, res.UserSubscriptionId)
+
+	first := getUserSubscriptionForOverdraftTest(t, 2008)
+	assert.Equal(t, int64(9700), first.AmountUsed)
+	assert.Equal(t, int64(0), first.OverdraftQuota)
+
+	second := getUserSubscriptionForOverdraftTest(t, 2009)
+	assert.Equal(t, int64(700), second.AmountUsed)
+	assert.Equal(t, int64(0), second.OverdraftQuota)
+}
+
 func TestRefundSubscriptionPreConsumeRefundsOverdraftFirst(t *testing.T) {
 	truncateTables(t)
 

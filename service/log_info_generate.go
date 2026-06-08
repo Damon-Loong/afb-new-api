@@ -180,21 +180,22 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		// Compute "this request" subscription consumed + remaining
 		consumed := relayInfo.SubscriptionPreConsumed + relayInfo.SubscriptionPostDelta
-		usedFinal := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
 		if consumed < 0 {
 			consumed = 0
 		}
-		if usedFinal < 0 {
-			usedFinal = 0
-		}
 		if relayInfo.SubscriptionAmountTotal > 0 {
-			remain := relayInfo.SubscriptionAmountTotal - usedFinal
-			if remain < 0 {
-				remain = 0
-			}
+			usedFinal, overdraftFinal, remain := settleSubscriptionSnapshot(
+				relayInfo.SubscriptionAmountTotal,
+				relayInfo.SubscriptionAmountUsedAfterPreConsume,
+				relayInfo.SubscriptionOverdraftAfterPreConsume,
+				relayInfo.SubscriptionPostDelta,
+			)
 			other["subscription_total"] = relayInfo.SubscriptionAmountTotal
 			other["subscription_used"] = usedFinal
 			other["subscription_remain"] = remain
+			if overdraftFinal > 0 {
+				other["subscription_overdraft"] = overdraftFinal
+			}
 			availableBefore := relayInfo.SubscriptionAmountTotal - relayInfo.SubscriptionAmountUsedBeforePreConsume
 			if availableBefore < 0 {
 				availableBefore = 0

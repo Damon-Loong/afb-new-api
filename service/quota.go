@@ -473,8 +473,12 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			threshold = int(userSetting.QuotaWarningThreshold)
 		}
 
-		usedAfter := relayInfo.SubscriptionAmountUsedAfterPreConsume + relayInfo.SubscriptionPostDelta
-		remaining := relayInfo.SubscriptionAmountTotal - usedAfter
+		_, _, remaining := settleSubscriptionSnapshot(
+			relayInfo.SubscriptionAmountTotal,
+			relayInfo.SubscriptionAmountUsedAfterPreConsume,
+			relayInfo.SubscriptionOverdraftAfterPreConsume,
+			relayInfo.SubscriptionPostDelta,
+		)
 		if remaining >= int64(threshold) {
 			return
 		}

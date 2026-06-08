@@ -910,6 +910,10 @@ type SubscriptionPreConsumeResult struct {
 	AmountTotal        int64
 	AmountUsedBefore   int64
 	AmountUsedAfter    int64
+	OverdraftBefore    int64
+	OverdraftAfter     int64
+	PlanId             int
+	PlanTitle          string
 }
 
 // ExpireDueSubscriptions marks expired subscriptions and handles group downgrade.
@@ -1104,6 +1108,9 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = sub.AmountUsed
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.OverdraftBefore = sub.OverdraftQuota
+			returnValue.OverdraftAfter = sub.OverdraftQuota
+			returnValue.PlanId = sub.PlanId
 			return nil
 		}
 
@@ -1117,11 +1124,12 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
-		consumeSelected := func(sub *UserSubscription) error {
+		consumeSelected := func(sub *UserSubscription, planTitle string) error {
 			if sub == nil {
 				return errors.New("subscription quota insufficient")
 			}
 			usedBefore := sub.AmountUsed
+			overdraftBefore := sub.OverdraftQuota
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -1140,6 +1148,10 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 					returnValue.AmountTotal = sub.AmountTotal
 					returnValue.AmountUsedBefore = sub.AmountUsed
 					returnValue.AmountUsedAfter = sub.AmountUsed
+					returnValue.OverdraftBefore = sub.OverdraftQuota
+					returnValue.OverdraftAfter = sub.OverdraftQuota
+					returnValue.PlanId = sub.PlanId
+					returnValue.PlanTitle = planTitle
 					return nil
 				}
 				return err
@@ -1152,10 +1164,18 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountTotal = sub.AmountTotal
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
+			returnValue.OverdraftBefore = overdraftBefore
+			returnValue.OverdraftAfter = sub.OverdraftQuota
+			returnValue.PlanId = sub.PlanId
+			returnValue.PlanTitle = planTitle
 			return nil
 		}
 
-		var overdraftCandidate *UserSubscription
+		type preConsumeCandidate struct {
+			sub       UserSubscription
+			planTitle string
+		}
+		var overdraftCandidate *preConsumeCandidate
 		for _, candidate := range subs {
 			sub := candidate
 			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
@@ -1168,18 +1188,23 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			if sub.AmountTotal > 0 {
 				remain := sub.AmountTotal - sub.AmountUsed
 				if remain >= amount {
-					return consumeSelected(&sub)
+					return consumeSelected(&sub, plan.Title)
 				}
 				if overdraftCandidate == nil && subscriptionAvailableForPreConsume(&sub, plan) >= amount {
-					subCopy := sub
-					overdraftCandidate = &subCopy
+					overdraftCandidate = &preConsumeCandidate{
+						sub:       sub,
+						planTitle: plan.Title,
+					}
 				}
 				continue
 			}
-			return consumeSelected(&sub)
+			return consumeSelected(&sub, plan.Title)
 		}
 		if overdraftCandidate != nil {
-			return consumeSelected(overdraftCandidate)
+			if err := consumeSelected(&overdraftCandidate.sub, overdraftCandidate.planTitle); err != nil {
+				return err
+			}
+			return nil
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})

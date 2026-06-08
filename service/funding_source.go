@@ -78,6 +78,8 @@ type SubscriptionFunding struct {
 	AmountTotal      int64
 	AmountUsedBefore int64
 	AmountUsedAfter  int64
+	OverdraftBefore  int64
+	OverdraftAfter   int64
 	PlanId           int
 	PlanTitle        string
 }
@@ -95,11 +97,10 @@ func (s *SubscriptionFunding) PreConsume(_ int) error {
 	s.AmountTotal = res.AmountTotal
 	s.AmountUsedBefore = res.AmountUsedBefore
 	s.AmountUsedAfter = res.AmountUsedAfter
-	// 获取订阅计划信息
-	if planInfo, err := model.GetSubscriptionPlanInfoByUserSubscriptionId(res.UserSubscriptionId); err == nil && planInfo != nil {
-		s.PlanId = planInfo.PlanId
-		s.PlanTitle = planInfo.PlanTitle
-	}
+	s.OverdraftBefore = res.OverdraftBefore
+	s.OverdraftAfter = res.OverdraftAfter
+	s.PlanId = res.PlanId
+	s.PlanTitle = res.PlanTitle
 	return nil
 }
 

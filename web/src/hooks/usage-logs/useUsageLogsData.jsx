@@ -656,6 +656,7 @@ export const useLogsData = () => {
         const finalConsumed = other?.subscription_consumed ?? pre + postDelta;
         const remain = other?.subscription_remain;
         const total = other?.subscription_total;
+        const overdraft = other?.subscription_overdraft;
         // Use multiple Description items to avoid an overlong single line.
         if (planId) {
           expandDataLocal.push({
@@ -686,6 +687,12 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('订阅剩余'),
             value: `${remain}/${total} ${unit}`,
+          });
+        }
+        if (overdraft > 0) {
+          expandDataLocal.push({
+            key: t('订阅超额'),
+            value: `${overdraft} ${unit}`,
           });
         }
         expandDataLocal.push({

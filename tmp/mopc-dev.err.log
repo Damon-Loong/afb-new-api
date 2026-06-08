@@ -137,3 +137,6 @@ Visit https://react.dev/link/error-boundaries to learn more about error boundari
 Consider adding an error boundary to your tree to customize error handling behavior.
 Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
 
+[2m14:08:00[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m14:08:06[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m14:11:58[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
