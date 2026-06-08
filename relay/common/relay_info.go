@@ -141,16 +141,19 @@ type RelayInfo struct {
 	SubscriptionPlanTitle string
 	// RequestId is used for idempotent pre-consume/refund
 	RequestId string
-	// SubscriptionAmountTotal / SubscriptionAmountUsedAfterPreConsume are used to compute remaining in logs.
-	SubscriptionAmountTotal               int64
-	SubscriptionAmountUsedAfterPreConsume int64
-	IsClaudeBetaQuery                     bool // /v1/messages?beta=true
-	IsChannelTest                         bool // channel test request
-	RetryIndex                            int
-	LastError                             *types.NewAPIError
-	RuntimeHeadersOverride                map[string]interface{}
-	UseRuntimeHeadersOverride             bool
-	ParamOverrideAudit                    []string
+	// SubscriptionAmountTotal / SubscriptionAmountUsedBeforePreConsume /
+	// SubscriptionAmountUsedAfterPreConsume are used to compute remaining and
+	// overdraft usage in logs.
+	SubscriptionAmountTotal                int64
+	SubscriptionAmountUsedBeforePreConsume int64
+	SubscriptionAmountUsedAfterPreConsume  int64
+	IsClaudeBetaQuery                      bool // /v1/messages?beta=true
+	IsChannelTest                          bool // channel test request
+	RetryIndex                             int
+	LastError                              *types.NewAPIError
+	RuntimeHeadersOverride                 map[string]interface{}
+	UseRuntimeHeadersOverride              bool
+	ParamOverrideAudit                     []string
 
 	PriceData types.PriceData
 

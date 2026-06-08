@@ -195,6 +195,14 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			other["subscription_total"] = relayInfo.SubscriptionAmountTotal
 			other["subscription_used"] = usedFinal
 			other["subscription_remain"] = remain
+			availableBefore := relayInfo.SubscriptionAmountTotal - relayInfo.SubscriptionAmountUsedBeforePreConsume
+			if availableBefore < 0 {
+				availableBefore = 0
+			}
+			if overdraftConsumed := consumed - availableBefore; overdraftConsumed > 0 {
+				other["subscription_used_overdraft"] = true
+				other["subscription_overdraft_consumed"] = overdraftConsumed
+			}
 		}
 		if consumed > 0 {
 			other["subscription_consumed"] = consumed

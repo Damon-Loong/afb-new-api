@@ -1,0 +1,139 @@
+[2m11:03:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Landing Models] 获取模型列表失败，使用默认模型列表 Error: 无权进行此操作，access token 无效
+    at fetchApiTokens (http://localhost:5173/src/api/tokens.ts:21:9)
+    at async fetchFirstUsableApiToken (http://localhost:5173/src/pages/LandingPage.tsx:134:22)
+    at async loadModels (http://localhost:5173/src/pages/LandingPage.tsx:152:28)
+[2m11:03:35[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Landing Models] 获取模型列表失败，使用默认模型列表 Error: 无权进行此操作，access token 无效
+    at fetchApiTokens (http://localhost:5173/src/api/tokens.ts:21:9)
+    at async fetchFirstUsableApiToken (http://localhost:5173/src/pages/LandingPage.tsx:134:22)
+    at async loadModels (http://localhost:5173/src/pages/LandingPage.tsx:152:28)
+[2m11:03:42[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Auth] 刷新账户快照失败 Error: 无权进行此操作，access token 无效
+    at fetchCurrentUser (http://localhost:5173/src/api/auth.ts:176:9)
+    at async Promise.all (index 0)
+    at async fetchAccountSnapshot (http://localhost:5173/src/api/auth.ts:225:45)
+[2m11:03:43[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Auth] 刷新账户快照失败 Error: 无权进行此操作，access token 无效
+    at fetchCurrentUser (http://localhost:5173/src/api/auth.ts:176:9)
+    at async Promise.all (index 0)
+    at async fetchAccountSnapshot (http://localhost:5173/src/api/auth.ts:225:45)
+[2m11:03:49[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Auth] 刷新账户快照失败 Error: 无权进行此操作，access token 无效
+    at fetchCurrentUser (http://localhost:5173/src/api/auth.ts:176:9)
+    at async Promise.all (index 0)
+    at async fetchAccountSnapshot (http://localhost:5173/src/api/auth.ts:225:45)
+[2m11:03:50[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Auth] 刷新账户快照失败 Error: 无权进行此操作，access token 无效
+    at fetchCurrentUser (http://localhost:5173/src/api/auth.ts:176:9)
+    at async Promise.all (index 0)
+    at async fetchAccountSnapshot (http://localhost:5173/src/api/auth.ts:225:45)
+[2m11:03:57[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Landing Models] 获取模型列表失败，使用默认模型列表 Error: 无权进行此操作，access token 无效
+    at fetchApiTokens (http://localhost:5173/src/api/tokens.ts:21:9)
+    at async fetchFirstUsableApiToken (http://localhost:5173/src/pages/LandingPage.tsx:134:22)
+    at async loadModels (http://localhost:5173/src/pages/LandingPage.tsx:152:28)
+[2m11:03:57[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Landing Models] 获取模型列表失败，使用默认模型列表 Error: 无权进行此操作，access token 无效
+    at fetchApiTokens (http://localhost:5173/src/api/tokens.ts:21:9)
+    at async fetchFirstUsableApiToken (http://localhost:5173/src/pages/LandingPage.tsx:134:22)
+    at async loadModels (http://localhost:5173/src/pages/LandingPage.tsx:152:28)
+[2m11:04:53[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:06:11[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:10:55[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:10:56[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mTypeError[22m: Cannot read properties of undefined (reading 'filter')
+[39m > buildPricingColumns src/components/wallet/WalletApiPricingPanel.tsx:163:40
+    161 |  
+    162 |  function buildPricingColumns(modelOptions: AvailableModelOption[], ratioConfig: RatioConfig | null, quotaPerUnit: num...
+    163 |    const selectableModels = modelOptions.filter((model) => !isAutoRouteModel(model))
+        |                                          ^
+    164 |    const doubaoVolcVideoModels = listDoubaoVolcVideoModels(modelOptions)
+    165 |    const videoModels = doubaoVolcVideoModels.length > 0
+ > WalletApiPricingPanel src/components/wallet/WalletApiPricingPanel.tsx:245:25
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:25904:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:7662:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10166:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:11778:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:871:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:17641:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:17469:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:17450:10
+
+[2m11:10:56[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <WalletApiPricingPanel> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+
+[2m11:16:54[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:18:58[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:18:59[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:19:41[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:19:41[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:19:42[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:19:56[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:19:56[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:19:56[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:09[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:20:09[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:09[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:27[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:27[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:43[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:44[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:53[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:20:54[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22m[Models] 获取倍率配置失败 Error: 请求失败（429）
+    at httpJson (http://localhost:5173/src/api/http.ts:82:10)
+    at async fetchRatioConfig (http://localhost:5173/src/api/ratio.ts:5:14)
+    at async Promise.all (index 0)
+[2m11:24:01[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [2m[console.error] [22mThe tag <text> is unrecognized in this browser. If you meant to render a React component, start its name with an uppercase letter.
+[2m11:28:21[22m [31m[1m[vite][22m[39m [31m[2m(client)[22m[39m [31m[Unhandled error] [1mReferenceError[22m: enabledSubscriptionPlans is not defined
+[39m > DashboardPage src/pages/DashboardPage.tsx:9381:33
+    9379 |                ratioConfig={modelRatioConfig}
+    9380 |                quotaPerUnit={walletQuotaPerUnit}
+    9381 |                subscriptionPlans={enabledSubscriptionPlans}
+         |                                   ^
+    9382 |                onBack={() => navigate('/wallet')}
+    9383 |                onPublishSkill={() => navigate('/skills/publish')}
+ > Object.react_stack_bottom_frame node_modules/react-dom/cjs/react-dom-client.development.js:25904:19
+ > renderWithHooks node_modules/react-dom/cjs/react-dom-client.development.js:7662:21
+ > updateFunctionComponent node_modules/react-dom/cjs/react-dom-client.development.js:10166:18
+ > beginWork node_modules/react-dom/cjs/react-dom-client.development.js:11778:17
+ > runWithFiberInDEV node_modules/react-dom/cjs/react-dom-client.development.js:871:29
+ > performUnitOfWork node_modules/react-dom/cjs/react-dom-client.development.js:17641:21
+ > workLoopSync node_modules/react-dom/cjs/react-dom-client.development.js:17469:40
+ > renderRootSync node_modules/react-dom/cjs/react-dom-client.development.js:17450:10
+ > performWorkOnRoot node_modules/react-dom/cjs/react-dom-client.development.js:16583:34
+
+[2m11:28:21[22m [33m[1m[vite][22m[39m [33m[2m(client)[22m[39m [2m[console.warn] [22mAn error occurred in the <DashboardPage> component.
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
+

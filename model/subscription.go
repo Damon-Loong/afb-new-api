@@ -237,6 +237,10 @@ type UserSubscription struct {
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
+	// OverdraftQuota is quota consumed beyond the current period allowance.
+	// Resettable plans repay it on the next reset; non-reset plans keep it as
+	// a small bounded debt against this subscription instance.
+	OverdraftQuota int64 `json:"overdraft_quota" gorm:"type:bigint;not null;default:0"`
 
 	StartTime int64  `json:"start_time" gorm:"bigint"`
 	EndTime   int64  `json:"end_time" gorm:"bigint;index;index:idx_user_sub_active,priority:3"`
@@ -344,6 +348,101 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 		return 0
 	}
 	return next.Unix()
+}
+
+func subscriptionPlanHasQuotaReset(plan *SubscriptionPlan) bool {
+	if plan == nil {
+		return false
+	}
+	period := NormalizeResetPeriod(plan.QuotaResetPeriod)
+	if period == SubscriptionResetNever {
+		return false
+	}
+	if period == SubscriptionResetCustom && plan.QuotaResetCustomSeconds <= 0 {
+		return false
+	}
+	return true
+}
+
+func subscriptionOverdraftAllowance(plan *SubscriptionPlan, amountTotal int64) int64 {
+	if amountTotal <= 0 {
+		return 0
+	}
+	if subscriptionPlanHasQuotaReset(plan) {
+		return amountTotal * 5 / 100
+	}
+	return amountTotal / 100
+}
+
+func subscriptionAvailableForPreConsume(sub *UserSubscription, plan *SubscriptionPlan) int64 {
+	if sub == nil {
+		return 0
+	}
+	if sub.AmountTotal <= 0 {
+		return 1<<63 - 1
+	}
+	remain := sub.AmountTotal - sub.AmountUsed
+	if remain < 0 {
+		remain = 0
+	}
+	allowance := subscriptionOverdraftAllowance(plan, sub.AmountTotal) - sub.OverdraftQuota
+	if allowance < 0 {
+		allowance = 0
+	}
+	return remain + allowance
+}
+
+func applySubscriptionQuotaDeltaTx(tx *gorm.DB, sub *UserSubscription, delta int64) error {
+	if tx == nil || sub == nil {
+		return errors.New("invalid subscription quota delta args")
+	}
+	if delta == 0 {
+		return nil
+	}
+	if sub.AmountTotal <= 0 {
+		newUsed := sub.AmountUsed + delta
+		if newUsed < 0 {
+			newUsed = 0
+		}
+		sub.AmountUsed = newUsed
+		return tx.Save(sub).Error
+	}
+	if delta > 0 {
+		remain := sub.AmountTotal - sub.AmountUsed
+		if remain < 0 {
+			remain = 0
+		}
+		consumeFromRemain := delta
+		if consumeFromRemain > remain {
+			consumeFromRemain = remain
+		}
+		sub.AmountUsed += consumeFromRemain
+		if sub.AmountUsed > sub.AmountTotal {
+			sub.AmountUsed = sub.AmountTotal
+		}
+		if overdraft := delta - consumeFromRemain; overdraft > 0 {
+			sub.OverdraftQuota += overdraft
+		}
+		return tx.Save(sub).Error
+	}
+
+	refund := -delta
+	if sub.OverdraftQuota > 0 {
+		refundOverdraft := refund
+		if refundOverdraft > sub.OverdraftQuota {
+			refundOverdraft = sub.OverdraftQuota
+		}
+		sub.OverdraftQuota -= refundOverdraft
+		refund -= refundOverdraft
+	}
+	if refund > 0 {
+		if refund >= sub.AmountUsed {
+			sub.AmountUsed = 0
+		} else {
+			sub.AmountUsed -= refund
+		}
+	}
+	return tx.Save(sub).Error
 }
 
 func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
@@ -954,7 +1053,18 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 		}
 		return nil
 	}
-	sub.AmountUsed = 0
+	if sub.AmountTotal > 0 && sub.OverdraftQuota > 0 {
+		if sub.OverdraftQuota >= sub.AmountTotal {
+			sub.AmountUsed = sub.AmountTotal
+			sub.OverdraftQuota -= sub.AmountTotal
+		} else {
+			sub.AmountUsed = sub.OverdraftQuota
+			sub.OverdraftQuota = 0
+		}
+	} else {
+		sub.AmountUsed = 0
+		sub.OverdraftQuota = 0
+	}
 	sub.LastResetTime = base.Unix()
 	sub.NextResetTime = next
 	return tx.Save(sub).Error
@@ -1007,22 +1117,11 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 		if len(subs) == 0 {
 			return errors.New("no active subscription")
 		}
-		for _, candidate := range subs {
-			sub := candidate
-			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
-			if err != nil {
-				return err
-			}
-			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
-				return err
+		consumeSelected := func(sub *UserSubscription) error {
+			if sub == nil {
+				return errors.New("subscription quota insufficient")
 			}
 			usedBefore := sub.AmountUsed
-			if sub.AmountTotal > 0 {
-				remain := sub.AmountTotal - usedBefore
-				if remain < amount {
-					continue
-				}
-			}
 			record := &SubscriptionPreConsumeRecord{
 				RequestId:          requestId,
 				UserId:             userId,
@@ -1045,8 +1144,7 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 				}
 				return err
 			}
-			sub.AmountUsed += amount
-			if err := tx.Save(&sub).Error; err != nil {
+			if err := applySubscriptionQuotaDeltaTx(tx, sub, amount); err != nil {
 				return err
 			}
 			returnValue.UserSubscriptionId = sub.Id
@@ -1055,6 +1153,33 @@ func PreConsumeUserSubscription(requestId string, userId int, modelName string, 
 			returnValue.AmountUsedBefore = usedBefore
 			returnValue.AmountUsedAfter = sub.AmountUsed
 			return nil
+		}
+
+		var overdraftCandidate *UserSubscription
+		for _, candidate := range subs {
+			sub := candidate
+			plan, err := getSubscriptionPlanByIdTx(tx, sub.PlanId)
+			if err != nil {
+				return err
+			}
+			if err := maybeResetUserSubscriptionWithPlanTx(tx, &sub, plan, now); err != nil {
+				return err
+			}
+			if sub.AmountTotal > 0 {
+				remain := sub.AmountTotal - sub.AmountUsed
+				if remain >= amount {
+					return consumeSelected(&sub)
+				}
+				if overdraftCandidate == nil && subscriptionAvailableForPreConsume(&sub, plan) >= amount {
+					subCopy := sub
+					overdraftCandidate = &subCopy
+				}
+				continue
+			}
+			return consumeSelected(&sub)
+		}
+		if overdraftCandidate != nil {
+			return consumeSelected(overdraftCandidate)
 		}
 		return fmt.Errorf("subscription quota insufficient, need=%d", amount)
 	})
@@ -1082,7 +1207,13 @@ func RefundSubscriptionPreConsume(requestId string) error {
 			record.Status = "refunded"
 			return tx.Save(&record).Error
 		}
-		if err := PostConsumeUserSubscriptionDelta(record.UserSubscriptionId, -record.PreConsumed); err != nil {
+		var sub UserSubscription
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").
+			Where("id = ?", record.UserSubscriptionId).
+			First(&sub).Error; err != nil {
+			return err
+		}
+		if err := applySubscriptionQuotaDeltaTx(tx, &sub, -record.PreConsumed); err != nil {
 			return err
 		}
 		record.Status = "refunded"
@@ -1187,14 +1318,6 @@ func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error
 			First(&sub).Error; err != nil {
 			return err
 		}
-		newUsed := sub.AmountUsed + delta
-		if newUsed < 0 {
-			newUsed = 0
-		}
-		if sub.AmountTotal > 0 && newUsed > sub.AmountTotal {
-			return fmt.Errorf("subscription used exceeds total, used=%d total=%d", newUsed, sub.AmountTotal)
-		}
-		sub.AmountUsed = newUsed
-		return tx.Save(&sub).Error
+		return applySubscriptionQuotaDeltaTx(tx, &sub, delta)
 	})
 }

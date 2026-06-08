@@ -24,6 +24,7 @@ import SubscriptionsTable from './SubscriptionsTable';
 import SubscriptionsActions from './SubscriptionsActions';
 import SubscriptionsDescription from './SubscriptionsDescription';
 import AddEditSubscriptionModal from './modals/AddEditSubscriptionModal';
+import BindSubscriptionModal from './modals/BindSubscriptionModal';
 import { useSubscriptionsData } from '../../../hooks/subscriptions/useSubscriptionsData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
@@ -37,11 +38,15 @@ const SubscriptionsPage = () => {
 
   const {
     showEdit,
+    showBind,
     editingPlan,
+    allPlans,
     sheetPlacement,
     closeEdit,
+    closeBind,
     refresh,
     openCreate,
+    openBind,
     compactMode,
     setCompactMode,
     t,
@@ -55,6 +60,15 @@ const SubscriptionsPage = () => {
           handleClose={closeEdit}
           editingPlan={editingPlan}
           placement={sheetPlacement}
+          refresh={refresh}
+          t={t}
+        />
+      )}
+      {showBind && (
+        <BindSubscriptionModal
+          visible={showBind}
+          handleClose={closeBind}
+          plans={allPlans}
           refresh={refresh}
           t={t}
         />
@@ -73,7 +87,11 @@ const SubscriptionsPage = () => {
           <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
             {/* Mobile: actions first; Desktop: actions left */}
             <div className='order-1 md:order-0 w-full md:w-auto'>
-              <SubscriptionsActions openCreate={openCreate} t={t} />
+              <SubscriptionsActions
+                openCreate={openCreate}
+                openBind={openBind}
+                t={t}
+              />
             </div>
             <Banner
               type='info'

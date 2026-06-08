@@ -92,6 +92,14 @@ const renderUsername = (text, record) => {
   );
 };
 
+const renderPhone = (phone) => {
+  const { Text } = Typography;
+  if (!phone) {
+    return <Text type='tertiary'>-</Text>;
+  }
+  return <Text copyable={{ content: phone }}>{phone}</Text>;
+};
+
 /**
  * Render user statistics
  */
@@ -319,6 +327,11 @@ export const getUsersColumns = ({
       title: t('用户名'),
       dataIndex: 'username',
       render: (text, record) => renderUsername(text, record),
+    },
+    {
+      title: t('手机号'),
+      dataIndex: 'phone',
+      render: (text) => renderPhone(text),
     },
     {
       title: t('状态'),

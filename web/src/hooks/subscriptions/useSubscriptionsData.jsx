@@ -36,6 +36,7 @@ export const useSubscriptionsData = () => {
 
   // Drawer states
   const [showEdit, setShowEdit] = useState(false);
+  const [showBind, setShowBind] = useState(false);
   const [editingPlan, setEditingPlan] = useState(null);
   const [sheetPlacement, setSheetPlacement] = useState('left'); // 'left' | 'right'
 
@@ -106,10 +107,18 @@ export const useSubscriptionsData = () => {
     setEditingPlan(null);
   };
 
+  const closeBind = () => {
+    setShowBind(false);
+  };
+
   const openCreate = () => {
     setSheetPlacement('left');
     setEditingPlan(null);
     setShowEdit(true);
+  };
+
+  const openBind = () => {
+    setShowBind(true);
   };
 
   const openEdit = (planRecord) => {
@@ -132,14 +141,17 @@ export const useSubscriptionsData = () => {
   return {
     // Data state
     plans,
+    allPlans,
     planCount,
     loading,
 
     // Modal state
     showEdit,
+    showBind,
     editingPlan,
     sheetPlacement,
     setShowEdit,
+    setShowBind,
     setEditingPlan,
 
     // UI state
@@ -157,8 +169,10 @@ export const useSubscriptionsData = () => {
     setPlanEnabled,
     refresh,
     closeEdit,
+    closeBind,
     openCreate,
     openEdit,
+    openBind,
 
     // Translation
     t,
