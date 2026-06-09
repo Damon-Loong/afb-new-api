@@ -1,2 +1,0 @@
-[FATAL] 2026/06/08 - 11:23:51 | [failed to start HTTP server: listen tcp :3000: bind: Only one usage of each socket address (protocol/network address/port) is normally permitted.] 
-exit status 1
