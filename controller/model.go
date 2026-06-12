@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -50,6 +51,26 @@ func appendAutoRouteModelIfAvailable(models []dto.OpenAIModels, availableModelNa
 		return models
 	}
 	return append(models, autoRouteOpenAIModel())
+}
+
+func applyModelPublicMeta(oaiModel *dto.OpenAIModels) {
+	if oaiModel == nil || strings.TrimSpace(oaiModel.Id) == "" {
+		return
+	}
+	publicMeta, ok := model.GetModelPublicMeta(oaiModel.Id)
+	if !ok {
+		return
+	}
+	displayName := strings.TrimSpace(publicMeta.DisplayName)
+	if displayName != "" {
+		oaiModel.Name = displayName
+	}
+	if publicMeta.VendorID > 0 {
+		oaiModel.VendorID = publicMeta.VendorID
+	}
+	if vendorName := strings.TrimSpace(publicMeta.VendorName); vendorName != "" {
+		oaiModel.VendorName = vendorName
+	}
 }
 
 func init() {
@@ -174,15 +195,18 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
 				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
+				applyModelPublicMeta(&oaiModel)
 				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
+				oaiModel := dto.OpenAIModels{
 					Id:                     allowModel,
 					Object:                 "model",
 					Created:                1626777600,
 					OwnedBy:                "custom",
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
-				})
+				}
+				applyModelPublicMeta(&oaiModel)
+				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			}
 		}
 		if allowAutoRoute {
@@ -225,15 +249,18 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 			if oaiModel, ok := openAIModelsMap[modelName]; ok {
 				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+				applyModelPublicMeta(&oaiModel)
 				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
+				oaiModel := dto.OpenAIModels{
 					Id:                     modelName,
 					Object:                 "model",
 					Created:                1626777600,
 					OwnedBy:                "custom",
 					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
-				})
+				}
+				applyModelPublicMeta(&oaiModel)
+				userOpenAiModels = append(userOpenAiModels, oaiModel)
 			}
 		}
 		userOpenAiModels = appendAutoRouteModelIfAvailable(userOpenAiModels, models)

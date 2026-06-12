@@ -65,6 +65,60 @@ func TestConvertOpenAIResponsesRequest_WithWebSearch(t *testing.T) {
 	require.Equal(t, WebSearchMaxUsesMedium, webSearchTool.MaxUses)
 }
 
+func TestRequestOpenAI2ClaudeMessage_FableEffortUsesAdaptiveThinking(t *testing.T) {
+	temperature := 0.2
+	topP := 0.9
+	topK := 20
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-fable-5-high",
+		Temperature: &temperature,
+		TopP:        &topP,
+		TopK:        &topK,
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	require.Equal(t, "claude-fable-5", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"high"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.Nil(t, claudeRequest.TopK)
+}
+
+func TestRequestOpenAI2ClaudeMessage_FableThinkingUsesAdaptiveThinking(t *testing.T) {
+	temperature := 0.2
+	topP := 0.9
+	topK := 20
+	request := dto.GeneralOpenAIRequest{
+		Model:       "claude-fable-5-thinking",
+		Temperature: &temperature,
+		TopP:        &topP,
+		TopK:        &topK,
+		Messages: []dto.Message{
+			{Role: "user", Content: "hello"},
+		},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+
+	require.Equal(t, "claude-fable-5", claudeRequest.Model)
+	require.NotNil(t, claudeRequest.Thinking)
+	require.Equal(t, "adaptive", claudeRequest.Thinking.Type)
+	require.Equal(t, "summarized", claudeRequest.Thinking.Display)
+	require.JSONEq(t, `{"effort":"high"}`, string(claudeRequest.OutputConfig))
+	require.Nil(t, claudeRequest.Temperature)
+	require.Nil(t, claudeRequest.TopP)
+	require.Nil(t, claudeRequest.TopK)
+}
+
 func TestConvertOpenAIResponsesRequest_RemoteImageUsesClaudeURLSource(t *testing.T) {
 	imageURL := "https://gpt-server.oss-cn-beijing.aliyuncs.com/files/example.png"
 	input, err := json.Marshal([]map[string]any{

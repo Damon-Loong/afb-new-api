@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	claudechannel "github.com/QuantumNous/new-api/relay/channel/claude"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -54,19 +55,14 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(request.Model); ok && effortLevel != "" &&
-		(strings.HasPrefix(request.Model, "claude-opus-4-6") || strings.HasPrefix(request.Model, "claude-opus-4-7")) {
+		claudechannel.IsClaudeEffortSuffixModel(request.Model) {
 		request.Model = baseModel
 		request.Thinking = &dto.Thinking{
 			Type: "adaptive",
 		}
 		request.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
-		if strings.HasPrefix(request.Model, "claude-opus-4-7") {
-			// Opus 4.7 rejects non-default temperature/top_p/top_k with 400
-			// and defaults display to "omitted"; restore the 4.6 visible summary.
-			request.Thinking.Display = "summarized"
-			request.Temperature = nil
-			request.TopP = nil
-			request.TopK = nil
+		if claudechannel.IsClaudeAdaptiveThinkingModel(request.Model) {
+			claudechannel.ApplyClaudeAdaptiveThinking(request, effortLevel)
 		} else {
 			request.Temperature = common.GetPointer[float64](1.0)
 		}
@@ -75,13 +71,8 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		strings.HasSuffix(request.Model, "-thinking") {
 		if request.Thinking == nil {
 			baseModel := strings.TrimSuffix(request.Model, "-thinking")
-			if strings.HasPrefix(baseModel, "claude-opus-4-7") {
-				// Opus 4.7 rejects thinking.type="enabled"; use adaptive at high effort.
-				request.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
-				request.OutputConfig = json.RawMessage(`{"effort":"high"}`)
-				request.Temperature = nil
-				request.TopP = nil
-				request.TopK = nil
+			if claudechannel.IsClaudeAdaptiveThinkingModel(baseModel) {
+				claudechannel.ApplyClaudeAdaptiveThinking(request, "high")
 			} else {
 				// 因为BudgetTokens 必须大于1024
 				if request.MaxTokens == nil || *request.MaxTokens < 1280 {
@@ -152,8 +143,10 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		if debugBytes, bErr := storage.Bytes(); bErr == nil {
-			logger.LogDebug(c, fmt.Sprintf("Claude pass-through original upstream body: %s", string(debugBytes)))
+		if common.DebugEnabled {
+			if debugBytes, bErr := storage.Bytes(); bErr == nil {
+				logger.LogDebug(c, "Claude pass-through original upstream body: %s", string(debugBytes))
+			}
 		}
 		requestBody = common.ReaderOnly(storage)
 	} else {
@@ -181,7 +174,9 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			}
 		}
 
-		logger.LogDebug(c, fmt.Sprintf("Claude final upstream body: %s", string(jsonData)))
+		if common.DebugEnabled {
+			logger.LogDebug(c, "Claude final upstream body: %s", string(jsonData))
+		}
 		requestBody = bytes.NewBuffer(jsonData)
 	}
 

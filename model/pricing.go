@@ -42,6 +42,13 @@ type PricingVendor struct {
 	Icon        string `json:"icon,omitempty"`
 }
 
+type ModelPublicMeta struct {
+	DisplayName            string                  `json:"display_name,omitempty"`
+	VendorID               int                     `json:"vendor_id,omitempty"`
+	VendorName             string                  `json:"vendor_name,omitempty"`
+	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types,omitempty"`
+}
+
 var (
 	pricingMap           []Pricing
 	vendorsList          []PricingVendor
@@ -57,6 +64,7 @@ var (
 
 var (
 	modelSupportEndpointTypes = make(map[string][]constant.EndpointType)
+	modelPublicMetaMap        = make(map[string]ModelPublicMeta)
 	modelSupportEndpointsLock = sync.RWMutex{}
 )
 
@@ -93,6 +101,16 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 		return endpoints
 	}
 	return make([]constant.EndpointType, 0)
+}
+
+func GetModelPublicMeta(model string) (ModelPublicMeta, bool) {
+	if model == "" {
+		return ModelPublicMeta{}, false
+	}
+	modelSupportEndpointsLock.RLock()
+	defer modelSupportEndpointsLock.RUnlock()
+	meta, ok := modelPublicMetaMap[model]
+	return meta, ok
 }
 
 func updatePricing() {
@@ -232,6 +250,22 @@ func updatePricing() {
 			supportedEndpoints = append(supportedEndpoints, endpointType)
 		}
 		modelSupportEndpointTypes[model] = supportedEndpoints
+	}
+
+	modelPublicMetaMap = make(map[string]ModelPublicMeta, len(metaMap))
+	for modelName, meta := range metaMap {
+		if meta == nil {
+			continue
+		}
+		publicMeta := ModelPublicMeta{
+			DisplayName:            meta.DisplayName,
+			VendorID:               meta.VendorID,
+			SupportedEndpointTypes: modelSupportEndpointTypes[modelName],
+		}
+		if vendor, ok := vendorMap[meta.VendorID]; ok && vendor != nil {
+			publicMeta.VendorName = vendor.Name
+		}
+		modelPublicMetaMap[modelName] = publicMeta
 	}
 
 	// 构建全局 supportedEndpointMap（默认 + 自定义覆盖）

@@ -32,6 +32,32 @@ const (
 	ClaudeWebSearchToolType = "web_search_20260209"
 )
 
+func IsClaudeAdaptiveThinkingModel(modelName string) bool {
+	modelName = strings.TrimSpace(modelName)
+	return strings.HasPrefix(modelName, "claude-opus-4-7") ||
+		strings.HasPrefix(modelName, "claude-opus-4-8") ||
+		strings.HasPrefix(modelName, "claude-fable-5")
+}
+
+func IsClaudeEffortSuffixModel(modelName string) bool {
+	modelName = strings.TrimSpace(modelName)
+	return strings.HasPrefix(modelName, "claude-opus-4-6") || IsClaudeAdaptiveThinkingModel(modelName)
+}
+
+func ApplyClaudeAdaptiveThinking(req *dto.ClaudeRequest, effort string) {
+	if req == nil {
+		return
+	}
+	if effort == "" {
+		effort = "high"
+	}
+	req.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
+	req.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effort))
+	req.Temperature = nil
+	req.TopP = nil
+	req.TopK = nil
+}
+
 func isClaudeRemoteURL(value string) bool {
 	value = strings.ToLower(strings.TrimSpace(value))
 	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
@@ -192,19 +218,16 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 	}
 
 	if baseModel, effortLevel, ok := reasoning.TrimEffortSuffix(textRequest.Model); ok && effortLevel != "" &&
-		(strings.HasPrefix(textRequest.Model, "claude-opus-4-6") || strings.HasPrefix(textRequest.Model, "claude-opus-4-7")) {
+		IsClaudeEffortSuffixModel(textRequest.Model) {
 		claudeRequest.Model = baseModel
 		claudeRequest.Thinking = &dto.Thinking{
 			Type: "adaptive",
 		}
 		claudeRequest.OutputConfig = json.RawMessage(fmt.Sprintf(`{"effort":"%s"}`, effortLevel))
-		if strings.HasPrefix(baseModel, "claude-opus-4-7") {
-			// Opus 4.7 rejects non-default temperature/top_p/top_k with 400
-			// and defaults display to "omitted"; restore the 4.6 visible summary.
-			claudeRequest.Thinking.Display = "summarized"
-			claudeRequest.Temperature = nil
-			claudeRequest.TopP = nil
-			claudeRequest.TopK = nil
+		if IsClaudeAdaptiveThinkingModel(baseModel) {
+			// Claude 4.7+ style models reject thinking.type="enabled" and
+			// non-default sampling params when adaptive effort is enabled.
+			ApplyClaudeAdaptiveThinking(&claudeRequest, effortLevel)
 		} else {
 			claudeRequest.TopP = nil
 			claudeRequest.Temperature = common.GetPointer[float64](1.0)
@@ -213,13 +236,9 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		strings.HasSuffix(textRequest.Model, "-thinking") {
 
 		trimmedModel := strings.TrimSuffix(textRequest.Model, "-thinking")
-		if strings.HasPrefix(trimmedModel, "claude-opus-4-7") {
-			// Opus 4.7 rejects thinking.type="enabled"; use adaptive at high effort.
-			claudeRequest.Thinking = &dto.Thinking{Type: "adaptive", Display: "summarized"}
-			claudeRequest.OutputConfig = json.RawMessage(`{"effort":"high"}`)
-			claudeRequest.Temperature = nil
-			claudeRequest.TopP = nil
-			claudeRequest.TopK = nil
+		if IsClaudeAdaptiveThinkingModel(trimmedModel) {
+			// Claude 4.7+ style models reject thinking.type="enabled"; use adaptive at high effort.
+			ApplyClaudeAdaptiveThinking(&claudeRequest, "high")
 		} else {
 			// 因为BudgetTokens 必须大于1024
 			if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens < 1280 {

@@ -5,9 +5,12 @@ import "github.com/QuantumNous/new-api/constant"
 // 这里不好动就不动了，本来想独立出来的（
 type OpenAIModels struct {
 	Id                     string                  `json:"id"`
+	Name                   string                  `json:"name,omitempty"`
 	Object                 string                  `json:"object"`
 	Created                int                     `json:"created"`
 	OwnedBy                string                  `json:"owned_by"`
+	VendorID               int                     `json:"vendor_id,omitempty"`
+	VendorName             string                  `json:"vendor_name,omitempty"`
 	SupportedEndpointTypes []constant.EndpointType `json:"supported_endpoint_types"`
 }
 
