@@ -27,13 +27,25 @@ type mopcClientLocationCacheEntry struct {
 }
 
 type ipAPIResponse struct {
-	Status     string `json:"status"`
-	Query      string `json:"query"`
-	Country    string `json:"country"`
-	Region     string `json:"region"`
-	RegionName string `json:"regionName"`
-	City       string `json:"city"`
-	Message    string `json:"message"`
+	Ret  int `json:"ret"`
+	Data struct {
+		IP      string `json:"ip"`
+		Country string `json:"country"`
+		Prov    string `json:"prov"`
+		City    string `json:"city"`
+		Area    string `json:"area"`
+		ISP     string `json:"isp"`
+	} `json:"data"`
+	Msg string `json:"msg"`
+}
+
+type pconlineIPResponse struct {
+	IP     string `json:"ip"`
+	Pro    string `json:"pro"`
+	City   string `json:"city"`
+	Region string `json:"region"`
+	Addr   string `json:"addr"`
+	Err    string `json:"err"`
 }
 
 func GetMopcClientLocation(c *gin.Context) {
@@ -64,9 +76,16 @@ func GetMopcClientLocation(c *gin.Context) {
 }
 
 func lookupMopcClientLocation(ip string) (gin.H, error) {
+	if location, err := lookupMopcClientLocationWithIP9(ip); err == nil {
+		return location, nil
+	}
+	return lookupMopcClientLocationWithPConline(ip)
+}
+
+func lookupMopcClientLocationWithIP9(ip string) (gin.H, error) {
 	endpoint := fmt.Sprintf(
-		"http://ip-api.com/json/%s?fields=status,message,country,region,regionName,city,query&lang=zh-CN",
-		url.PathEscape(ip),
+		"https://ip9.com.cn/get?ip=%s",
+		url.QueryEscape(ip),
 	)
 	resp, err := mopcClientLocationHTTP.Get(endpoint)
 	if err != nil {
@@ -81,16 +100,49 @@ func lookupMopcClientLocation(ip string) (gin.H, error) {
 	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
 		return nil, err
 	}
-	if payload.Status != "success" {
-		return nil, fmt.Errorf("ip location lookup failed: %s", payload.Message)
+	if payload.Ret != 200 {
+		return nil, fmt.Errorf("ip9 location lookup failed: %s", payload.Msg)
 	}
 
 	return gin.H{
-		"ip":       firstNonEmpty(payload.Query, ip),
-		"country":  payload.Country,
+		"ip":       firstNonEmpty(payload.Data.IP, ip),
+		"country":  payload.Data.Country,
+		"province": payload.Data.Prov,
+		"city":     payload.Data.City,
+		"region":   payload.Data.Area,
+		"isp":      payload.Data.ISP,
+	}, nil
+}
+
+func lookupMopcClientLocationWithPConline(ip string) (gin.H, error) {
+	endpoint := fmt.Sprintf(
+		"https://whois.pconline.com.cn/ipJson.jsp?ip=%s&json=true",
+		url.QueryEscape(ip),
+	)
+	resp, err := mopcClientLocationHTTP.Get(endpoint)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("pconline location lookup failed: %s", resp.Status)
+	}
+
+	var payload pconlineIPResponse
+	if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(payload.Err) != "" {
+		return nil, fmt.Errorf("pconline location lookup failed: %s", payload.Err)
+	}
+
+	return gin.H{
+		"ip":       firstNonEmpty(payload.IP, ip),
+		"country":  "中国",
 		"region":   payload.Region,
-		"province": payload.RegionName,
+		"province": payload.Pro,
 		"city":     payload.City,
+		"address":  payload.Addr,
 	}, nil
 }
 
