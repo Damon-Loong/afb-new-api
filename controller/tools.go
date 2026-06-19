@@ -2,8 +2,10 @@ package controller
 
 import (
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/service"
@@ -139,14 +141,15 @@ func UploadToolOpenAPI(c *gin.Context) {
 
 func UploadSkillPackage(c *gin.Context) {
 	var req struct {
-		Name          string `json:"name"`
-		Description   string `json:"description"`
-		PackageURL    string `json:"package_url"`
-		SkillMarkdown string `json:"skill_md"`
-		DownloadPrice int    `json:"download_price"`
-		PromotionMode string `json:"promotion_mode"`
-		Visibility    string `json:"visibility"`
-		Publish       *bool  `json:"publish"`
+		Name            string `json:"name"`
+		Description     string `json:"description"`
+		PackageURL      string `json:"package_url"`
+		SkillMarkdown   string `json:"skill_md"`
+		ContentHash     string `json:"content_hash"`
+		TokenMultiplier int    `json:"token_multiplier"`
+		PromotionMode   string `json:"promotion_mode"`
+		Visibility      string `json:"visibility"`
+		Publish         *bool  `json:"publish"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		toolAPIError(c, service.NewToolAppError("invalid_request", "Skill 发布参数无效"))
@@ -157,15 +160,16 @@ func UploadSkillPackage(c *gin.Context) {
 		publish = *req.Publish
 	}
 	skill, err := service.CreateSkill(service.SkillCreateOptions{
-		UserID:        c.GetInt("id"),
-		Title:         req.Name,
-		Description:   req.Description,
-		PackageURL:    req.PackageURL,
-		SkillMarkdown: req.SkillMarkdown,
-		DownloadPrice: req.DownloadPrice,
-		PromotionMode: req.PromotionMode,
-		Visibility:    req.Visibility,
-		Publish:       publish,
+		UserID:          c.GetInt("id"),
+		Title:           req.Name,
+		Description:     req.Description,
+		PackageURL:      req.PackageURL,
+		SkillMarkdown:   req.SkillMarkdown,
+		ContentHash:     req.ContentHash,
+		TokenMultiplier: req.TokenMultiplier,
+		PromotionMode:   req.PromotionMode,
+		Visibility:      req.Visibility,
+		Publish:         publish,
 	})
 	if err != nil {
 		toolAPIError(c, err)
@@ -181,6 +185,15 @@ func GetMySkills(c *gin.Context) {
 		return
 	}
 	toolAPISuccess(c, gin.H{"skills": skills})
+}
+
+func GetAcquiredSkills(c *gin.Context) {
+	result, err := service.ListAcquiredSkillDetails(c.GetInt("id"))
+	if err != nil {
+		toolAPIError(c, err)
+		return
+	}
+	toolAPISuccess(c, result)
 }
 
 func GetPublicSkills(c *gin.Context) {
@@ -205,6 +218,33 @@ func AcquireSkill(c *gin.Context) {
 		return
 	}
 	result, err := service.AcquireSkill(c.GetInt("id"), skillID)
+	if err != nil {
+		toolAPIError(c, err)
+		return
+	}
+	toolAPISuccess(c, result)
+}
+
+func BillSkillCall(c *gin.Context) {
+	var req struct {
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if c.Request.Body != nil {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			toolAPIError(c, service.NewToolAppError("invalid_request", "Skill 调用扣费参数无效"))
+			return
+		}
+	}
+	skillID, err := strconv.Atoi(c.Param("skill_id"))
+	if err != nil {
+		toolAPIError(c, service.NewToolAppError("invalid_request", "Skill ID 无效"))
+		return
+	}
+	idempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if idempotencyKey == "" {
+		idempotencyKey = req.IdempotencyKey
+	}
+	result, err := service.BillSkillCallWithIdempotency(c.GetInt("id"), skillID, idempotencyKey)
 	if err != nil {
 		toolAPIError(c, err)
 		return

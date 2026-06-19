@@ -24,6 +24,17 @@ func InitTokenEncoders() {
 }
 
 func getTokenEncoder(model string) tokenizer.Codec {
+	tokenEncoderMutex.RLock()
+	hasDefaultEncoder := defaultTokenEncoder != nil
+	tokenEncoderMutex.RUnlock()
+	if !hasDefaultEncoder {
+		tokenEncoderMutex.Lock()
+		if defaultTokenEncoder == nil {
+			defaultTokenEncoder = codec.NewCl100kBase()
+		}
+		tokenEncoderMutex.Unlock()
+	}
+
 	// First, try to get the encoder from cache with read lock
 	tokenEncoderMutex.RLock()
 	if encoder, exists := tokenEncoderMap[model]; exists {

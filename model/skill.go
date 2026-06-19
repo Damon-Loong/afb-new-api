@@ -13,18 +13,20 @@ const (
 )
 
 type Skill struct {
-	ID            int    `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
-	UserID        int    `json:"user_id" gorm:"index;not null"`
-	Title         string `json:"title" gorm:"type:varchar(191);not null"`
-	Description   string `json:"description" gorm:"type:text"`
-	PackageURL    string `json:"package_url" gorm:"type:text;not null"`
-	SkillMarkdown string `json:"skill_md" gorm:"type:longtext"`
-	DownloadPrice int    `json:"download_price" gorm:"default:0"`
-	PromotionMode string `json:"promotion_mode" gorm:"type:varchar(32);index;default:platform_auto"`
-	Visibility    string `json:"visibility" gorm:"type:varchar(32);index;default:public"`
-	Status        string `json:"status" gorm:"type:varchar(32);index;default:published"`
-	CreatedAt     int64  `json:"created_at"`
-	UpdatedAt     int64  `json:"updated_at"`
+	ID              int    `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
+	UserID          int    `json:"user_id" gorm:"index;not null"`
+	Title           string `json:"title" gorm:"type:varchar(191);not null"`
+	Description     string `json:"description" gorm:"type:text"`
+	PackageURL      string `json:"package_url,omitempty" gorm:"type:text;not null"`
+	SkillMarkdown   string `json:"skill_md,omitempty" gorm:"type:longtext"`
+	ContentHash     string `json:"content_hash" gorm:"type:varchar(128);index"`
+	SkillMDTokens   int    `json:"skill_md_tokens" gorm:"default:0"`
+	TokenMultiplier int    `json:"token_multiplier" gorm:"default:1"`
+	PromotionMode   string `json:"promotion_mode" gorm:"type:varchar(32);index;default:platform_auto"`
+	Visibility      string `json:"visibility" gorm:"type:varchar(32);index;default:public"`
+	Status          string `json:"status" gorm:"type:varchar(32);index;default:published"`
+	CreatedAt       int64  `json:"created_at"`
+	UpdatedAt       int64  `json:"updated_at"`
 }
 
 func (s *Skill) BeforeCreate(tx *gorm.DB) error {

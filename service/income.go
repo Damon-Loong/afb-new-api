@@ -123,9 +123,9 @@ func GetIncomeSummary(userID int, days int) (IncomeSummary, error) {
 func listSkillIncomeRows(userID int, startUnix int64) ([]incomeQuotaRow, error) {
 	var rows []incomeQuotaRow
 	err := model.DB.Table("user_skills").
-		Select("user_skills.acquired_at AS timestamp, user_skills.paid_quota AS quota").
+		Select("user_skills.updated_at AS timestamp, user_skills.paid_quota AS quota").
 		Joins("JOIN skills ON skills.id = user_skills.skill_id").
-		Where("skills.user_id = ? AND user_skills.paid_quota > 0 AND user_skills.acquired_at >= ?", userID, startUnix).
+		Where("skills.user_id = ? AND user_skills.paid_quota > 0 AND user_skills.updated_at >= ?", userID, startUnix).
 		Scan(&rows).Error
 	return rows, err
 }
@@ -181,9 +181,9 @@ func listSkillIncomeSources(userID int, startUnix int64) ([]IncomeSource, error)
 		LatestAt    int64
 	}
 	err := model.DB.Table("user_skills").
-		Select("skills.id AS skill_id, skills.title, skills.description, SUM(user_skills.paid_quota) AS quota, COUNT(*) AS count, MAX(user_skills.acquired_at) AS latest_at").
+		Select("skills.id AS skill_id, skills.title, skills.description, SUM(user_skills.paid_quota) AS quota, COUNT(*) AS count, MAX(user_skills.updated_at) AS latest_at").
 		Joins("JOIN skills ON skills.id = user_skills.skill_id").
-		Where("skills.user_id = ? AND user_skills.paid_quota > 0 AND user_skills.acquired_at >= ?", userID, startUnix).
+		Where("skills.user_id = ? AND user_skills.paid_quota > 0 AND user_skills.updated_at >= ?", userID, startUnix).
 		Group("skills.id, skills.title, skills.description").
 		Scan(&rows).Error
 	if err != nil {
@@ -222,10 +222,10 @@ func listSkillIncomeFlows(userID int, sourceID string, limit int) (IncomeSourceF
 		OccurredAt int64
 	}
 	err = model.DB.Table("user_skills").
-		Select("user_skills.id, user_skills.user_id, users.username AS user_name, users.phone, user_skills.paid_quota AS quota, user_skills.acquired_at AS occurred_at").
+		Select("user_skills.id, user_skills.user_id, users.username AS user_name, users.phone, user_skills.paid_quota AS quota, user_skills.updated_at AS occurred_at").
 		Joins("LEFT JOIN users ON users.id = user_skills.user_id").
 		Where("user_skills.skill_id = ? AND user_skills.paid_quota > 0", skillID).
-		Order("user_skills.acquired_at DESC").
+		Order("user_skills.updated_at DESC").
 		Limit(limit).
 		Scan(&rows).Error
 	if err != nil {
@@ -240,7 +240,7 @@ func listSkillIncomeFlows(userID int, sourceID string, limit int) (IncomeSourceF
 			UserName:   normalizeIncomeUserName(row.UserID, row.UserName, row.Phone),
 			Quota:      row.Quota,
 			OccurredAt: row.OccurredAt,
-			Note:       "获取 Skill",
+			Note:       "调用 Skill",
 		})
 	}
 	return IncomeSourceFlowsResult{Flows: flows, Total: len(flows)}, nil
