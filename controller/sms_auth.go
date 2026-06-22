@@ -20,6 +20,13 @@ import (
 const (
 	smsPurposeLogin = "sms_login"
 	smsPurposeBind  = "sms_bind"
+
+	// App Store review credentials are intentionally limited to a reserved phone
+	// number and can be disabled immediately after review through the environment.
+	appStoreReviewLoginEnabledEnv = "APP_STORE_REVIEW_LOGIN_ENABLED"
+	appStoreReviewPhoneE164       = "+8613800000000"
+	appStoreReviewCode            = "1234"
+	appStoreReviewDisplayName     = "App Store Review"
 )
 
 var (
@@ -45,6 +52,18 @@ func normalizeCNPhone(input string) (e164 string, phone11 string, ok bool) {
 		return "", "", false
 	}
 	return "+86" + raw, raw, true
+}
+
+func appStoreReviewLoginEnabled() bool {
+	return common.GetEnvOrDefaultBool(appStoreReviewLoginEnabledEnv, false)
+}
+
+func isAppStoreReviewPhone(e164 string) bool {
+	return e164 == appStoreReviewPhoneE164
+}
+
+func isAppStoreReviewLogin(e164, code string) bool {
+	return appStoreReviewLoginEnabled() && isAppStoreReviewPhone(e164) && code == appStoreReviewCode
 }
 
 func canSendSMS(ip, phone string) (ok bool, msg string) {
@@ -124,6 +143,15 @@ func SendSMSCode(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "无效的用途"})
 		return
 	}
+	if purpose == smsPurposeLogin && isAppStoreReviewPhone(e164) {
+		if !appStoreReviewLoginEnabled() {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "审核登录未启用"})
+			return
+		}
+		// App Store review account: never create an OTP or send an SMS.
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": gin.H{"is_new_user": false}})
+		return
+	}
 
 	if allow, msg := canSendSMS(c.ClientIP(), e164); !allow {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": msg})
@@ -169,31 +197,46 @@ func SMSLogin(c *gin.Context) {
 		return
 	}
 	e164, _, ok := normalizeCNPhone(req.Phone)
-	if !ok || strings.TrimSpace(req.Code) == "" {
+	code := strings.TrimSpace(req.Code)
+	if !ok || code == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 
-	okCode, locked := common.VerifySMSCode(smsPurposeLogin, e164, strings.TrimSpace(req.Code))
-	if locked {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "验证码尝试次数过多，请稍后再试"})
-		return
-	}
-	if !okCode {
-		c.JSON(http.StatusOK, gin.H{"success": false, "message": "验证码错误或已过期"})
-		return
+	reviewPhone := isAppStoreReviewPhone(e164)
+	if reviewPhone {
+		if !isAppStoreReviewLogin(e164, code) {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "验证码错误或已过期"})
+			return
+		}
+	} else {
+		okCode, locked := common.VerifySMSCode(smsPurposeLogin, e164, code)
+		if locked {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "验证码尝试次数过多，请稍后再试"})
+			return
+		}
+		if !okCode {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "验证码错误或已过期"})
+			return
+		}
 	}
 
 	var user model.User
 	err := model.DB.Where("phone = ?", e164).First(&user).Error
 	if err != nil {
 		inviterId := 0
-		affCode := strings.TrimSpace(req.AffCode)
-		if affCode != "" {
-			inviterId, _ = model.GetUserIdByAffCode(affCode)
+		if !reviewPhone {
+			affCode := strings.TrimSpace(req.AffCode)
+			if affCode != "" {
+				inviterId, _ = model.GetUserIdByAffCode(affCode)
+			}
 		}
 		// auto register
-		u, err2 := createUserWithPhone(e164, inviterId)
+		displayName := ""
+		if reviewPhone {
+			displayName = appStoreReviewDisplayName
+		}
+		u, err2 := createUserWithPhone(e164, inviterId, displayName)
 		if err2 != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("sms auto register failed phone=%s err=%v", maskE164(e164), err2))
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "登录失败，请稍后再试"})
@@ -275,7 +318,7 @@ func BindPhone(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
-func createUserWithPhone(e164 string, inviterId int) (*model.User, error) {
+func createUserWithPhone(e164 string, inviterId int, displayName string) (*model.User, error) {
 	last4 := e164
 	if len(e164) >= 4 {
 		last4 = e164[len(e164)-4:]
@@ -284,6 +327,9 @@ func createUserWithPhone(e164 string, inviterId int) (*model.User, error) {
 		username := fmt.Sprintf("m%s%s", last4, common.GetRandomString(4))
 		username = strings.ToLower(username)
 		display := fmt.Sprintf("M%s", last4)
+		if strings.TrimSpace(displayName) != "" {
+			display = displayName
+		}
 		pwd := common.GetRandomString(12) + "A1!"
 		u := &model.User{
 			Username:    username,
