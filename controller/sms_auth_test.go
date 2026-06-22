@@ -113,6 +113,13 @@ func callSMSAuthEndpoint(t *testing.T, router *gin.Engine, path string, body any
 	return response
 }
 
+func TestAppStoreReviewLoginEnabledByDefault(t *testing.T) {
+	t.Setenv(appStoreReviewLoginEnabledEnv, "")
+	if !appStoreReviewLoginEnabled() {
+		t.Fatal("expected App Store review login to be enabled when the environment variable is unset")
+	}
+}
+
 func TestAppStoreReviewSMSDoesNotSendOrCreateOTP(t *testing.T) {
 	_, router := setupSMSAuthTest(t)
 	t.Setenv(appStoreReviewLoginEnabledEnv, "true")

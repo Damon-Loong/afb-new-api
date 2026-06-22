@@ -55,7 +55,7 @@ func normalizeCNPhone(input string) (e164 string, phone11 string, ok bool) {
 }
 
 func appStoreReviewLoginEnabled() bool {
-	return common.GetEnvOrDefaultBool(appStoreReviewLoginEnabledEnv, false)
+	return common.GetEnvOrDefaultBool(appStoreReviewLoginEnabledEnv, true)
 }
 
 func isAppStoreReviewPhone(e164 string) bool {
