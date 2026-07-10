@@ -29,6 +29,18 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/user-agreement", controller.GetUserAgreement)
 		apiRouter.GET("/privacy-policy", controller.GetPrivacyPolicy)
 		apiRouter.GET("/about", controller.GetAbout)
+		apiRouter.GET("/projects/available", controller.ListAvailableSSOProjects)
+		apiRouter.POST("/projects/billing/charge", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.CreateProjectBillingCharge)
+		apiRouter.POST("/sso/ticket", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.CreateSSOTicket)
+		apiRouter.POST("/sso/exchange", middleware.CriticalRateLimit(), controller.ExchangeSSOTicket)
+		projectAdminRoute := apiRouter.Group("/admin/projects")
+		projectAdminRoute.Use(middleware.AdminAuth())
+		{
+			projectAdminRoute.GET("", controller.AdminListSSOProjects)
+			projectAdminRoute.POST("", controller.AdminCreateSSOProject)
+			projectAdminRoute.PUT("/:id", controller.AdminUpdateSSOProject)
+			projectAdminRoute.DELETE("/:id", controller.AdminDeleteSSOProject)
+		}
 		//apiRouter.GET("/midjourney", controller.GetMidjourney)
 		apiRouter.GET("/home_page_content", controller.GetHomePageContent)
 		apiRouter.GET("/mopc/mclaw/download-info", controller.GetMClawDownloadInfo)

@@ -39,6 +39,7 @@ const routerMap = {
   user: '/console/user',
   subscription: '/console/subscription',
   market: '/console/market',
+  projects: '/console/projects',
   log: '/console/log',
   midjourney: '/console/midjourney',
   setting: '/console/setting',
@@ -167,7 +168,13 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('模型管理'),
+        text: '项目管理',
+        itemKey: 'projects',
+        to: '/projects',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: '模型管理',
         itemKey: 'models',
         to: '/console/models',
         className: isAdmin() ? '' : 'tableHiddle',

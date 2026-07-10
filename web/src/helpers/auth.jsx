@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { history } from './history';
 
 export function authHeader() {
@@ -33,9 +33,12 @@ export function authHeader() {
 }
 
 export const AuthRedirect = ({ children }) => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const redirect = searchParams.get('redirect') || '';
   const user = localStorage.getItem('user');
 
-  if (user) {
+  if (user && !redirect.startsWith('/sso/login')) {
     return <Navigate to='/console' replace />;
   }
 

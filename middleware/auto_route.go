@@ -349,6 +349,7 @@ func decideAutoRoute(c *gin.Context, features autoRouteFeatures, candidates []au
 func scoreAutoRoute(c *gin.Context, embeddingModel string, scoringModel string, usingGroup string, features autoRouteFeatures, tokenModelLimit map[string]bool, modelLimitEnable bool) (autoRouteScoringResult, string, string, error) {
 	embeddingModel = strings.TrimSpace(embeddingModel)
 	scoringModel = strings.TrimSpace(scoringModel)
+	var embeddingErr error
 	if embeddingModel != "" {
 		if strings.EqualFold(embeddingModel, constant.AutoRouteModelName) {
 			return autoRouteScoringResult{}, embeddingModel, "scorer_failed", fmt.Errorf("embedding scoring model cannot be afb-auto")
@@ -362,6 +363,7 @@ func scoreAutoRoute(c *gin.Context, embeddingModel string, scoringModel string, 
 			if err == nil {
 				return result, embeddingModel, "embedding_scorer", nil
 			}
+			embeddingErr = err
 			if scoringModel == "" {
 				return autoRouteScoringResult{}, embeddingModel, "scorer_failed", err
 			}
@@ -379,6 +381,9 @@ func scoreAutoRoute(c *gin.Context, embeddingModel string, scoringModel string, 
 	}
 	result, err := scoreAutoRouteDifficulty(c, scoringModel, usingGroup, features)
 	if err != nil {
+		if embeddingErr != nil {
+			return autoRouteScoringResult{}, scoringModel, "scorer_failed", fmt.Errorf("embedding scorer failed: %v; scoring model failed: %w", embeddingErr, err)
+		}
 		return autoRouteScoringResult{}, scoringModel, "scorer_failed", err
 	}
 	return result, scoringModel, "scorer", nil
@@ -760,10 +765,8 @@ func newAutoRouteBackgroundContext() *gin.Context {
 
 func scheduleAutoRouteCentroidWarmupForRelayInfo(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, _ string) {
 	cacheKey := autoRouteEmbeddingTierCacheKey(info, request)
-	if cached, ok := autoRouteEmbeddingTierCache.Load(cacheKey); ok {
-		if entry, ok := cached.(autoRouteEmbeddingTierCacheEntry); ok && len(entry.embeddings) == len(autoRouteEmbeddingTiers) {
-			return
-		}
+	if _, ok := loadAutoRouteEmbeddingTierCache(cacheKey, len(autoRouteEmbeddingTiers)); ok {
+		return
 	}
 	if _, loaded := autoRouteEmbeddingTierWarmupInFlight.LoadOrStore(cacheKey, true); loaded {
 		return
@@ -788,7 +791,7 @@ func scheduleAutoRouteCentroidWarmupForRelayInfo(c *gin.Context, info *relaycomm
 			centroids = append(centroids, embedding)
 		}
 
-		autoRouteEmbeddingTierCache.Store(cacheKey, autoRouteEmbeddingTierCacheEntry{embeddings: centroids})
+		storeAutoRouteEmbeddingTierCache(cacheKey, autoRouteEmbeddingTierCacheEntry{embeddings: centroids})
 	}()
 }
 
@@ -812,67 +815,119 @@ func autoRouteEmbeddingInputs(features autoRouteFeatures) []any {
 
 func doAutoRouteEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest) ([][]float64, *dto.Usage, error) {
 	inputs := request.ParseInput()
-	if info.ChannelType == constant.ChannelTypeVolcEngine && len(inputs) > 1 {
-		return doAutoRouteVolcengineEmbeddingRequest(c, info, request, inputs)
+	if len(inputs) > 1 {
+		return doAutoRouteCachedTierEmbeddingRequest(c, info, request, inputs)
 	}
 	return doAutoRouteEmbeddingSingleRequest(c, info, request, 0, 0)
 }
 
-type autoRouteEmbeddingCallResult struct {
-	index     int
-	embedding []float64
-	usage     dto.Usage
-	err       error
-}
-
-func doAutoRouteVolcengineEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, inputs []string) ([][]float64, *dto.Usage, error) {
+func doAutoRouteCachedTierEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, inputs []string) ([][]float64, *dto.Usage, error) {
 	queryInput := inputs[0]
 	tierInputs := inputs[1:]
 	cacheKey := autoRouteEmbeddingTierCacheKey(info, request)
-	if cached, ok := autoRouteEmbeddingTierCache.Load(cacheKey); ok {
-		if entry, ok := cached.(autoRouteEmbeddingTierCacheEntry); ok && len(entry.embeddings) == len(tierInputs) {
-			queryEmbedding, usage, err := doAutoRouteVolcengineEmbeddingInput(c, info, request, queryInput, 1, 1)
-			if err != nil {
-				return nil, nil, err
-			}
-			embeddings := make([][]float64, 0, len(entry.embeddings)+1)
-			embeddings = append(embeddings, queryEmbedding)
-			embeddings = append(embeddings, entry.embeddings...)
-			return embeddings, usage, nil
+	if entry, ok := loadAutoRouteEmbeddingTierCache(cacheKey, len(tierInputs)); ok {
+		queryEmbedding, usage, err := doAutoRouteEmbeddingInput(c, info, request, queryInput, 1, 1)
+		if err != nil {
+			return nil, nil, err
 		}
+		embeddings := make([][]float64, 0, len(entry.embeddings)+1)
+		embeddings = append(embeddings, queryEmbedding)
+		embeddings = append(embeddings, entry.embeddings...)
+		return embeddings, usage, nil
 	}
 	scheduleAutoRouteCentroidWarmupForRelayInfo(c, info, request, "cache_miss")
 	return nil, nil, fmt.Errorf("embedding tier cache not warmed for model %s", request.Model)
+}
+
+type autoRouteEmbeddingTierRedisEntry struct {
+	Embeddings [][]float64 `json:"embeddings"`
+}
+
+func loadAutoRouteEmbeddingTierCache(cacheKey string, expectedTiers int) (autoRouteEmbeddingTierCacheEntry, bool) {
+	if cached, ok := autoRouteEmbeddingTierCache.Load(cacheKey); ok {
+		if entry, ok := cached.(autoRouteEmbeddingTierCacheEntry); ok && len(entry.embeddings) == expectedTiers {
+			return entry, true
+		}
+	}
+
+	if !common.RedisEnabled || common.RDB == nil {
+		return autoRouteEmbeddingTierCacheEntry{}, false
+	}
+	payload, err := common.RedisGet(autoRouteEmbeddingTierRedisKey(cacheKey))
+	if err != nil || payload == "" {
+		return autoRouteEmbeddingTierCacheEntry{}, false
+	}
+	var redisEntry autoRouteEmbeddingTierRedisEntry
+	if err := json.Unmarshal([]byte(payload), &redisEntry); err != nil || len(redisEntry.Embeddings) != expectedTiers {
+		return autoRouteEmbeddingTierCacheEntry{}, false
+	}
+	entry := autoRouteEmbeddingTierCacheEntry{embeddings: redisEntry.Embeddings}
+	autoRouteEmbeddingTierCache.Store(cacheKey, entry)
+	return entry, true
+}
+
+func storeAutoRouteEmbeddingTierCache(cacheKey string, entry autoRouteEmbeddingTierCacheEntry) {
+	autoRouteEmbeddingTierCache.Store(cacheKey, entry)
+	if !common.RedisEnabled || common.RDB == nil {
+		return
+	}
+	payload, err := json.Marshal(autoRouteEmbeddingTierRedisEntry{Embeddings: entry.embeddings})
+	if err != nil {
+		return
+	}
+	if err := common.RedisSet(autoRouteEmbeddingTierRedisKey(cacheKey), string(payload), 0); err != nil {
+		return
+	}
+}
+
+func autoRouteEmbeddingTierRedisKey(cacheKey string) string {
+	return "auto_route:embedding_tier:" + cacheKey
 }
 
 func buildAutoRouteTierCentroid(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, prototypes []string) ([]float64, *dto.Usage, error) {
 	if len(prototypes) == 0 {
 		return nil, nil, fmt.Errorf("embedding tier has no prototypes")
 	}
-	vectors := make([][]float64, 0, len(prototypes))
-	totalUsage := &dto.Usage{}
-	for index, input := range prototypes {
-		singleInfo := *info
-		if len(info.RequestConversionChain) > 0 {
-			singleInfo.RequestConversionChain = append([]types.RelayFormat(nil), info.RequestConversionChain...)
-		}
-		embedding, usage, err := doAutoRouteVolcengineEmbeddingInput(c, &singleInfo, request, input, index+1, len(prototypes))
-		if err != nil {
-			return nil, nil, err
-		}
-		vectors = append(vectors, embedding)
-		if usage != nil {
-			addAutoRouteEmbeddingUsage(totalUsage, *usage)
-		}
+	vectors, usage, err := doAutoRouteEmbeddingInputs(c, info, request, prototypes)
+	if err != nil {
+		return nil, nil, err
 	}
 	centroid := meanNormalizedAutoRouteEmbeddings(vectors)
 	if len(centroid) == 0 {
 		return nil, nil, fmt.Errorf("embedding tier produced empty centroid")
 	}
-	return centroid, totalUsage, nil
+	return centroid, usage, nil
 }
 
-func doAutoRouteVolcengineEmbeddingInput(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, input string, itemIndex int, itemCount int) ([]float64, *dto.Usage, error) {
+func doAutoRouteEmbeddingInputs(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, inputs []string) ([][]float64, *dto.Usage, error) {
+	if len(inputs) == 0 {
+		return nil, nil, fmt.Errorf("embedding tier has no inputs")
+	}
+	batchInfo := *info
+	if len(info.RequestConversionChain) > 0 {
+		batchInfo.RequestConversionChain = append([]types.RelayFormat(nil), info.RequestConversionChain...)
+	}
+	batchReq := *request
+	batchReq.Input = inputs
+	embeddings, usage, err := doAutoRouteEmbeddingSingleRequest(c, &batchInfo, &batchReq, 1, len(inputs))
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(embeddings) != len(inputs) {
+		if len(embeddings) == 1 && len(embeddings[0]) > 0 {
+			return embeddings, usage, nil
+		}
+		return nil, nil, fmt.Errorf("embedding scoring model returned %d embeddings for %d tier inputs", len(embeddings), len(inputs))
+	}
+	for index, embedding := range embeddings {
+		if len(embedding) == 0 {
+			return nil, nil, fmt.Errorf("embedding scoring model returned empty embedding for input %d", index+1)
+		}
+	}
+	return embeddings, usage, nil
+}
+
+func doAutoRouteEmbeddingInput(c *gin.Context, info *relaycommon.RelayInfo, request *dto.EmbeddingRequest, input string, itemIndex int, itemCount int) ([]float64, *dto.Usage, error) {
 	singleReq := *request
 	singleReq.Input = input
 	embeddings, usage, err := doAutoRouteEmbeddingSingleRequest(c, info, &singleReq, itemIndex, itemCount)
@@ -1292,6 +1347,9 @@ func scoreAutoRouteDifficulty(c *gin.Context, scorerModel string, usingGroup str
 
 	scoreCtx := c.Copy()
 	scoreCtx.Request = c.Request.Clone(c.Request.Context())
+	scoreCtx.Request.URL.Path = "/v1/chat/completions"
+	scoreCtx.Request.URL.RawPath = ""
+	scoreCtx.Request.URL.RawQuery = ""
 	scoreCtx.Set("use_channel", []string{fmt.Sprintf("%d", channel.Id)})
 	common.SetContextKey(scoreCtx, constant.ContextKeyAutoRouteScoring, true)
 	common.SetContextKey(scoreCtx, constant.ContextKeyAutoRouteRequestedModel, constant.AutoRouteModelName)

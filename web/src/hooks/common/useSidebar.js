@@ -53,6 +53,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     user: true,
     subscription: true,
     market: true,
+    projects: true,
     setting: true,
   },
 };

@@ -118,6 +118,18 @@ const LoginForm = () => {
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
+
+  const redirectTarget = useMemo(() => {
+    const value = searchParams.get('redirect');
+    if (!value || !value.startsWith('/') || value.startsWith('//')) {
+      return '';
+    }
+    return value;
+  }, [searchParams]);
+
+  const navigateAfterLogin = () => {
+    navigate(redirectTarget || '/console');
+  };
   const [githubButtonState, setGithubButtonState] = useState('idle');
   const [githubButtonDisabled, setGithubButtonDisabled] = useState(false);
   const githubTimeoutRef = useRef(null);
@@ -297,7 +309,7 @@ const LoginForm = () => {
               centered: true,
             });
           }
-          navigate('/console');
+          navigateAfterLogin();
         } else {
           showError(message);
         }
@@ -370,7 +382,7 @@ const LoginForm = () => {
         setUserData(data);
         updateAPI();
         showSuccess(t('登录成功！'));
-        navigate('/console');
+        navigateAfterLogin();
       } else {
         showError(message || t('登录失败，请重试'));
       }
@@ -576,7 +588,7 @@ const LoginForm = () => {
         setUserData(finish.data);
         updateAPI();
         showSuccess('登录成功！');
-        navigate('/console');
+        navigateAfterLogin();
       } else {
         showError(finish.message || 'Passkey 登录失败，请重试');
       }
@@ -612,7 +624,7 @@ const LoginForm = () => {
     setUserData(data);
     updateAPI();
     showSuccess('登录成功！');
-    navigate('/console');
+    navigateAfterLogin();
   };
 
   // 返回登录页面

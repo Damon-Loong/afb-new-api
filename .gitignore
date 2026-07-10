@@ -44,3 +44,4 @@ token_estimator_test.go
 
 # Local Docker deploy zip output (see scripts/package-docker-deploy.ps1)
 deploy-packages/
+mopc_app/

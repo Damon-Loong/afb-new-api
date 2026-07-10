@@ -20,7 +20,7 @@ try {
     # deploy-packages: never pack previous *.zip into the next zip (was causing runaway size)
     $excludeDirs = @(
         ".git", ".github", "node_modules", "dist", "upload", "uploads", "data", "logs",
-        "deploy-packages",
+        "deploy-packages", "tmp",
         "openclaw-afb",
         "backups", "docfile", "UIPic",
         "plans", ".idea", ".vscode", ".zed", ".history", ".cache",

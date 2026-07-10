@@ -144,6 +144,12 @@ function renderType(type, t) {
           {t('市场奖励')}
         </Tag>
       );
+    case 9:
+      return (
+        <Tag color='cyan' shape='circle'>
+          {t('项目消耗')}
+        </Tag>
+      );
     default:
       return (
         <Tag color='grey' shape='circle'>
@@ -854,7 +860,9 @@ export const getLogsColumns = ({
             record.type === 0 ||
             record.type === 2 ||
             record.type === 5 ||
-            record.type === 6
+            record.type === 6 ||
+            record.type === 7 ||
+            record.type === 9
           )
         ) {
           return <></>;

@@ -39,19 +39,20 @@ type Log struct {
 
 // don't use iota, avoid change log type value
 const (
-	LogTypeUnknown       = 0
-	LogTypeTopup         = 1
-	LogTypeConsume       = 2
-	LogTypeManage        = 3
-	LogTypeSystem        = 4
-	LogTypeError         = 5
-	LogTypeRefund        = 6
-	LogTypeMarketConsume = 7
-	LogTypeMarketReward  = 8
+	LogTypeUnknown        = 0
+	LogTypeTopup          = 1
+	LogTypeConsume        = 2
+	LogTypeManage         = 3
+	LogTypeSystem         = 4
+	LogTypeError          = 5
+	LogTypeRefund         = 6
+	LogTypeMarketConsume  = 7
+	LogTypeMarketReward   = 8
+	LogTypeProjectConsume = 9
 )
 
 func IsConsumeLogType(logType int) bool {
-	return logType == LogTypeConsume || logType == LogTypeMarketConsume
+	return logType == LogTypeConsume || logType == LogTypeMarketConsume || logType == LogTypeProjectConsume
 }
 
 func formatUserLogs(logs []*Log, startIdx int) {
@@ -301,6 +302,9 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	if err != nil {
 		common.SysLog("failed to record task billing log: " + err.Error())
 	}
+	if common.DataExportEnabled && IsConsumeLogType(params.LogType) {
+		LogQuotaData(params.UserId, username, params.ModelName, params.Quota, common.GetTimestamp(), 0)
+	}
 }
 
 func GetAllLogs(logType int, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
@@ -442,7 +446,7 @@ type Stat struct {
 
 func statLogTypes(logType int) []int {
 	if logType == LogTypeUnknown {
-		return []int{LogTypeConsume, LogTypeMarketConsume}
+		return []int{LogTypeConsume, LogTypeMarketConsume, LogTypeProjectConsume}
 	}
 	return []int{logType}
 }

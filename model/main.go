@@ -296,10 +296,13 @@ func migrateDB() error {
 		&UserTool{},
 		&ToolRun{},
 		&ApiFile{},
+		&SSOProject{},
+		&ProjectBillingRecord{},
 	)
 	if err != nil {
 		return err
 	}
+	migrateSSOProjectLegacyKeyColumn()
 	if common.UsingSQLite {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -360,6 +363,8 @@ func migrateDBFast() error {
 		{&UserTool{}, "UserTool"},
 		{&ToolRun{}, "ToolRun"},
 		{&ApiFile{}, "ApiFile"},
+		{&SSOProject{}, "SSOProject"},
+		{&ProjectBillingRecord{}, "ProjectBillingRecord"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
 	errChan := make(chan error, len(migrations))
@@ -393,6 +398,7 @@ func migrateDBFast() error {
 			return err
 		}
 	}
+	migrateSSOProjectLegacyKeyColumn()
 	common.SysLog("database migrated")
 	return nil
 }

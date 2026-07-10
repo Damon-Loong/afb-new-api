@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
 
@@ -68,8 +69,11 @@ func isCorsOriginAllowed(origin string) bool {
 	if corsAllowAll {
 		return true
 	}
-	_, ok := corsOrigins[strings.TrimRight(origin, "/")]
-	return ok
+	normalized := strings.TrimRight(origin, "/")
+	if _, ok := corsOrigins[normalized]; ok {
+		return true
+	}
+	return model.IsSSOProjectOriginAllowed(normalized)
 }
 
 func PoweredBy() gin.HandlerFunc {

@@ -3,7 +3,8 @@
 # Quick Start:
 #   1. docker-compose up -d
 #   2. API / dashboard (embedded web): http://localhost:3000
-#   3. Mopc site (Mopc-web-site): http://localhost:3001  (static only; Mopc calls API via public URLs — see Mopc-web-site/src/api/*.ts defaults or pass VITE_* build args)
+#   3. Mopc web site (Mopc-web-site): http://localhost:3001  (static only; Mopc calls API via public URLs — see Mopc-web-site/src/api/*.ts defaults or pass VITE_* build args)
+#   4. Mopc mobile app web build (mopc_app): http://localhost:3002
 #
 # Using MySQL instead of PostgreSQL:
 #   1. Comment out the postgres service and SQL_DSN line 15
@@ -69,3 +70,17 @@ services:
     restart: always
     ports:
       - "3001:80"
+
+  mopc-app:
+    build:
+      context: ./mopc_app
+      dockerfile: Dockerfile
+      # Optional: point Mopc mobile at your public API (omit to use defaults baked in src/api/*.ts)
+      # args:
+      #   VITE_API_BASE_URL: https://your-domain.example.com/api
+      #   VITE_V1_BASE_URL: https://your-domain.example.com/v1
+    image: afb-mopc-app:latest
+    container_name: mopc-app
+    restart: always
+    ports:
+      - "3002:80"

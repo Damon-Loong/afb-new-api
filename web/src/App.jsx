@@ -42,6 +42,7 @@ import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
 import Market, { MarketDetail, MarketSubmit } from './pages/Market';
 import MarketAdmin from './pages/MarketAdmin';
+import ProjectAdmin from './pages/ProjectAdmin';
 import Task from './pages/Task';
 import ModelPage from './pages/Model';
 import ModelDeploymentPage from './pages/ModelDeployment';
@@ -147,6 +148,14 @@ function App() {
           element={
             <AdminRoute>
               <MarketAdmin />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/projects'
+          element={
+            <AdminRoute>
+              <ProjectAdmin />
             </AdminRoute>
           }
         />
