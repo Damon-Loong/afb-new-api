@@ -50,6 +50,7 @@ var WeChatAuthEnabled = false
 var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
 var RegisterEnabled = true
+
 // SMSLoginEnabled controls CN(+86) phone verification login.
 var SMSLoginEnabled = false
 
@@ -132,6 +133,7 @@ var BatchUpdateInterval int
 
 var RelayTimeout int // unit is second
 
+var RelayIdleConnTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

@@ -82,13 +82,14 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 	}
 
 	order := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       tradeNo,
-		PaymentMethod: model.PaymentMethodWeChatPay,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:          userId,
+		PlanId:          plan.Id,
+		Money:           plan.PriceAmount,
+		TradeNo:         tradeNo,
+		PaymentMethod:   model.PaymentMethodWeChatPay,
+		PaymentProvider: model.PaymentProviderWeChatPay,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := order.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
@@ -113,7 +114,7 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 	client, err := newWeChatPayClient(c.Request.Context())
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("订阅微信支付 client 初始化失败 trade_no=%s error=%q", tradeNo, err.Error()))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWeChatPay)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWeChatPay)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付配置错误"})
 		return
 	}
@@ -135,7 +136,7 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 			errMsg = err.Error()
 		}
 		logger.LogError(c.Request.Context(), fmt.Sprintf("订阅微信支付 下单失败 trade_no=%s plan_id=%d error=%q", tradeNo, plan.Id, errMsg))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWeChatPay)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWeChatPay)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -146,7 +147,7 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 	}
 	if strings.TrimSpace(codeURL) == "" {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("订阅微信支付 缺少 code_url trade_no=%s", tradeNo))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWeChatPay)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWeChatPay)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

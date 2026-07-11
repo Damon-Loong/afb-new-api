@@ -16,9 +16,10 @@ import (
 )
 
 var (
-	httpClient      *http.Client
-	proxyClientLock sync.Mutex
-	proxyClients    = make(map[string]*http.Client)
+	httpClient              *http.Client
+	ssrfProtectedHTTPClient *http.Client
+	proxyClientLock         sync.Mutex
+	proxyClients            = make(map[string]*http.Client)
 )
 
 func checkRedirect(req *http.Request, via []*http.Request) error {
@@ -33,10 +34,26 @@ func checkRedirect(req *http.Request, via []*http.Request) error {
 	return nil
 }
 
+func ValidateSSRFProtectedFetchURL(urlStr string) error {
+	fetchSetting := system_setting.GetFetchSetting()
+	return common.ValidateURLWithFetchSetting(urlStr, fetchSetting.EnableSSRFProtection, fetchSetting.AllowPrivateIp, fetchSetting.DomainFilterMode, fetchSetting.IpFilterMode, fetchSetting.DomainList, fetchSetting.IpList, fetchSetting.AllowedPorts, fetchSetting.ApplyIPFilterForDomain)
+}
+
+func checkProtectedFetchRedirect(req *http.Request, via []*http.Request) error {
+	if err := ValidateSSRFProtectedFetchURL(req.URL.String()); err != nil {
+		return fmt.Errorf("redirect to %s blocked: %v", req.URL.String(), err)
+	}
+	if len(via) >= 10 {
+		return fmt.Errorf("stopped after 10 redirects")
+	}
+	return nil
+}
+
 func InitHttpClient() {
 	transport := &http.Transport{
 		MaxIdleConns:        common.RelayMaxIdleConns,
 		MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+		IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 		ForceAttemptHTTP2:   true,
 		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
 	}
@@ -56,10 +73,19 @@ func InitHttpClient() {
 			CheckRedirect: checkRedirect,
 		}
 	}
+	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
 }
 
 func GetHttpClient() *http.Client {
 	return httpClient
+}
+
+func GetSSRFProtectedHTTPClient() *http.Client {
+	fetchSetting := system_setting.GetFetchSetting()
+	if fetchSetting != nil && !fetchSetting.EnableSSRFProtection {
+		return GetHttpClient()
+	}
+	return ssrfProtectedHTTPClient
 }
 
 // GetHttpClientWithProxy returns the default client or a proxy-enabled one when proxyURL is provided.
@@ -108,6 +134,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		transport := &http.Transport{
 			MaxIdleConns:        common.RelayMaxIdleConns,
 			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 			ForceAttemptHTTP2:   true,
 			Proxy:               http.ProxyURL(parsedURL),
 		}
@@ -147,6 +174,7 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		transport := &http.Transport{
 			MaxIdleConns:        common.RelayMaxIdleConns,
 			MaxIdleConnsPerHost: common.RelayMaxIdleConnsPerHost,
+			IdleConnTimeout:     time.Duration(common.RelayIdleConnTimeout) * time.Second,
 			ForceAttemptHTTP2:   true,
 			DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
 				return dialer.Dial(network, addr)

@@ -268,14 +268,15 @@ func RequestWeChatPayPay(c *gin.Context) {
 	}
 
 	topUp := &model.TopUp{
-		UserId:        id,
-		Amount:        amountToStore,
-		AmountDenom:   amountDenom,
-		Money:         payMoney,
-		TradeNo:       tradeNo,
-		PaymentMethod: model.PaymentMethodWeChatPay,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:          id,
+		Amount:          amountToStore,
+		AmountDenom:     amountDenom,
+		Money:           payMoney,
+		TradeNo:         tradeNo,
+		PaymentMethod:   model.PaymentMethodWeChatPay,
+		PaymentProvider: model.PaymentProviderWeChatPay,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("微信支付 创建充值订单失败 user_id=%d trade_no=%s amount=%s error=%q", id, tradeNo, amountDec.String(), err.Error()))
@@ -409,9 +410,25 @@ func WeChatPayWebhook(c *gin.Context) {
 		return
 	}
 
+	if transaction.Mchid == nil || strings.TrimSpace(*transaction.Mchid) != strings.TrimSpace(setting.WeChatPayMchID) {
+		logger.LogWarn(ctx, fmt.Sprintf("微信支付 webhook 商户号不匹配 trade_no=%s", tradeNo))
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+	if transaction.Appid == nil || strings.TrimSpace(*transaction.Appid) != strings.TrimSpace(setting.WeChatPayAppID) {
+		logger.LogWarn(ctx, fmt.Sprintf("微信支付 webhook AppID 不匹配 trade_no=%s", tradeNo))
+		c.AbortWithStatus(http.StatusBadRequest)
+		return
+	}
+
 	if strings.EqualFold(tradeState, "SUCCESS") {
 		LockOrder(tradeNo)
 		defer UnlockOrder(tradeNo)
+		if transaction.Amount == nil || transaction.Amount.Total == nil {
+			logger.LogError(ctx, fmt.Sprintf("微信支付 webhook 缺少支付金额 trade_no=%s", tradeNo))
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		if subOrder := model.GetSubscriptionOrderByTradeNo(tradeNo); subOrder != nil &&
 			subOrder.PaymentMethod == model.PaymentMethodWeChatPay &&
 			subOrder.Status == common.TopUpStatusPending {
@@ -420,7 +437,7 @@ func WeChatPayWebhook(c *gin.Context) {
 			if mErr == nil {
 				payload = string(payloadBytes)
 			}
-			if err := model.CompleteSubscriptionOrder(tradeNo, payload, model.PaymentMethodWeChatPay); err != nil {
+			if err := model.CompleteWeChatPaySubscriptionOrder(tradeNo, payload, *transaction.Amount.Total); err != nil {
 				logger.LogError(ctx, fmt.Sprintf("微信支付 订阅订单履约失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
 				c.AbortWithStatus(http.StatusInternalServerError)
 				return
@@ -428,7 +445,7 @@ func WeChatPayWebhook(c *gin.Context) {
 			c.Status(http.StatusOK)
 			return
 		}
-		if err := model.RechargeWeChatPay(tradeNo, c.ClientIP()); err != nil {
+		if err := model.RechargeWeChatPay(tradeNo, c.ClientIP(), *transaction.Amount.Total); err != nil {
 			logger.LogError(ctx, fmt.Sprintf("微信支付 充值处理失败 trade_no=%s client_ip=%s error=%q", tradeNo, c.ClientIP(), err.Error()))
 			// Return 500 to trigger retry.
 			c.AbortWithStatus(http.StatusInternalServerError)
@@ -446,11 +463,11 @@ func WeChatPayWebhook(c *gin.Context) {
 		if subOrder := model.GetSubscriptionOrderByTradeNo(tradeNo); subOrder != nil &&
 			subOrder.PaymentMethod == model.PaymentMethodWeChatPay &&
 			subOrder.Status == common.TopUpStatusPending {
-			if err := model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWeChatPay); err != nil &&
+			if err := model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWeChatPay); err != nil &&
 				!errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 				logger.LogError(ctx, fmt.Sprintf("微信支付 订阅订单标记失败 trade_no=%s error=%q", tradeNo, err.Error()))
 			}
-		} else if err := model.UpdatePendingTopUpStatus(tradeNo, model.PaymentMethodWeChatPay, common.TopUpStatusFailed); err != nil &&
+		} else if err := model.UpdatePendingTopUpStatus(tradeNo, model.PaymentProviderWeChatPay, common.TopUpStatusFailed); err != nil &&
 			!errors.Is(err, model.ErrTopUpNotFound) &&
 			!errors.Is(err, model.ErrTopUpStatusInvalid) &&
 			!errors.Is(err, model.ErrPaymentMethodMismatch) {

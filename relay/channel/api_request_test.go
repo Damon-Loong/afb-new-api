@@ -191,3 +191,17 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
 }
+
+func TestApplyUpstreamContentLength(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.ContentLength = 0
+	applyUpstreamContentLength(req, &relaycommon.RelayInfo{UpstreamRequestBodySize: 12345})
+	require.Equal(t, int64(12345), req.ContentLength)
+}
+
+func TestApplyUpstreamContentLengthKeepsKnownLength(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.ContentLength = 99
+	applyUpstreamContentLength(req, &relaycommon.RelayInfo{UpstreamRequestBodySize: 12345})
+	require.Equal(t, int64(99), req.ContentLength)
+}

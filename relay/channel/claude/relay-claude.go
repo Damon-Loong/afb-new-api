@@ -1,11 +1,13 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -105,6 +107,61 @@ func maybeMarkClaudeRefusal(c *gin.Context, stopReason string) {
 	}
 	if strings.EqualFold(stopReason, "refusal") {
 		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	}
+}
+
+func normalizeClaudeFileMimeType(mimeType string) string {
+	mimeType = strings.ToLower(strings.TrimSpace(mimeType))
+	if separator := strings.Index(mimeType, ";"); separator >= 0 {
+		mimeType = strings.TrimSpace(mimeType[:separator])
+	}
+	return mimeType
+}
+
+func isClaudeSupportedImageMimeType(mimeType string) bool {
+	switch normalizeClaudeFileMimeType(mimeType) {
+	case "image/jpeg", "image/png", "image/gif", "image/webp":
+		return true
+	default:
+		return false
+	}
+}
+
+func isClaudeTextFileMimeType(mimeType string) bool {
+	mimeType = normalizeClaudeFileMimeType(mimeType)
+	return strings.HasPrefix(mimeType, "text/") || mimeType == "application/json" || mimeType == "application/xml" || mimeType == "application/x-yaml" || mimeType == "application/yaml"
+}
+
+func convertOpenAIFileToClaudeContent(c *gin.Context, mediaMessage dto.MediaContent) (*dto.ClaudeMediaMessage, error) {
+	source := mediaMessage.ToFileSource()
+	if source == nil {
+		return nil, nil
+	}
+	base64Data, mimeType, err := service.GetBase64Data(c, source, "formatting file for Claude")
+	if err != nil {
+		return nil, fmt.Errorf("get file data failed: %s", err.Error())
+	}
+	mimeType = normalizeClaudeFileMimeType(mimeType)
+	switch {
+	case mimeType == "application/pdf":
+		return &dto.ClaudeMediaMessage{
+			Type:   "document",
+			Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: mimeType, Data: base64Data},
+		}, nil
+	case isClaudeTextFileMimeType(mimeType):
+		decoded, decodeErr := base64.StdEncoding.DecodeString(base64Data)
+		if decodeErr != nil || !utf8.Valid(decoded) {
+			return nil, nil
+		}
+		text := string(decoded)
+		return &dto.ClaudeMediaMessage{Type: "text", Text: &text}, nil
+	case isClaudeSupportedImageMimeType(mimeType):
+		return &dto.ClaudeMediaMessage{
+			Type:   "image",
+			Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: mimeType, Data: base64Data},
+		}, nil
+	default:
+		return nil, nil
 	}
 }
 
@@ -433,6 +490,15 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 								Text: common.GetPointer[string](mediaMessage.Text),
 							})
 						}
+					case dto.ContentTypeFile:
+						convertedFile, err := convertOpenAIFileToClaudeContent(c, mediaMessage)
+						if err != nil {
+							return nil, err
+						}
+						if convertedFile != nil {
+							claudeMediaMessages = append(claudeMediaMessages, *convertedFile)
+						}
+						continue
 					default:
 						if mediaMessage.Type == dto.ContentTypeImageURL {
 							imageMedia := mediaMessage.GetImageMedia()
@@ -493,9 +559,10 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 				if message.ToolCalls != nil {
 					for _, toolCall := range message.ParseToolCalls() {
 						inputObj := make(map[string]any)
-						if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &inputObj); err != nil {
-							common.SysLog("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
-							continue
+						if args := toolCall.Function.Arguments; args != "" {
+							if err := json.Unmarshal([]byte(args), &inputObj); err != nil {
+								common.SysLog("tool call function arguments is not a map[string]any: " + fmt.Sprintf("%v", toolCall.Function.Arguments))
+							}
 						}
 						claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
 							Type:  "tool_use",
@@ -529,10 +596,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 	tools := make([]dto.ToolCallResponse, 0)
 	fcIdx := 0
 	if claudeResponse.Index != nil {
-		fcIdx = *claudeResponse.Index - 1
-		if fcIdx < 0 {
-			fcIdx = 0
-		}
+		fcIdx = *claudeResponse.Index
 	}
 	var choice dto.ChatCompletionsStreamResponseChoice
 	if claudeResponse.Type == "message_start" {

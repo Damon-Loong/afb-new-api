@@ -157,6 +157,9 @@ type RelayInfo struct {
 	UseRuntimeHeadersOverride              bool
 	ParamOverrideAudit                     []string
 
+	// UpstreamRequestBodySize preserves Content-Length when the outbound body is type-erased.
+	UpstreamRequestBodySize int64
+
 	PriceData types.PriceData
 
 	Request dto.Request

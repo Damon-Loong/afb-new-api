@@ -639,3 +639,84 @@ func TestRequestOpenAI2ClaudeMessage_ConvertsTextFileContentToText(t *testing.T)
 	require.NotNil(t, content[0].Text)
 	require.Equal(t, "alpha\nbeta", *content[0].Text)
 }
+
+func TestRequestOpenAI2ClaudeMessage_SupportsFileMapWithExplicitMimeType(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{{
+			Role: "user",
+			Content: []any{map[string]any{
+				"type": dto.ContentTypeFile,
+				"file": map[string]any{
+					"filename":  "payload.bin",
+					"file_data": "JVBERi0xLjQK",
+					"mime_type": "application/pdf; charset=binary",
+				},
+			}},
+		}},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	content := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.Len(t, content, 1)
+	require.Equal(t, "document", content[0].Type)
+	require.Equal(t, "application/pdf", content[0].Source.MediaType)
+}
+
+func TestRequestOpenAI2ClaudeMessage_SupportsImageFileContent(t *testing.T) {
+	pngData := base64.StdEncoding.EncodeToString([]byte("not-a-real-png"))
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{{
+			Role: "user",
+			Content: []any{dto.MediaContent{
+				Type: dto.ContentTypeFile,
+				File: &dto.MessageFile{FileName: "image.png", FileData: pngData},
+			}},
+		}},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	content := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.Len(t, content, 1)
+	require.Equal(t, "image", content[0].Type)
+	require.Equal(t, "image/png", content[0].Source.MediaType)
+	require.Equal(t, pngData, content[0].Source.Data)
+}
+
+func TestRequestOpenAI2ClaudeMessage_IgnoresUnsupportedImageFileType(t *testing.T) {
+	request := dto.GeneralOpenAIRequest{
+		Model: "claude-3-5-sonnet",
+		Messages: []dto.Message{{
+			Role: "user",
+			Content: []any{
+				dto.MediaContent{Type: dto.ContentTypeText, Text: "keep this"},
+				dto.MediaContent{
+					Type: dto.ContentTypeFile,
+					File: &dto.MessageFile{FileName: "photo.heic", FileData: base64.StdEncoding.EncodeToString([]byte("heic"))},
+				},
+			},
+		}},
+	}
+
+	claudeRequest, err := RequestOpenAI2ClaudeMessage(nil, request)
+	require.NoError(t, err)
+	content := claudeRequest.Messages[0].Content.([]dto.ClaudeMediaMessage)
+	require.Len(t, content, 1)
+	require.Equal(t, "text", content[0].Type)
+}
+
+func TestMediaContentGetFileAcceptsLegacyFileNameKey(t *testing.T) {
+	media := dto.MediaContent{
+		Type: dto.ContentTypeFile,
+		File: map[string]any{
+			"file_name": "legacy.txt",
+			"file_data": base64.StdEncoding.EncodeToString([]byte("legacy")),
+		},
+	}
+	file := media.GetFile()
+	require.NotNil(t, file)
+	require.Equal(t, "legacy.txt", file.FileName)
+}

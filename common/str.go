@@ -3,10 +3,12 @@ package common
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 	"unsafe"
 
 	"github.com/samber/lo"
@@ -19,6 +21,41 @@ var (
 	// maskApiKeyPattern matches patterns like 'api_key:xxx' or "api_key:xxx" to mask the API key value
 	maskApiKeyPattern = regexp.MustCompile(`(['"]?)api_key:([^\s'"]+)(['"]?)`)
 )
+
+const (
+	LocalLogContentLimit    = 2048
+	StoredErrorContentLimit = 16 * 1024
+)
+
+func truncateUTF8(content string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	if len(content) <= limit {
+		return content
+	}
+	end := limit
+	for end > 0 && !utf8.ValidString(content[:end]) {
+		end--
+	}
+	return content[:end]
+}
+
+// LocalLogPreview limits log-only content unless debug logging is enabled.
+func LocalLogPreview(content string) string {
+	if DebugEnabled || len(content) <= LocalLogContentLimit {
+		return content
+	}
+	return fmt.Sprintf("%s... [truncated, original_length=%d, limit=%d]", truncateUTF8(content, LocalLogContentLimit), len(content), LocalLogContentLimit)
+}
+
+// StoredErrorPreview always limits persisted upstream error content.
+func StoredErrorPreview(content string) string {
+	if len(content) <= StoredErrorContentLimit {
+		return content
+	}
+	return fmt.Sprintf("%s... [truncated, original_length=%d, limit=%d]", truncateUTF8(content, StoredErrorContentLimit), len(content), StoredErrorContentLimit)
+}
 
 func GetStringIfEmpty(str string, defaultValue string) string {
 	if str == "" {

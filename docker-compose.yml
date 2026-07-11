@@ -34,6 +34,7 @@ services:
       - SQL_DSN=root:replace_with_mysql_password@tcp(replace_with_mysql_host:3306)/new-api?charset=utf8mb4&parseTime=True&loc=Local # ⚠️ IMPORTANT: Replace with your remote MySQL connection
       - REDIS_CONN_STRING=redis://:replace_with_redis_password@replace_with_redis_host:6379/0 # ⚠️ IMPORTANT: Replace with your remote Redis connection
       - TZ=Asia/Shanghai
+      - RELAY_IDLE_CONN_TIMEOUT=0  # Disable idle keep-alive connection recycling
       - GET_MEDIA_TOKEN=false  # 关闭本地媒体 token 精确估算，避免为图片预估而下载 URL
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)

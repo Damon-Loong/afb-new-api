@@ -265,7 +265,7 @@ func recalcQuotaFromRatios(info *relaycommon.RelayInfo, ratios map[string]float6
 	// 先除掉原有的 OtherRatios 恢复基础额度
 	for _, ra := range info.PriceData.OtherRatios {
 		if ra != 1.0 && ra > 0 {
-			baseQuota = int(float64(baseQuota) / ra)
+			baseQuota = common.QuotaFromFloat(float64(baseQuota) / ra)
 		}
 	}
 	// 应用新的 ratios

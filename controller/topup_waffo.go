@@ -208,13 +208,14 @@ func RequestWaffoPay(c *gin.Context) {
 
 	// 创建本地订单
 	topUp := &model.TopUp{
-		UserId:        id,
-		Amount:        amount,
-		Money:         payMoney,
-		TradeNo:       merchantOrderId,
-		PaymentMethod: model.PaymentMethodWaffo,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:          id,
+		Amount:          amount,
+		Money:           payMoney,
+		TradeNo:         merchantOrderId,
+		PaymentMethod:   model.PaymentMethodWaffo,
+		PaymentProvider: model.PaymentProviderWaffo,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := topUp.Insert(); err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 创建充值订单失败 user_id=%d trade_no=%s amount=%d error=%q", id, merchantOrderId, req.Amount, err.Error()))
@@ -382,11 +383,11 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 			if sub := model.GetSubscriptionOrderByTradeNo(result.MerchantOrderID); sub != nil &&
 				sub.PaymentMethod == model.PaymentMethodWaffo &&
 				sub.Status == common.TopUpStatusPending {
-				if err := model.ExpireSubscriptionOrder(result.MerchantOrderID, model.PaymentMethodWaffo); err != nil &&
+				if err := model.ExpireSubscriptionOrder(result.MerchantOrderID, model.PaymentProviderWaffo); err != nil &&
 					!errors.Is(err, model.ErrSubscriptionOrderNotFound) {
 					logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 订阅订单标记失败 trade_no=%s error=%q", result.MerchantOrderID, err.Error()))
 				}
-			} else if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentMethodWaffo, common.TopUpStatusFailed); err != nil &&
+			} else if err := model.UpdatePendingTopUpStatus(result.MerchantOrderID, model.PaymentProviderWaffo, common.TopUpStatusFailed); err != nil &&
 				!errors.Is(err, model.ErrTopUpNotFound) &&
 				!errors.Is(err, model.ErrTopUpStatusInvalid) {
 				logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 标记失败订单状态失败 trade_no=%s error=%q", result.MerchantOrderID, err.Error()))
@@ -405,7 +406,7 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 		sub.PaymentMethod == model.PaymentMethodWaffo &&
 		sub.Status == common.TopUpStatusPending {
 		payload := common.GetJsonString(result)
-		if err := model.CompleteSubscriptionOrder(merchantOrderId, payload, model.PaymentMethodWaffo); err != nil {
+		if err := model.CompleteSubscriptionOrder(merchantOrderId, payload, model.PaymentProviderWaffo); err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("Waffo 订阅订单履约失败 trade_no=%s client_ip=%s error=%q", merchantOrderId, c.ClientIP(), err.Error()))
 			sendWaffoWebhookResponse(c, wh, false, err.Error())
 			return

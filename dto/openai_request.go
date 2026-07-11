@@ -3,6 +3,8 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"mime"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -337,10 +339,15 @@ func (m *MediaContent) GetFile() *MessageFile {
 			return m.File.(*MessageFile)
 		}
 		if itemMap, ok := m.File.(map[string]any); ok {
+			fileName := common.Interface2String(itemMap["filename"])
+			if fileName == "" {
+				fileName = common.Interface2String(itemMap["file_name"])
+			}
 			out := &MessageFile{
-				FileName: common.Interface2String(itemMap["file_name"]),
+				FileName: fileName,
 				FileData: common.Interface2String(itemMap["file_data"]),
 				FileId:   common.Interface2String(itemMap["file_id"]),
+				MimeType: common.Interface2String(itemMap["mime_type"]),
 			}
 			return out
 		}
@@ -386,7 +393,11 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		if file == nil || file.FileData == "" {
 			return nil
 		}
-		return types.NewFileSourceFromData(file.FileData, "")
+		mimeType := strings.TrimSpace(file.MimeType)
+		if mimeType == "" && file.FileName != "" {
+			mimeType = mime.TypeByExtension(strings.ToLower(filepath.Ext(file.FileName)))
+		}
+		return types.NewFileSourceFromData(file.FileData, mimeType)
 	case ContentTypeVideoUrl:
 		video := m.GetVideoUrl()
 		if video == nil || video.Url == "" {
@@ -416,6 +427,7 @@ type MessageFile struct {
 	FileName string `json:"filename,omitempty"`
 	FileData string `json:"file_data,omitempty"`
 	FileId   string `json:"file_id,omitempty"`
+	MimeType string `json:"mime_type,omitempty"`
 }
 
 type MessageVideoUrl struct {
@@ -607,6 +619,9 @@ func (m *Message) ParseContent() []MediaContent {
 					})
 				} else {
 					fileName, ok1 := fileData["filename"].(string)
+					if !ok1 || fileName == "" {
+						fileName, ok1 = fileData["file_name"].(string)
+					}
 					fileDataStr, ok2 := fileData["file_data"].(string)
 					if ok1 && ok2 {
 						contentList = append(contentList, MediaContent{
@@ -614,6 +629,7 @@ func (m *Message) ParseContent() []MediaContent {
 							File: &MessageFile{
 								FileName: fileName,
 								FileData: fileDataStr,
+								MimeType: common.Interface2String(fileData["mime_type"]),
 							},
 						})
 					}

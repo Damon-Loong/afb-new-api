@@ -84,13 +84,14 @@ func SubscriptionRequestWaffoPay(c *gin.Context) {
 	paymentRequestId := tradeNo
 
 	subOrder := &model.SubscriptionOrder{
-		UserId:        userId,
-		PlanId:        plan.Id,
-		Money:         plan.PriceAmount,
-		TradeNo:       tradeNo,
-		PaymentMethod: model.PaymentMethodWaffo,
-		CreateTime:    time.Now().Unix(),
-		Status:        common.TopUpStatusPending,
+		UserId:          userId,
+		PlanId:          plan.Id,
+		Money:           plan.PriceAmount,
+		TradeNo:         tradeNo,
+		PaymentMethod:   model.PaymentMethodWaffo,
+		PaymentProvider: model.PaymentProviderWaffo,
+		CreateTime:      time.Now().Unix(),
+		Status:          common.TopUpStatusPending,
 	}
 	if err := subOrder.Insert(); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "创建订单失败"})
@@ -100,7 +101,7 @@ func SubscriptionRequestWaffoPay(c *gin.Context) {
 	sdk, err := getWaffoSDK()
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("订阅 Waffo SDK 初始化失败 trade_no=%s error=%q", tradeNo, err.Error()))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWaffo)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWaffo)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付配置错误"})
 		return
 	}
@@ -146,13 +147,13 @@ func SubscriptionRequestWaffoPay(c *gin.Context) {
 	resp, err := sdk.Order().Create(c.Request.Context(), createParams, nil)
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("订阅 Waffo 创建订单失败 trade_no=%s error=%q", tradeNo, err.Error()))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWaffo)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWaffo)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
 	if !resp.IsSuccess() {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("订阅 Waffo 业务失败 trade_no=%s code=%s msg=%q", tradeNo, resp.Code, resp.Message))
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWaffo)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWaffo)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
@@ -163,7 +164,7 @@ func SubscriptionRequestWaffoPay(c *gin.Context) {
 		paymentUrl = orderData.OrderAction
 	}
 	if paymentUrl == "" {
-		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentMethodWaffo)
+		_ = model.ExpireSubscriptionOrder(tradeNo, model.PaymentProviderWaffo)
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -156,6 +157,55 @@ func TestCompleteSubscriptionOrder_RejectsMismatchedPaymentMethod(t *testing.T) 
 	assert.Nil(t, topUp)
 }
 
+func TestCompleteWeChatPaySubscriptionOrder_ValidatesAmountAndIsIdempotent(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 203, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 302)
+	order := &SubscriptionOrder{
+		UserId:          203,
+		PlanId:          plan.Id,
+		Money:           9.99,
+		TradeNo:         "wechat-subscription-success",
+		PaymentMethod:   PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, order.Insert())
+
+	require.NoError(t, CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{\"provider\":\"wechatpay\"}", 999))
+	assert.Equal(t, common.TopUpStatusSuccess, GetSubscriptionOrderByTradeNo(order.TradeNo).Status)
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 203))
+
+	require.NoError(t, CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{\"duplicate\":true}", 999))
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 203))
+}
+
+func TestCompleteWeChatPaySubscriptionOrder_RejectsAmountMismatch(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 204, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 303)
+	order := &SubscriptionOrder{
+		UserId:          204,
+		PlanId:          plan.Id,
+		Money:           9.99,
+		TradeNo:         "wechat-subscription-amount-mismatch",
+		PaymentMethod:   PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, order.Insert())
+
+	err := CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{\"provider\":\"wechatpay\"}", 998)
+	require.ErrorIs(t, err, ErrPaymentAmountMismatch)
+	assert.Equal(t, common.TopUpStatusPending, GetSubscriptionOrderByTradeNo(order.TradeNo).Status)
+	assert.Zero(t, countUserSubscriptionsForPaymentGuardTest(t, 204))
+	assert.Nil(t, GetTopUpByTradeNo(order.TradeNo))
+}
+
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentMethod(t *testing.T) {
 	truncateTables(t)
 
@@ -169,4 +219,152 @@ func TestExpireSubscriptionOrder_RejectsMismatchedPaymentMethod(t *testing.T) {
 	order := GetSubscriptionOrderByTradeNo("sub-expire-guard")
 	require.NotNil(t, order)
 	assert.Equal(t, common.TopUpStatusPending, order.Status)
+}
+
+func TestCompleteEpayTopUp_AtomicallyCreditsAndIsIdempotent(t *testing.T) {
+	truncateTables(t)
+	originalQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 100
+	t.Cleanup(func() { common.QuotaPerUnit = originalQuotaPerUnit })
+
+	insertUserForPaymentGuardTest(t, 501, 10)
+	topUp := &TopUp{
+		UserId:          501,
+		Amount:          2,
+		Money:           2,
+		TradeNo:         "epay-atomic-success",
+		PaymentMethod:   "alipay",
+		PaymentProvider: PaymentProviderEpay,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	result, err := CompleteEpayTopUp(topUp.TradeNo, "alipay")
+	require.NoError(t, err)
+	require.True(t, result.NewlyCredited)
+	assert.Equal(t, 200, result.QuotaToAdd)
+	assert.Equal(t, 210, getUserQuotaForPaymentGuardTest(t, 501))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+
+	result, err = CompleteEpayTopUp(topUp.TradeNo, "alipay")
+	require.NoError(t, err)
+	assert.False(t, result.NewlyCredited)
+	assert.Equal(t, 210, getUserQuotaForPaymentGuardTest(t, 501))
+}
+
+func TestCompleteEpayTopUp_RejectsCrossGatewayAndPaymentMethod(t *testing.T) {
+	tests := []struct {
+		name           string
+		provider       string
+		storedMethod   string
+		callbackMethod string
+	}{
+		{name: "cross gateway", provider: PaymentProviderStripe, storedMethod: PaymentMethodStripe, callbackMethod: "alipay"},
+		{name: "wrong epay method", provider: PaymentProviderEpay, storedMethod: "wxpay", callbackMethod: "alipay"},
+	}
+	for index, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			truncateTables(t)
+			userID := 520 + index
+			insertUserForPaymentGuardTest(t, userID, 5)
+			topUp := &TopUp{
+				UserId: userID, Amount: 1, Money: 1,
+				TradeNo:       fmt.Sprintf("epay-reject-%d", index),
+				PaymentMethod: test.storedMethod, PaymentProvider: test.provider,
+				Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+			}
+			require.NoError(t, topUp.Insert())
+			_, err := CompleteEpayTopUp(topUp.TradeNo, test.callbackMethod)
+			require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+			assert.Equal(t, 5, getUserQuotaForPaymentGuardTest(t, userID))
+			assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+		})
+	}
+}
+
+func TestCompleteEpayTopUp_RollsBackWhenUserMissing(t *testing.T) {
+	truncateTables(t)
+	topUp := &TopUp{
+		UserId: 9999, Amount: 1, Money: 1, TradeNo: "epay-missing-user",
+		PaymentMethod: "alipay", PaymentProvider: PaymentProviderEpay,
+		Status: common.TopUpStatusPending, CreateTime: time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	_, err := CompleteEpayTopUp(topUp.TradeNo, "alipay")
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+}
+
+func TestRechargeWeChatPay_AtomicallyCreditsAndIsIdempotent(t *testing.T) {
+	truncateTables(t)
+	originalQuotaPerUnit := common.QuotaPerUnit
+	common.QuotaPerUnit = 100
+	t.Cleanup(func() { common.QuotaPerUnit = originalQuotaPerUnit })
+
+	insertUserForPaymentGuardTest(t, 601, 10)
+	topUp := &TopUp{
+		UserId: 601, Amount: 25000, AmountDenom: 10000, Money: 5.27,
+		TradeNo: "wechat-atomic-success", PaymentMethod: PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay, Status: common.TopUpStatusPending,
+		CreateTime: time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	require.NoError(t, RechargeWeChatPay(topUp.TradeNo, "127.0.0.1", 527))
+	assert.Equal(t, 260, getUserQuotaForPaymentGuardTest(t, 601))
+	assert.Equal(t, common.TopUpStatusSuccess, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+
+	require.NoError(t, RechargeWeChatPay(topUp.TradeNo, "127.0.0.1", 527))
+	assert.Equal(t, 260, getUserQuotaForPaymentGuardTest(t, 601))
+}
+
+func TestRechargeWeChatPay_RejectsAmountMismatch(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 602, 10)
+	topUp := &TopUp{
+		UserId: 602, Amount: 1, AmountDenom: 1, Money: 9.99,
+		TradeNo: "wechat-amount-mismatch", PaymentMethod: PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay, Status: common.TopUpStatusPending,
+		CreateTime: time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	err := RechargeWeChatPay(topUp.TradeNo, "127.0.0.1", 998)
+	require.ErrorIs(t, err, ErrPaymentAmountMismatch)
+	assert.Equal(t, 10, getUserQuotaForPaymentGuardTest(t, 602))
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+}
+
+func TestRechargeWeChatPay_RejectsCrossProvider(t *testing.T) {
+	truncateTables(t)
+	insertUserForPaymentGuardTest(t, 603, 10)
+	topUp := &TopUp{
+		UserId: 603, Amount: 1, AmountDenom: 1, Money: 9.99,
+		TradeNo: "wechat-cross-provider", PaymentMethod: "wxpay",
+		PaymentProvider: PaymentProviderEpay, Status: common.TopUpStatusPending,
+		CreateTime: time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	err := RechargeWeChatPay(topUp.TradeNo, "127.0.0.1", 999)
+	require.ErrorIs(t, err, ErrPaymentMethodMismatch)
+	assert.Equal(t, 10, getUserQuotaForPaymentGuardTest(t, 603))
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
+}
+
+func TestRechargeWeChatPay_RollsBackWhenUserMissing(t *testing.T) {
+	truncateTables(t)
+	topUp := &TopUp{
+		UserId: 9998, Amount: 1, AmountDenom: 1, Money: 9.99,
+		TradeNo: "wechat-missing-user", PaymentMethod: PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay, Status: common.TopUpStatusPending,
+		CreateTime: time.Now().Unix(),
+	}
+	require.NoError(t, topUp.Insert())
+
+	err := RechargeWeChatPay(topUp.TradeNo, "127.0.0.1", 999)
+	require.Error(t, err)
+	assert.Equal(t, common.TopUpStatusPending, getTopUpStatusForPaymentGuardTest(t, topUp.TradeNo))
 }

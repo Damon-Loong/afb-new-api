@@ -96,7 +96,7 @@ func calcViolationFeeQuota(amount, groupRatio float64) int {
 	if quota <= 0 {
 		return 0
 	}
-	return int(quota)
+	return common.QuotaFromInt64(quota)
 }
 
 // ChargeViolationFeeIfNeeded charges an additional fee after the normal flow finishes (including refund).
