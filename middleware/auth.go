@@ -60,7 +60,7 @@ func authHelper(c *gin.Context, minRole int) {
 					"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
 				})
 			} else {
-				c.JSON(http.StatusOK, gin.H{
+				c.JSON(http.StatusUnauthorized, gin.H{
 					"success": false,
 					"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 				})
@@ -84,7 +84,7 @@ func authHelper(c *gin.Context, minRole int) {
 			status = user.Status
 			useAccessToken = true
 		} else {
-			c.JSON(http.StatusOK, gin.H{
+			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 			})
