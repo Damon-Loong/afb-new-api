@@ -5,6 +5,10 @@ import {
   showError,
   showSuccess,
 } from '../../../../helpers';
+import {
+  combineBillingExpr,
+  splitBillingExprAndRequestRules,
+} from '../components/requestRuleExpr';
 
 export const PAGE_SIZE = 10;
 export const PRICE_SUFFIX = '$/1M tokens';
@@ -13,6 +17,8 @@ const EMPTY_CANDIDATE_MODEL_NAMES = [];
 const EMPTY_MODEL = {
   name: '',
   billingMode: 'per-token',
+  billingExpr: '',
+  requestRuleExpr: '',
   fixedPrice: '',
   inputPrice: '',
   completionPrice: '',
@@ -129,6 +135,10 @@ const buildModelState = (name, sourceMaps) => {
     sourceMaps.AudioCompletionRatio[name],
   );
   const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const fullBillingExpr = sourceMaps.BillingExpr[name] || '';
+  const splitBilling = splitBillingExprAndRequestRules(fullBillingExpr);
+  const dynamicBilling =
+    sourceMaps.BillingMode[name] === 'tiered_expr' && hasValue(fullBillingExpr);
   const inputPrice = ratioToBasePrice(modelRatio);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
@@ -139,7 +149,13 @@ const buildModelState = (name, sourceMaps) => {
   return {
     ...EMPTY_MODEL,
     name,
-    billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
+    billingMode: dynamicBilling
+      ? 'tiered_expr'
+      : hasValue(fixedPrice)
+        ? 'per-request'
+        : 'per-token',
+    billingExpr: splitBilling.billingExpr || '',
+    requestRuleExpr: splitBilling.requestRuleExpr || '',
     fixedPrice,
     inputPrice,
     completionRatioLocked: completionRatioMeta.locked,
@@ -187,6 +203,7 @@ const buildModelState = (name, sourceMaps) => {
       audioCompletionRatio,
     },
     hasConflict:
+      !dynamicBilling &&
       hasValue(fixedPrice) &&
       [
         modelRatio,
@@ -201,13 +218,22 @@ const buildModelState = (name, sourceMaps) => {
 };
 
 export const isBasePricingUnset = (model) =>
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+  model.billingMode !== 'tiered_expr' &&
+  !hasValue(model.fixedPrice) &&
+  !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
     return [];
   }
   const warnings = [];
+
+  if (
+    model.billingMode === 'tiered_expr' &&
+    !hasValue(combineBillingExpr(model.billingExpr, model.requestRuleExpr))
+  ) {
+    warnings.push(t('表达式计费需要填写有效的计费表达式。'));
+  }
   const hasDerivedPricing = [
     model.inputPrice,
     model.completionPrice,
@@ -262,6 +288,11 @@ export const getModelWarnings = (model, t) => {
 };
 
 export const buildSummaryText = (model, t) => {
+  if (model.billingMode === 'tiered_expr') {
+    return hasValue(model.billingExpr)
+      ? t('动态表达式计费')
+      : t('未设置表达式');
+  }
   if (model.billingMode === 'per-request' && hasValue(model.fixedPrice)) {
     return `${t('按次')} $${model.fixedPrice} / ${t('次')}`;
   }
@@ -303,6 +334,8 @@ const serializeModel = (model, t) => {
     ImageRatio: null,
     AudioRatio: null,
     AudioCompletionRatio: null,
+    'billing_setting.billing_mode': null,
+    'billing_setting.billing_expr': null,
   };
 
   if (model.billingMode === 'per-request') {
@@ -310,6 +343,20 @@ const serializeModel = (model, t) => {
       result.ModelPrice = toNormalizedNumber(model.fixedPrice);
     }
     return result;
+  }
+
+  if (model.billingMode === 'tiered_expr') {
+    const fullExpr = combineBillingExpr(
+      model.billingExpr || '',
+      model.requestRuleExpr || '',
+    );
+    if (!hasValue(fullExpr)) {
+      throw new Error(
+        t('模型 {{name}} 缺少动态计费表达式', { name: model.name }),
+      );
+    }
+    result['billing_setting.billing_mode'] = 'tiered_expr';
+    result['billing_setting.billing_expr'] = fullExpr;
   }
 
   const inputPrice = toNumberOrNull(model.inputPrice);
@@ -371,7 +418,9 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  result.ModelRatio = toNormalizedNumber(pricePerMillionToModelRatio(inputPrice));
+  result.ModelRatio = toNormalizedNumber(
+    pricePerMillionToModelRatio(inputPrice),
+  );
 
   if (!model.completionRatioLocked && completionPrice !== null) {
     result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
@@ -413,6 +462,19 @@ const serializeModel = (model, t) => {
 
 export const buildPreviewRows = (model, t) => {
   if (!model) return [];
+
+  if (model.billingMode === 'tiered_expr') {
+    return [
+      { key: 'BillingMode', label: 'BillingMode', value: 'tiered_expr' },
+      {
+        key: 'BillingExpr',
+        label: t('计费表达式'),
+        value:
+          combineBillingExpr(model.billingExpr, model.requestRuleExpr) ||
+          t('空'),
+      },
+    ];
+  }
 
   if (model.billingMode === 'per-request') {
     return [
@@ -570,6 +632,8 @@ export function useModelPricingEditorState({
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
+      BillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
+      BillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
     };
 
     const names = new Set([
@@ -583,6 +647,8 @@ export function useModelPricingEditorState({
       ...Object.keys(sourceMaps.ImageRatio),
       ...Object.keys(sourceMaps.AudioRatio),
       ...Object.keys(sourceMaps.AudioCompletionRatio),
+      ...Object.keys(sourceMaps.BillingMode),
+      ...Object.keys(sourceMaps.BillingExpr),
     ]);
 
     const nextModels = Array.from(names)
@@ -800,6 +866,22 @@ export function useModelPricingEditorState({
     }));
   };
 
+  const handleBillingExprChange = (value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      billingExpr: value,
+    }));
+  };
+
+  const handleRequestRuleExprChange = (value) => {
+    if (!selectedModel) return;
+    upsertModel(selectedModel.name, (model) => ({
+      ...model,
+      requestRuleExpr: value,
+    }));
+  };
+
   const addModel = (modelName) => {
     const trimmedName = modelName.trim();
     if (!trimmedName) {
@@ -864,6 +946,8 @@ export function useModelPricingEditorState({
         const nextModel = {
           ...model,
           billingMode: selectedModel.billingMode,
+          billingExpr: selectedModel.billingExpr,
+          requestRuleExpr: selectedModel.requestRuleExpr,
           fixedPrice: selectedModel.fixedPrice,
           inputPrice: selectedModel.inputPrice,
           completionPrice: selectedModel.completionPrice,
@@ -931,6 +1015,8 @@ export function useModelPricingEditorState({
         ImageRatio: {},
         AudioRatio: {},
         AudioCompletionRatio: {},
+        'billing_setting.billing_mode': {},
+        'billing_setting.billing_expr': {},
       };
 
       for (const model of models) {
@@ -988,6 +1074,8 @@ export function useModelPricingEditorState({
     handleOptionalFieldToggle,
     handleNumericFieldChange,
     handleBillingModeChange,
+    handleBillingExprChange,
+    handleRequestRuleExprChange,
     handleSubmit,
     addModel,
     deleteModel,

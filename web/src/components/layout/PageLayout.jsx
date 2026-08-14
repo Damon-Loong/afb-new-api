@@ -22,7 +22,6 @@ import { Layout } from '@douyinfe/semi-ui';
 import SiderBar from './SiderBar';
 import App from '../../App';
 import FooterBar from './Footer';
-import LiquidEtherBackground from '../backgrounds/LiquidEtherBackground';
 import { ToastContainer } from 'react-toastify';
 import ErrorBoundary from '../common/ErrorBoundary';
 import React, { useContext, useEffect, useState } from 'react';
@@ -39,7 +38,6 @@ import {
 import { UserContext } from '../../context/User';
 import { StatusContext } from '../../context/Status';
 import { useLocation } from 'react-router-dom';
-import { useActualTheme } from '../../context/Theme';
 import { normalizeLanguage } from '../../i18n/language';
 const { Sider, Content, Header } = Layout;
 
@@ -51,7 +49,6 @@ const PageLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
-  const actualTheme = useActualTheme();
 
   const cardProPages = [
     '/console/channel',
@@ -178,7 +175,6 @@ const PageLayout = () => {
         overflow: isMobile ? 'visible' : 'hidden',
       }}
     >
-      {actualTheme === 'dark' && <LiquidEtherBackground />}
       <Header
         style={{
           padding: 0,

@@ -78,7 +78,7 @@ func normalizeSSOProjectPayload(payload ssoProjectPayload, partial bool) (*model
 			return nil, nil, errors.New("项目名称不能为空，且不能超过 128 个字符")
 		}
 	}
-	if !partial || officialURL != "" {
+	if officialURL != "" {
 		if _, err := model.URLOrigin(officialURL); err != nil {
 			return nil, nil, errors.New("官网 URL 必须是有效的 http(s) 地址")
 		}
@@ -117,9 +117,9 @@ func normalizeSSOProjectPayload(payload ssoProjectPayload, partial bool) (*model
 	if name != "" {
 		updates["name"] = name
 	}
-	if officialURL != "" {
-		updates["official_url"] = officialURL
-	}
+	// PUT updates may intentionally clear the URL. An empty URL means that this
+	// project accepts any valid HTTP(S) SSO return address.
+	updates["official_url"] = officialURL
 	updates["description"] = description
 	updates["icon_url"] = iconURL
 	updates["billing_secret"] = billingSecret
@@ -380,13 +380,18 @@ func validateSSOReturn(projectKey, returnTo string) (*model.SSOProject, error) {
 	if !project.SSOEnabled {
 		return nil, errors.New("项目未开启 SSO")
 	}
-	projectOrigin, err := project.Origin()
-	if err != nil {
-		return nil, errors.New("项目官网 URL 配置无效")
-	}
 	returnOrigin, err := model.URLOrigin(returnTo)
 	if err != nil {
 		return nil, errors.New("return_to 无效")
+	}
+	// An empty official URL is useful for temporary development projects whose
+	// callback host or port changes frequently.
+	if strings.TrimSpace(project.OfficialURL) == "" {
+		return project, nil
+	}
+	projectOrigin, err := project.Origin()
+	if err != nil {
+		return nil, errors.New("项目官网 URL 配置无效")
 	}
 	if projectOrigin != returnOrigin {
 		return nil, errors.New("return_to 不在项目白名单中")

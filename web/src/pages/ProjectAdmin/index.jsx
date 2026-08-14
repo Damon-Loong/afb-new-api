@@ -138,7 +138,7 @@ export default function ProjectAdmin() {
       {
         title: '官网 URL',
         dataIndex: 'official_url',
-        render: (value) => (
+        render: (value) => value ? (
           <Space vertical spacing={2} align='start'>
             <a href={value} target='_blank' rel='noreferrer'>
               <Space spacing={4}>
@@ -150,6 +150,8 @@ export default function ProjectAdmin() {
               白名单 origin：{getOrigin(value)}
             </Text>
           </Space>
+        ) : (
+          <Tag color='orange'>未限制回跳地址</Tag>
         ),
       },
       {
@@ -205,7 +207,7 @@ export default function ProjectAdmin() {
               项目管理
             </Title>
             <Text type='tertiary'>
-              配置项目名称和官网 URL，官网 origin 会自动作为 SSO 白名单。
+              建议填写官网 URL 作为 SSO 回跳和跨域白名单；留空将接受任意 HTTP(S) 地址，仅建议临时测试使用。
             </Text>
           </div>
           <Space>
@@ -252,7 +254,7 @@ export default function ProjectAdmin() {
           <Form.Input
             field='official_url'
             label='官网 URL'
-            placeholder='https://ota.xxx.com'
+            placeholder='https://ota.xxx.com（留空则不限制地址）'
             initValue={form.official_url}
             onChange={(value) => setForm((prev) => ({ ...prev, official_url: value }))}
           />

@@ -21,6 +21,7 @@ import (
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -58,7 +59,10 @@ func valuesEqual(a, b interface{}) bool {
 	return a == b
 }
 
-var ratioTypes = []string{"model_ratio", "completion_ratio", "cache_ratio", "model_price"}
+var ratioTypes = []string{
+	"model_ratio", "completion_ratio", "cache_ratio", "model_price",
+	billing_setting.BillingModeField, billing_setting.BillingExprField,
+}
 
 type upstreamResult struct {
 	Name string         `json:"name"`
@@ -311,6 +315,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 				ModelRatio      float64 `json:"model_ratio"`
 				ModelPrice      float64 `json:"model_price"`
 				CompletionRatio float64 `json:"completion_ratio"`
+				BillingMode     string  `json:"billing_mode"`
+				BillingExpr     string  `json:"billing_expr"`
 			}
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
 				logger.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
@@ -321,8 +327,17 @@ func FetchUpstreamRatios(c *gin.Context) {
 			modelRatioMap := make(map[string]float64)
 			completionRatioMap := make(map[string]float64)
 			modelPriceMap := make(map[string]float64)
+			billingModeMap := make(map[string]string)
+			billingExprMap := make(map[string]string)
 
 			for _, item := range pricingItems {
+				if item.ModelName == "" {
+					continue
+				}
+				if item.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(item.BillingExpr) != "" {
+					billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
+					billingExprMap[item.ModelName] = item.BillingExpr
+				}
 				if item.QuotaType == 1 {
 					modelPriceMap[item.ModelName] = item.ModelPrice
 				} else {
@@ -357,6 +372,20 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 				converted["model_price"] = priceAny
 			}
+			if len(billingModeMap) > 0 {
+				modeAny := make(map[string]any, len(billingModeMap))
+				for k, v := range billingModeMap {
+					modeAny[k] = v
+				}
+				converted[billing_setting.BillingModeField] = modeAny
+			}
+			if len(billingExprMap) > 0 {
+				exprAny := make(map[string]any, len(billingExprMap))
+				for k, v := range billingExprMap {
+					exprAny[k] = v
+				}
+				converted[billing_setting.BillingExprField] = exprAny
+			}
 
 			ch <- upstreamResult{Name: uniqueName, Data: converted}
 		}(chn)
@@ -365,7 +394,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 	wg.Wait()
 	close(ch)
 
-	localData := ratio_setting.GetExposedData()
+	localData := billing_setting.GetPricingSyncData(map[string]any(ratio_setting.GetExposedData()))
 
 	var testResults []dto.TestResult
 	var successfulChannels []struct {

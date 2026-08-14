@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -98,6 +99,11 @@ func IsModelPriced(modelName string) bool {
 	}
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
+	}
+	if billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr {
+		if expr, ok := billing_setting.GetBillingExpr(modelName); ok && strings.TrimSpace(expr) != "" {
+			return true
+		}
 	}
 	_, ok, _ := ratio_setting.GetModelRatio(modelName)
 	return ok

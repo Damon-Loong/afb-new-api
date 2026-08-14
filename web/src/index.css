@@ -93,29 +93,6 @@ body {
   position: relative;
 }
 
-.liquid-ether-background {
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  display: none;
-  overflow: hidden;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 14% 12%, rgba(82, 39, 255, 0.34), transparent 30%),
-    radial-gradient(circle at 88% 12%, rgba(11, 214, 196, 0.26), transparent 28%),
-    #050711;
-}
-
-.liquid-ether-background .liquid-ether-container {
-  width: 100%;
-  height: 100%;
-  filter: saturate(1.22) contrast(1.06);
-}
-
-html.dark .liquid-ether-background {
-  display: block;
-}
-
 html.dark .app-layout {
   position: relative;
   isolation: isolate;
@@ -1252,9 +1229,12 @@ html.dark .with-pastel-balls::before {
   transform: translateY(-1px);
 }
 
-.semi-button.semi-button-primary {
+.semi-button.semi-button-primary:not(.semi-button-borderless):not(
+    .semi-button-light
+  ):not(.semi-button-outline):not(.semi-button-disabled) {
   background: linear-gradient(135deg, var(--app-accent), var(--app-accent-strong)) !important;
   box-shadow: 0 14px 30px rgba(79, 124, 255, 0.24) !important;
+  color: #fff !important;
 }
 
 .semi-button.semi-button-tertiary:not(.semi-button-borderless),

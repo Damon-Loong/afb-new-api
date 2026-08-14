@@ -161,10 +161,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -202,11 +199,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -474,6 +467,33 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
           tone: 'secondary',
         },
         text ? { text: `${t('详情')}：${text}`, tone: 'secondary' } : null,
+      ].filter(Boolean),
+    };
+  }
+
+  if (other?.billing_mode === 'tiered_expr') {
+    const groupText = getUsageLogGroupSummary(
+      other?.group_ratio,
+      other?.user_group_ratio,
+      t,
+    );
+    const matchedRules = Array.isArray(other?.request_rules)
+      ? other.request_rules.filter((rule) => rule.matched)
+      : [];
+    return {
+      segments: [
+        groupText ? { text: groupText, tone: 'primary' } : null,
+        { text: t('动态计费'), tone: 'primary' },
+        other?.matched_tier
+          ? {
+              text: `${t('命中档位')}：${other.matched_tier}`,
+              tone: 'secondary',
+            }
+          : null,
+        ...matchedRules.map((rule) => ({
+          text: `${rule.cond} × ${rule.multiplier}`,
+          tone: 'secondary',
+        })),
       ].filter(Boolean),
     };
   }

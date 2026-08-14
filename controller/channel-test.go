@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
@@ -270,6 +271,12 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	//logInfo.ApiKey = ""
 	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
+	billingInput, err := helper.BuildBillingExprRequestInputFromRequest(request, info.RequestHeaders)
+	if err != nil {
+		return testResult{context: c, localErr: err, newAPIError: types.NewError(err, types.ErrorCodeInvalidRequest)}
+	}
+	info.BillingRequestInput = &billingInput
+
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
 		return testResult{
@@ -470,7 +477,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	info.SetEstimatePromptTokens(usage.PromptTokens)
 
 	quota := 0
-	if !priceData.UsePrice {
+	var tieredResult *billingexpr.TieredResult
+	var tieredUsedVars map[string]bool
+	if snap := info.TieredBillingSnapshot; snap != nil {
+		tieredUsedVars = billingexpr.UsedVars(snap.ExprString)
+	}
+	if ok, tieredQuota, result := service.TryTieredSettle(info, service.BuildTieredTokenParams(usage, usage.UsageSemantic == "anthropic", tieredUsedVars)); ok {
+		quota = tieredQuota
+		tieredResult = result
+	} else if !priceData.UsePrice {
 		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
 		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
 		if priceData.ModelRatio != 0 && quota <= 0 {
@@ -484,6 +499,9 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	consumedTime := float64(milliseconds) / 1000.0
 	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
 		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	if info.TieredBillingSnapshot != nil {
+		service.InjectTieredBillingInfo(other, info, tieredResult)
+	}
 	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,

@@ -112,6 +112,9 @@ func IsSSOProjectOriginAllowed(origin string) bool {
 		return false
 	}
 	for _, project := range projects {
+		if strings.TrimSpace(project.OfficialURL) == "" {
+			return true
+		}
 		projectOrigin, err := project.Origin()
 		if err == nil && projectOrigin == origin {
 			return true
