@@ -14,7 +14,6 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
-	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -51,6 +50,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case types.RelayFormatClaude:
 		return fmt.Sprintf("%s/anthropic/v1/messages", info.ChannelBaseUrl), nil
 	default:
+		if info.RelayMode == constant.RelayModeResponses {
+			return fmt.Sprintf("%s/v1/responses", info.ChannelBaseUrl), nil
+		}
 		if !strings.HasSuffix(info.ChannelBaseUrl, "/beta") {
 			fimBaseUrl += "/beta"
 		}
@@ -87,12 +89,7 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	convertedRequest, err := service.ResponsesRequestToChatCompletionsRequest(&request)
-	if err != nil {
-		return nil, err
-	}
-	disableThinkingForMinimalReasoning(convertedRequest)
-	return convertedRequest, nil
+	return request, nil
 }
 
 func disableThinkingForMinimalReasoning(request *dto.GeneralOpenAIRequest) {
@@ -114,8 +111,6 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case types.RelayFormatClaude:
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
-	case types.RelayFormatOpenAIResponses:
-		return deepSeekChatCompletionsAsResponsesHandler(c, resp, info)
 	default:
 		adaptor := openai.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
