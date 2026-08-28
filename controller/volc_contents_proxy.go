@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	taskdoubao "github.com/QuantumNous/new-api/relay/channel/task/doubao"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
@@ -139,6 +140,12 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 		return
 	}
 	relayInfo.PriceData = priceData
+	estimatedRatios, estimateErr := taskdoubao.EstimateNativeBilling(rawBody, relayInfo.OriginModelName)
+	if estimateErr != nil {
+		respondTaskError(c, service.TaskErrorWrapper(estimateErr, "invalid_request", http.StatusBadRequest))
+		return
+	}
+	helper.ApplyTaskBillingRatios(relayInfo, estimatedRatios)
 
 	defer func() {
 		if relayInfo.Billing != nil && relayInfo.Billing.NeedsRefund() {
@@ -219,14 +226,10 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 
 	relayInfo.TaskRelayInfo.PublicTaskID = upID.ID
 
-	if settleErr := service.SettleBilling(c, relayInfo, relayInfo.PriceData.Quota); settleErr != nil {
-		common.SysError("volc native submit settle billing: " + settleErr.Error())
-	}
-	service.LogTaskConsumption(c, relayInfo)
-
 	platform := constant.TaskPlatform(strconv.Itoa(channelType))
 	task := model.InitTask(platform, relayInfo)
 	task.PrivateData.UpstreamTaskID = upID.ID
+	task.PrivateData.ChannelKeyFingerprint = model.ChannelKeyFingerprint(apiKey)
 	task.PrivateData.BillingSource = relayInfo.BillingSource
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 	task.PrivateData.TokenId = relayInfo.TokenId
@@ -243,8 +246,18 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 	task.Action = relayInfo.Action
 	task.Status = model.TaskStatusQueued
 	if insertErr := task.Insert(); insertErr != nil {
-		common.SysError("volc native submit insert task: " + insertErr.Error())
+		logger.LogError(c, fmt.Sprintf(
+			"volc native submit insert task failed: user_id=%d channel_id=%d upstream_task_id=%s error=%v",
+			relayInfo.UserId, relayInfo.ChannelId, upID.ID, insertErr,
+		))
+		respondTaskError(c, service.TaskErrorWrapperLocal(fmt.Errorf("failed to persist task route"), "task_record_failed", http.StatusBadGateway))
+		return
 	}
+
+	if settleErr := service.SettleBilling(c, relayInfo, relayInfo.PriceData.Quota); settleErr != nil {
+		common.SysError("volc native submit settle billing: " + settleErr.Error())
+	}
+	service.LogTaskConsumption(c, relayInfo)
 
 	volcWriteUpstreamResponse(c, resp, respBody)
 }

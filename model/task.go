@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"database/sql/driver"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	commonRelay "github.com/QuantumNous/new-api/relay/common"
+	"gorm.io/gorm"
 )
 
 type TaskStatus string
@@ -45,9 +47,9 @@ type Task struct {
 	ID         int64                 `json:"id" gorm:"primary_key;AUTO_INCREMENT"`
 	CreatedAt  int64                 `json:"created_at" gorm:"index"`
 	UpdatedAt  int64                 `json:"updated_at"`
-	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index"` // 第三方id，不一定有/ song id\ Task id
-	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"` // 平台
-	UserId     int                   `json:"user_id" gorm:"index"`
+	TaskID     string                `json:"task_id" gorm:"type:varchar(191);index;uniqueIndex:idx_user_task,priority:2"` // 第三方id，不一定有/ song id\ Task id
+	Platform   constant.TaskPlatform `json:"platform" gorm:"type:varchar(30);index"`                                      // 平台
+	UserId     int                   `json:"user_id" gorm:"index;uniqueIndex:idx_user_task,priority:1"`
 	Group      string                `json:"group" gorm:"type:varchar(50)"` // 修正计费用
 	ChannelId  int                   `json:"channel_id" gorm:"index"`
 	Quota      int                   `json:"quota"`
@@ -97,9 +99,10 @@ func (m Properties) Value() (driver.Value, error) {
 }
 
 type TaskPrivateData struct {
-	Key            string `json:"key,omitempty"`
-	UpstreamTaskID string `json:"upstream_task_id,omitempty"` // 上游真实 task ID
-	ResultURL      string `json:"result_url,omitempty"`       // 任务成功后的结果 URL（视频地址等）
+	Key                   string `json:"key,omitempty"`
+	ChannelKeyFingerprint string `json:"channel_key_fingerprint,omitempty"` // 创建任务时所用渠道 Key 的指纹
+	UpstreamTaskID        string `json:"upstream_task_id,omitempty"`        // 上游真实 task ID
+	ResultURL             string `json:"result_url,omitempty"`              // 任务成功后的结果 URL（视频地址等）
 	// 计费上下文：用于异步退款/差额结算（轮询阶段读取）
 	BillingSource  string              `json:"billing_source,omitempty"`  // "wallet" 或 "subscription"
 	SubscriptionId int                 `json:"subscription_id,omitempty"` // 订阅 ID，用于订阅退款
@@ -361,6 +364,42 @@ func (Task *Task) Insert() error {
 	var err error
 	err = DB.Create(Task).Error
 	return err
+}
+
+func removeDuplicateUserTasksBeforeUniqueIndex() error {
+	if DB == nil || !DB.Migrator().HasTable(&Task{}) {
+		return nil
+	}
+	type duplicateTask struct {
+		UserId         int
+		TaskID         string
+		KeepID         int64
+		DuplicateCount int64
+	}
+	var duplicates []duplicateTask
+	if err := DB.Model(&Task{}).
+		Select("user_id, task_id, MAX(id) AS keep_id, COUNT(*) AS duplicate_count").
+		Group("user_id, task_id").
+		Having("COUNT(*) > 1").
+		Scan(&duplicates).Error; err != nil {
+		return err
+	}
+	if len(duplicates) == 0 {
+		return nil
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		for _, duplicate := range duplicates {
+			if err := tx.Where("user_id = ? AND task_id = ? AND id <> ?", duplicate.UserId, duplicate.TaskID, duplicate.KeepID).
+				Delete(&Task{}).Error; err != nil {
+				return err
+			}
+			common.SysLog(fmt.Sprintf(
+				"removed %d duplicate task records before creating unique index: user_id=%d task_id=%s",
+				duplicate.DuplicateCount-1, duplicate.UserId, duplicate.TaskID,
+			))
+		}
+		return nil
+	})
 }
 
 type taskSnapshot struct {

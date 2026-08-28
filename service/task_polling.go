@@ -358,6 +358,12 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	privateData := task.PrivateData
 	if privateData.Key != "" {
 		key = privateData.Key
+	} else if privateData.ChannelKeyFingerprint != "" {
+		resolvedKey, _, found := ch.GetKeyByFingerprint(privateData.ChannelKeyFingerprint)
+		if !found {
+			return fmt.Errorf("task channel key is no longer available for task %s", taskId)
+		}
+		key = resolvedKey
 	}
 	resp, err := adaptor.FetchTask(baseURL, key, map[string]any{
 		"task_id": task.GetUpstreamTaskID(),

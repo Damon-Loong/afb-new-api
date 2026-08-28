@@ -1,6 +1,7 @@
 package model
 
 import (
+	"crypto/sha256"
 	"database/sql/driver"
 	"encoding/json"
 	"errors"
@@ -100,6 +101,25 @@ func (channel *Channel) GetKeys() []string {
 	// Otherwise, fall back to splitting by newline
 	keys := strings.Split(strings.Trim(channel.Key, "\n"), "\n")
 	return keys
+}
+
+func ChannelKeyFingerprint(key string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(key)))
+}
+
+// GetKeyByFingerprint resolves the exact key used to create an asynchronous task.
+// It intentionally ignores the key's current load-balancing status: another key
+// may belong to a different upstream account and cannot query the task.
+func (channel *Channel) GetKeyByFingerprint(fingerprint string) (string, int, bool) {
+	if channel == nil || fingerprint == "" {
+		return "", 0, false
+	}
+	for index, key := range channel.GetKeys() {
+		if ChannelKeyFingerprint(key) == fingerprint {
+			return key, index, true
+		}
+	}
+	return "", 0, false
 }
 
 func (channel *Channel) GetNextEnabledKey() (string, int, *types.NewAPIError) {

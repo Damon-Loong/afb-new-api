@@ -139,11 +139,35 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 	if hasVideoInMetadata(req.Metadata) {
-		if ratio, ok := GetVideoInputRatio(info.OriginModelName); ok {
-			return map[string]float64{"video_input": ratio}
-		}
+		return videoInputBillingRatio(info.OriginModelName)
 	}
 	return nil
+}
+
+func videoInputBillingRatio(modelName string) map[string]float64 {
+	if ratio, ok := GetVideoInputRatio(modelName); ok {
+		return map[string]float64{"video_input": ratio}
+	}
+	return nil
+}
+
+// EstimateNativeBilling applies the same provider-specific billing rules to the
+// official passthrough request without changing the bytes sent upstream.
+func EstimateNativeBilling(rawBody []byte, modelName string) (map[string]float64, error) {
+	var req struct {
+		Content []struct {
+			Type string `json:"type"`
+		} `json:"content"`
+	}
+	if err := common.Unmarshal(rawBody, &req); err != nil {
+		return nil, err
+	}
+	for _, item := range req.Content {
+		if item.Type == "video_url" {
+			return videoInputBillingRatio(modelName), nil
+		}
+	}
+	return nil, nil
 }
 
 // hasVideoInMetadata 直接检查 metadata 的 content 数组是否包含 video_url 条目，

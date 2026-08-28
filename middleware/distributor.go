@@ -52,21 +52,32 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusInternalServerError, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": terr.Error()}), types.ErrorCodeQueryDataError)
 				return
 			}
-			if !exist {
-				abortWithOpenAiMessage(c, http.StatusNotFound, i18n.T(c, i18n.MsgDistributorInvalidRequest, map[string]any{"Error": "任务不存在或无权访问，请使用本接口创建任务返回的 id 查询"}), types.ErrorCodeInvalidRequest)
-				return
-			}
-			ch, chErr := model.GetChannelById(originTask.ChannelId, true)
-			if chErr != nil || ch == nil || ch.Status != common.ChannelStatusEnabled {
-				abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorChannelDisabled), types.ErrorCodeGetChannelFailed)
-				return
-			}
-			channel = ch
-			shouldSelectChannel = false
-			if od := strings.TrimSpace(originTask.Properties.OriginModelName); od != "" {
-				modelRequest.Model = od
-			} else if ud := strings.TrimSpace(originTask.Properties.UpstreamModelName); ud != "" {
-				modelRequest.Model = ud
+			if exist {
+				ch, chErr := model.GetChannelById(originTask.ChannelId, true)
+				if chErr != nil || ch == nil || ch.Status != common.ChannelStatusEnabled {
+					abortWithOpenAiMessage(c, http.StatusServiceUnavailable, i18n.T(c, i18n.MsgDistributorChannelDisabled), types.ErrorCodeGetChannelFailed)
+					return
+				}
+				if ch.ChannelInfo.IsMultiKey && originTask.PrivateData.ChannelKeyFingerprint == "" {
+					abortWithOpenAiMessage(c, http.StatusNotFound, "任务不存在", types.ErrorCodeInvalidRequest)
+					return
+				}
+				channel = ch
+				shouldSelectChannel = false
+				common.SetContextKey(c, constant.ContextKeyTaskChannelKeyFingerprint, originTask.PrivateData.ChannelKeyFingerprint)
+				if od := strings.TrimSpace(originTask.Properties.OriginModelName); od != "" {
+					modelRequest.Model = od
+				} else if ud := strings.TrimSpace(originTask.Properties.UpstreamModelName); ud != "" {
+					modelRequest.Model = ud
+				}
+			} else {
+				lockedChannel, locked := getLockedSingleKeyVolcChannel(channelId, ok)
+				if !locked {
+					abortWithOpenAiMessage(c, http.StatusNotFound, "任务不存在", types.ErrorCodeInvalidRequest)
+					return
+				}
+				channel = lockedChannel
+				shouldSelectChannel = false
 			}
 		}
 
@@ -85,7 +96,7 @@ func Distribute() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorChannelDisabled))
 				return
 			}
-		} else {
+		} else if !(volcOfficialGet && channel != nil) {
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -203,12 +214,44 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil {
+			abortWithOpenAiMessage(c, http.StatusServiceUnavailable, setupErr.Error(), types.ErrorCodeGetChannelFailed)
+			return
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func getLockedSingleKeyVolcChannel(channelID any, hasLockedChannel bool) (*model.Channel, bool) {
+	if !hasLockedChannel {
+		return nil, false
+	}
+	idText, ok := channelID.(string)
+	if !ok {
+		return nil, false
+	}
+	id, err := strconv.Atoi(idText)
+	if err != nil {
+		return nil, false
+	}
+	channel, err := model.GetChannelById(id, true)
+	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled {
+		return nil, false
+	}
+	if !isSingleKeyVolcChannel(channel) {
+		return nil, false
+	}
+	return channel, true
+}
+
+func isSingleKeyVolcChannel(channel *model.Channel) bool {
+	if channel == nil || (channel.Type != constant.ChannelTypeDoubaoVideo && channel.Type != constant.ChannelTypeVolcEngine) {
+		return false
+	}
+	return !channel.ChannelInfo.IsMultiKey && len(channel.GetKeys()) == 1
 }
 
 // getModelFromRequest 从请求中读取模型信息
@@ -450,9 +493,20 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	common.SetContextKey(c, constant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, constant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
 
-	key, index, newAPIError := channel.GetNextEnabledKey()
-	if newAPIError != nil {
-		return newAPIError
+	key := ""
+	index := 0
+	if fingerprint := common.GetContextKeyString(c, constant.ContextKeyTaskChannelKeyFingerprint); fingerprint != "" {
+		var found bool
+		key, index, found = channel.GetKeyByFingerprint(fingerprint)
+		if !found {
+			return types.NewError(errors.New("task channel key is no longer available"), types.ErrorCodeChannelNoAvailableKey, types.ErrOptionWithSkipRetry())
+		}
+	} else {
+		var newAPIError *types.NewAPIError
+		key, index, newAPIError = channel.GetNextEnabledKey()
+		if newAPIError != nil {
+			return newAPIError
+		}
 	}
 	if channel.ChannelInfo.IsMultiKey {
 		common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)

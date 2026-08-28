@@ -258,6 +258,9 @@ func migrateDB() error {
 	if err := migrateApiFileFilenameColumn(); err != nil {
 		return err
 	}
+	if err := removeDuplicateUserTasksBeforeUniqueIndex(); err != nil {
+		return err
+	}
 
 	err := DB.AutoMigrate(
 		&Channel{},
