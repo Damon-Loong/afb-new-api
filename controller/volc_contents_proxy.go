@@ -2,14 +2,12 @@ package controller
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -174,10 +172,7 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 300*time.Second)
-	defer cancel()
-
-	upReq, err := http.NewRequestWithContext(ctx, http.MethodPost, upURL, bytes.NewReader(rawBody))
+	upReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upURL, bytes.NewReader(rawBody))
 	if err != nil {
 		respondTaskError(c, service.TaskErrorWrapper(err, "build_upstream_request_failed", http.StatusInternalServerError))
 		return
@@ -300,10 +295,7 @@ func RelayVolcContentsGenerationsTaskGet(c *gin.Context) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 120*time.Second)
-	defer cancel()
-
-	upReq, err := http.NewRequestWithContext(ctx, http.MethodGet, upURL, nil)
+	upReq, err := http.NewRequestWithContext(c.Request.Context(), http.MethodGet, upURL, nil)
 	if err != nil {
 		respondTaskError(c, service.TaskErrorWrapper(err, "build_upstream_request_failed", http.StatusInternalServerError))
 		return
