@@ -1149,7 +1149,7 @@ const LoginForm = () => {
       logo={logo}
       systemName={systemName}
       eyebrow='Secure Access'
-      title={t('登录 AfB API 工作台')}
+      title={t('登录 tianyue API 工作台')}
       description={t(
         '统一访问供应商网关、令牌管理、订阅计费和运行分析能力。',
       )}

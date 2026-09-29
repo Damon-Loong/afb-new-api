@@ -165,7 +165,7 @@ const Home = () => {
             <div className='home-hero__grid'>
               <div>
                 <div className='home-hero__eyebrow'>
-                  <span>AfB API</span>
+                  <span>tianyue API</span>
                   <span>AI Gateway</span>
                 </div>
                 <h1

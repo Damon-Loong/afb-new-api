@@ -54,7 +54,7 @@ func main() {
 		return
 	}
 
-	common.SysLog("AfB API " + common.Version + " started")
+	common.SysLog("tianyue API " + common.Version + " started")
 	middleware.StartAutoRouteCentroidWarmup("startup")
 	if os.Getenv("GIN_MODE") != "debug" {
 		gin.SetMode(gin.ReleaseMode)

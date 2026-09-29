@@ -72,7 +72,7 @@ const routeScoreLevels = [
   {
     label: '不参与',
     value: 0,
-    description: '不作为 afb-auto 候选模型',
+    description: '不作为自动路由候选模型',
   },
   {
     label: '轻量',
@@ -501,11 +501,11 @@ const EditModelModal = (props) => {
                     <Form.Select {...semiSelectPortalProps}
                       field='router_score'
                       label={t('自动路由档位')}
-                      placeholder={t('请选择 afb-auto 路由档位')}
+                      placeholder={t('请选择 自动路由 路由档位')}
                       optionList={routeScoreOptionList}
                       style={{ width: '100%' }}
                       extraText={t(
-                        '仅用于 afb-auto 自动路由；档位越高，越适合承接复杂问题。底层仍保存为 0-100 分。',
+                        '仅用于 tianyue 自动路由；档位越高，越适合承接复杂问题。底层仍保存为 0-100 分。',
                       )}
                     />
                   </Col>

@@ -712,7 +712,7 @@ func scoreAutoRouteDifficultyWithEmbedding(c *gin.Context, embeddingModel string
 		}
 		return autoRouteScoringResult{}, err
 	}
-	service.PostTextConsumeQuota(scoreCtx, relayInfo, usage, []string{"AFB Auto 路由向量打分"})
+	service.PostTextConsumeQuota(scoreCtx, relayInfo, usage, []string{"tianyue Auto 路由向量打分"})
 
 	result, err := scoreAutoRouteFromEmbeddings(scoreCtx, embeddings, features)
 	if err != nil {
@@ -1404,7 +1404,7 @@ func scoreAutoRouteDifficulty(c *gin.Context, scorerModel string, usingGroup str
 		}
 		return autoRouteScoringResult{}, err
 	}
-	service.PostTextConsumeQuota(scoreCtx, relayInfo, usage, []string{"AFB Auto 路由打分"})
+	service.PostTextConsumeQuota(scoreCtx, relayInfo, usage, []string{"tianyue Auto 路由打分"})
 
 	result, err := parseAutoRouteScoringResult(response)
 	if err != nil {

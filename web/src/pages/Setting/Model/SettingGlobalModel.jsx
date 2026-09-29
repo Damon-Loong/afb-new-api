@@ -217,13 +217,13 @@ export default function SettingGlobalModel(props) {
       inputs.AutoRouteScoringModel || '',
     ).trim();
     if (autoRouteScoringModel.toLowerCase() === 'afb-auto') {
-      return showError(t('afb-auto 打分模型不能填写 afb-auto'));
+      return showError(t('打分模型不能选择自动路由模型'));
     }
     const autoRouteEmbeddingModel = String(
       inputs.AutoRouteEmbeddingModel || '',
     ).trim();
     if (autoRouteEmbeddingModel.toLowerCase() === 'afb-auto') {
-      return showError(t('afb-auto 向量打分模型不能填写 afb-auto'));
+      return showError(t('向量打分模型不能选择自动路由模型'));
     }
     const updateArray = compareObjects(inputs, inputsRow);
     if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
@@ -331,7 +331,7 @@ export default function SettingGlobalModel(props) {
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Select
                   {...semiSelectPortalProps}
-                  label={t('afb-auto 向量打分模型')}
+                  label={t('tianyue 自动路由向量打分模型')}
                   field={'AutoRouteEmbeddingModel'}
                   placeholder={t('留空则不使用向量打分')}
                   optionList={autoRouteEmbeddingModelOptions}
@@ -342,7 +342,7 @@ export default function SettingGlobalModel(props) {
                         const text = String(value || '').trim().toLowerCase();
                         return text === '' || text !== 'afb-auto';
                       },
-                      message: t('不能填写 afb-auto，避免递归路由'),
+                      message: t('不能选择自动路由模型，避免递归路由'),
                     },
                   ]}
                   onChange={(value) =>
@@ -352,7 +352,7 @@ export default function SettingGlobalModel(props) {
                     })
                   }
                   extraText={t(
-                    '仅展示端点包含 embeddings 的现有启用模型；配置后优先用于 afb-auto 中间难度请求。失败时可回退到文本打分模型。',
+                    '仅展示端点包含 embeddings 的现有启用模型；配置后优先用于 tianyue 自动路由的中间难度请求。失败时可回退到文本打分模型。',
                   )}
                   showClear
                   style={{ width: '100%' }}
@@ -361,7 +361,7 @@ export default function SettingGlobalModel(props) {
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Select
                   {...semiSelectPortalProps}
-                  label={t('afb-auto 文本打分模型')}
+                  label={t('tianyue 自动路由文本打分模型')}
                   field={'AutoRouteScoringModel'}
                   placeholder={t('留空则不使用文本打分')}
                   optionList={autoRouteScoringModelOptions}
@@ -372,7 +372,7 @@ export default function SettingGlobalModel(props) {
                         const text = String(value || '').trim().toLowerCase();
                         return text === '' || text !== 'afb-auto';
                       },
-                      message: t('不能填写 afb-auto，避免递归路由'),
+                      message: t('不能选择自动路由模型，避免递归路由'),
                     },
                   ]}
                   onChange={(value) =>

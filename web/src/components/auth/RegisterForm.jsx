@@ -775,7 +775,7 @@ const RegisterForm = () => {
       logo={logo}
       systemName={systemName}
       eyebrow='New Account'
-      title={t('创建 AfB API 账户')}
+      title={t('创建 tianyue API 账户')}
       description={null}
       footer={
         turnstileEnabled ? (

@@ -60,8 +60,8 @@ export function isRoot() {
 
 export function getSystemName() {
   let system_name = localStorage.getItem('system_name');
-  if (!system_name || system_name === 'New API') return 'AfB API';
-  return system_name;
+  if (!system_name || system_name === 'New API') return 'tianyue API';
+  return system_name.replace(/afb/gi, 'tianyue');
 }
 
 export function getLogo() {
