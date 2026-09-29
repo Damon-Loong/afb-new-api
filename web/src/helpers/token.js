@@ -24,8 +24,9 @@ import { API } from './api';
  * @param {number|string} tokenId
  * @returns {Promise<string>} 返回不带 sk- 前缀的真实 token key
  */
-export async function fetchTokenKey(tokenId) {
-  const response = await API.post(`/api/token/${tokenId}/key`);
+export async function fetchTokenKey(tokenId, adminMode = false) {
+  const base = adminMode ? '/api/admin/token' : '/api/token';
+  const response = await API.post(`${base}/${tokenId}/key`);
   const { success, data, message } = response.data || {};
   if (!success || !data?.key) {
     throw new Error(message || 'Failed to fetch token key');
@@ -38,8 +39,9 @@ export async function fetchTokenKey(tokenId) {
  * @param {number[]} tokenIds
  * @returns {Promise<Record<number, string>>} 返回 {id: key} map，key 不带 sk- 前缀
  */
-export async function fetchTokenKeysBatch(tokenIds) {
-  const response = await API.post('/api/token/batch/keys', { ids: tokenIds });
+export async function fetchTokenKeysBatch(tokenIds, adminMode = false) {
+  const base = adminMode ? '/api/admin/token' : '/api/token';
+  const response = await API.post(`${base}/batch/keys`, { ids: tokenIds });
   const { success, data, message } = response.data || {};
   if (!success || !data?.keys) {
     throw new Error(message || 'Failed to fetch token keys');

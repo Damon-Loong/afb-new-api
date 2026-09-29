@@ -31,6 +31,12 @@ type Token struct {
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
 }
 
+type TokenWithUser struct {
+	Token
+	Username string `json:"username"`
+	UserRole int    `json:"user_role"`
+}
+
 func (token *Token) Clean() {
 	token.Key = ""
 }
@@ -83,6 +89,58 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 	var err error
 	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
+}
+
+func GetAdminTokens(adminId, adminRole int, keyword, tokenKey, username string, offset, limit int) ([]*TokenWithUser, int64, error) {
+	if limit <= 0 || limit > searchHardLimit {
+		limit = searchHardLimit
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	query := DB.Model(&Token{}).
+		Select("tokens.*, users.username, users.role AS user_role").
+		Joins("JOIN users ON users.id = tokens.user_id").
+		Where("users.deleted_at IS NULL")
+	if adminRole < common.RoleRootUser {
+		query = query.Where("users.id = ? OR users.role < ?", adminId, adminRole)
+	}
+	if keyword != "" {
+		query = query.Where("tokens.name LIKE ?", "%"+keyword+"%")
+	}
+	if tokenKey != "" {
+		tokenKey = strings.TrimPrefix(tokenKey, "sk-")
+		query = query.Where("tokens."+commonKeyCol+" LIKE ?", "%"+tokenKey+"%")
+	}
+	if username != "" {
+		query = query.Where("users.username LIKE ?", "%"+username+"%")
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var tokens []*TokenWithUser
+	if err := query.Order("tokens.id DESC").Offset(offset).Limit(limit).Scan(&tokens).Error; err != nil {
+		return nil, 0, err
+	}
+	return tokens, total, nil
+}
+
+func GetManageableUsers(adminId, adminRole int, keyword string, limit int) ([]User, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	query := DB.Model(&User{}).Select("id, username, display_name, role, status, " + commonGroupCol)
+	if adminRole < common.RoleRootUser {
+		query = query.Where("id = ? OR role < ?", adminId, adminRole)
+	}
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where("username LIKE ? OR display_name LIKE ?", like, like)
+	}
+	var users []User
+	err := query.Order("id DESC").Limit(limit).Find(&users).Error
+	return users, err
 }
 
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
@@ -470,6 +528,42 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 		})
 	}
 
+	return len(tokens), nil
+}
+
+// BatchDeleteTokensByIds deletes a pre-authorized set of tokens atomically.
+// Callers must verify ownership and permissions before invoking it.
+func BatchDeleteTokensByIds(ids []int) (int, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids 不能为空！")
+	}
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return 0, tx.Error
+	}
+	var tokens []Token
+	if err := tx.Where("id IN (?)", ids).Find(&tokens).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if len(tokens) != len(ids) {
+		tx.Rollback()
+		return 0, errors.New("部分令牌不存在")
+	}
+	if err := tx.Where("id IN (?)", ids).Delete(&Token{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			for _, token := range tokens {
+				_ = cacheDeleteToken(token.Key)
+			}
+		})
+	}
 	return len(tokens), nil
 }
 

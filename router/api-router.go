@@ -362,6 +362,22 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
 
+		adminTokenRoute := apiRouter.Group("/admin/token")
+		adminTokenRoute.Use(middleware.AdminAuth())
+		{
+			adminTokenRoute.GET("/", controller.AdminGetAllTokens)
+			adminTokenRoute.GET("/users", controller.AdminGetTokenUsers)
+			adminTokenRoute.GET("/users/:user_id/groups", controller.AdminGetUserTokenGroups)
+			adminTokenRoute.GET("/users/:user_id/models", controller.AdminGetUserTokenModels)
+			adminTokenRoute.GET("/:id", controller.AdminGetToken)
+			adminTokenRoute.POST("/:id/key", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminGetTokenKey)
+			adminTokenRoute.POST("/", controller.AdminAddToken)
+			adminTokenRoute.PUT("/", controller.AdminUpdateToken)
+			adminTokenRoute.DELETE("/:id", controller.AdminDeleteToken)
+			adminTokenRoute.POST("/batch", controller.AdminDeleteTokenBatch)
+			adminTokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.AdminGetTokenKeysBatch)
+		}
+
 		usageRoute := apiRouter.Group("/usage")
 		usageRoute.Use(middleware.CriticalRateLimit())
 		{

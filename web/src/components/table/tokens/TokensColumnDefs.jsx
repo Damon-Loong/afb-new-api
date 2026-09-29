@@ -480,8 +480,9 @@ export const getTokensColumns = ({
   setShowEdit,
   refresh,
   groupRatios = {},
+  adminMode = false,
 }) => {
-  return [
+  const columns = [
     {
       title: t('名称'),
       dataIndex: 'name',
@@ -564,4 +565,20 @@ export const getTokensColumns = ({
         ),
     },
   ];
+  if (adminMode) {
+    columns.unshift({
+      title: t('所属用户'),
+      dataIndex: 'username',
+      key: 'username',
+      render: (text, record) => (
+        <div>
+          <div>{text || '-'}</div>
+          <Typography.Text type='tertiary' size='small'>
+            ID: {record.user_id}
+          </Typography.Text>
+        </div>
+      ),
+    });
+  }
+  return columns;
 };

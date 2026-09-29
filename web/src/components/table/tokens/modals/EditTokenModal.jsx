@@ -28,6 +28,7 @@ import {
   getModelCategories,
   selectFilter,
   semiSelectPortalProps,
+  getUserIdFromLocalStorage,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -68,6 +69,7 @@ const EditTokenModal = (props) => {
   const formApiRef = useRef(null);
   const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
+  const [users, setUsers] = useState([]);
   const [showQuotaInput, setShowQuotaInput] = useState(false);
   const isEdit = props.editingToken.id !== undefined;
 
@@ -83,6 +85,7 @@ const EditTokenModal = (props) => {
     group: '',
     cross_group_retry: false,
     tokenCount: 1,
+    user_id: props.adminMode ? getUserIdFromLocalStorage() : undefined,
   });
 
   const handleCancel = () => {
@@ -105,8 +108,11 @@ const EditTokenModal = (props) => {
     }
   };
 
-  const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+  const loadModels = async (userId) => {
+    const url = props.adminMode
+      ? `/api/admin/token/users/${userId}/models`
+      : '/api/user/models';
+    let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
@@ -134,8 +140,11 @@ const EditTokenModal = (props) => {
     }
   };
 
-  const loadGroups = async () => {
-    let res = await API.get(`/api/user/self/groups`);
+  const loadGroups = async (userId) => {
+    const url = props.adminMode
+      ? `/api/admin/token/users/${userId}/groups`
+      : '/api/user/self/groups';
+    let res = await API.get(url);
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
@@ -157,9 +166,34 @@ const EditTokenModal = (props) => {
     }
   };
 
+  const loadUsers = async (keyword = '') => {
+    if (!props.adminMode) return;
+    const res = await API.get(
+      `/api/admin/token/users?keyword=${encodeURIComponent(keyword)}`,
+    );
+    const { success, message, data } = res.data;
+    if (!success) {
+      showError(t(message));
+      return;
+    }
+    setUsers(
+      (data || []).map((user) => ({
+        value: user.id,
+        label: `${user.username}${user.display_name ? ` (${user.display_name})` : ''}`,
+      })),
+    );
+  };
+
+  const loadTargetOptions = (userId) => {
+    if (!userId) return;
+    loadModels(userId);
+    loadGroups(userId);
+  };
+
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.get(`/api/token/${props.editingToken.id}`);
+    const base = props.adminMode ? '/api/admin/token' : '/api/token';
+    let res = await API.get(`${base}/${props.editingToken.id}`);
     const { success, message, data } = res.data;
     if (success) {
       if (data.expired_time !== -1) {
@@ -176,6 +210,7 @@ const EditTokenModal = (props) => {
       if (formApiRef.current) {
         formApiRef.current.setValues({ ...getInitValues(), ...data });
       }
+      if (props.adminMode) loadTargetOptions(data.user_id);
     } else {
       showError(message);
     }
@@ -188,8 +223,10 @@ const EditTokenModal = (props) => {
         formApiRef.current.setValues(getInitValues());
       }
     }
-    loadModels();
-    loadGroups();
+    const targetUserId =
+      props.editingToken.user_id || getUserIdFromLocalStorage();
+    loadUsers(props.editingToken.username || '');
+    loadTargetOptions(targetUserId);
   }, [props.editingToken.id]);
 
   useEffect(() => {
@@ -239,7 +276,8 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-      let res = await API.put(`/api/token/`, {
+      const base = props.adminMode ? '/api/admin/token' : '/api/token';
+      let res = await API.put(`${base}/`, {
         ...localInputs,
         id: parseInt(props.editingToken.id),
       });
@@ -283,7 +321,8 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-        let res = await API.post(`/api/token/`, localInputs);
+        const base = props.adminMode ? '/api/admin/token' : '/api/token';
+        let res = await API.post(`${base}/`, localInputs);
         const { success, message } = res.data;
         if (success) {
           successCount++;
@@ -362,6 +401,23 @@ const EditTokenModal = (props) => {
         >
           {({ values }) => (
             <div className='p-2'>
+              {props.adminMode && (
+                <Card className='!rounded-2xl shadow-sm border-0 mb-3'>
+                  <Form.Select
+                    {...semiSelectPortalProps}
+                    field='user_id'
+                    label={t('所属用户')}
+                    placeholder={t('请选择用户')}
+                    optionList={users}
+                    filter={selectFilter}
+                    search
+                    onSearch={loadUsers}
+                    disabled={isEdit}
+                    rules={[{ required: true, message: t('请选择用户') }]}
+                    onChange={loadTargetOptions}
+                  />
+                </Card>
+              )}
               {/* 基本信息 */}
               <Card className='!rounded-2xl shadow-sm border-0'>
                 <div className='flex items-center mb-2'>
@@ -387,7 +443,8 @@ const EditTokenModal = (props) => {
                   </Col>
                   <Col span={24}>
                     {groups.length > 0 ? (
-                      <Form.Select {...semiSelectPortalProps}
+                      <Form.Select
+                        {...semiSelectPortalProps}
                         field='group'
                         label={t('令牌分组')}
                         placeholder={t('令牌分组，默认为用户的分组')}
@@ -405,7 +462,8 @@ const EditTokenModal = (props) => {
                         style={{ width: '100%' }}
                       />
                     ) : (
-                      <Form.Select {...semiSelectPortalProps}
+                      <Form.Select
+                        {...semiSelectPortalProps}
                         placeholder={t('管理员未设置用户可选分组')}
                         disabled
                         label={t('令牌分组')}
@@ -555,7 +613,10 @@ const EditTokenModal = (props) => {
                         ? `▾ ${t('收起原生额度输入')}`
                         : `▸ ${t('使用原生额度输入')}`}
                     </div>
-                    <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
+                    <div
+                      style={{ display: showQuotaInput ? 'block' : 'none' }}
+                      className='mt-2'
+                    >
                       <Form.InputNumber
                         field='remain_quota'
                         label={t('额度')}
@@ -613,7 +674,8 @@ const EditTokenModal = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
-                    <Form.Select {...semiSelectPortalProps}
+                    <Form.Select
+                      {...semiSelectPortalProps}
                       field='model_limits'
                       label={t('模型限制列表')}
                       placeholder={t(

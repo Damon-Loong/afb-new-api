@@ -50,6 +50,7 @@ const TokensTable = (tokensData) => {
     setShowEdit,
     refresh,
     groupRatios,
+    adminMode,
     t,
   } = tokensData;
 
@@ -68,7 +69,8 @@ const TokensTable = (tokensData) => {
       setEditingToken,
       setShowEdit,
       refresh,
-      groupRatios,
+      groupRatios: adminMode ? {} : groupRatios,
+      adminMode,
     });
   }, [
     t,
@@ -84,6 +86,7 @@ const TokensTable = (tokensData) => {
     setShowEdit,
     refresh,
     groupRatios,
+    adminMode,
   ]);
 
   // Handle compact mode by removing fixed positioning

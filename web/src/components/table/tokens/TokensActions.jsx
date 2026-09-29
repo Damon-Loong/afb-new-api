@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useState } from 'react';
-import { Button, Space } from '@douyinfe/semi-ui';
+import { Button, Switch, Typography } from '@douyinfe/semi-ui';
 import { showError } from '../../../helpers';
 import CopyTokensModal from './modals/CopyTokensModal';
 import DeleteTokensModal from './modals/DeleteTokensModal';
@@ -29,6 +29,9 @@ const TokensActions = ({
   setShowEdit,
   batchCopyTokens,
   batchDeleteTokens,
+  adminMode,
+  setAdminMode,
+  canManageAllTokens,
   t,
 }) => {
   // Modal states
@@ -62,6 +65,19 @@ const TokensActions = ({
   return (
     <>
       <div className='flex flex-wrap gap-2 w-full md:w-auto order-2 md:order-1'>
+        {canManageAllTokens && (
+          <div className='flex items-center gap-2 px-2'>
+            <Switch
+              size='small'
+              checked={adminMode}
+              onChange={setAdminMode}
+              aria-label={t('查看全部用户令牌')}
+            />
+            <Typography.Text size='small'>
+              {t('查看全部用户令牌')}
+            </Typography.Text>
+          </div>
+        )}
         <Button
           type='primary'
           className='flex-1 md:flex-initial'

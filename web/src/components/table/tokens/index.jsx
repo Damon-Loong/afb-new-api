@@ -383,6 +383,7 @@ function TokensPage() {
           editingToken={editingToken}
           visiable={showEdit}
           handleClose={closeEdit}
+          adminMode={tokensData.adminMode}
         />
       )}
 
@@ -410,6 +411,9 @@ function TokensPage() {
               setShowEdit={setShowEdit}
               batchCopyTokens={batchCopyTokens}
               batchDeleteTokens={batchDeleteTokens}
+              adminMode={tokensData.adminMode}
+              setAdminMode={tokensData.setAdminMode}
+              canManageAllTokens={tokensData.canManageAllTokens}
               t={t}
             />
 
@@ -420,6 +424,7 @@ function TokensPage() {
                 searchTokens={searchTokens}
                 loading={loading}
                 searching={searching}
+                adminMode={tokensData.adminMode}
                 t={t}
               />
             </div>

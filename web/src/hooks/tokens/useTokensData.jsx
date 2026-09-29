@@ -29,6 +29,7 @@ import {
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
+import { isAdmin } from '../../helpers/utils';
 import {
   fetchTokenKey as fetchTokenKeyById,
   fetchTokenKeysBatch,
@@ -48,6 +49,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
   const [searching, setSearching] = useState(false);
   const [searchMode, setSearchMode] = useState(false); // 是否处于搜索结果视图
+  const [adminMode, setAdminMode] = useState(false);
+  const canManageAllTokens = isAdmin();
 
   // Selection state
   const [selectedKeys, setSelectedKeys] = useState([]);
@@ -70,6 +73,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const formInitValues = {
     searchKeyword: '',
     searchToken: '',
+    searchUsername: '',
   };
 
   // Get form values helper function
@@ -78,6 +82,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     return {
       searchKeyword: formValues.searchKeyword || '',
       searchToken: formValues.searchToken || '',
+      searchUsername: formValues.searchUsername || '',
     };
   };
 
@@ -104,7 +109,8 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const loadTokens = async (page = 1, size = pageSize) => {
     setLoading(true);
     setSearchMode(false);
-    const res = await API.get(`/api/token/?p=${page}&size=${size}`);
+    const base = adminMode ? '/api/admin/token' : '/api/token';
+    const res = await API.get(`${base}/?p=${page}&size=${size}`);
     const { success, message, data } = res.data;
     if (success) {
       syncPageData(data);
@@ -157,7 +163,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     const request = (async () => {
       setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
       try {
-        const fullKey = await fetchTokenKeyById(tokenId);
+        const fullKey = await fetchTokenKeyById(tokenId, adminMode);
         setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
         return fullKey;
       } catch (error) {
@@ -267,15 +273,23 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/token/${id}/`);
+        res = await API.delete(
+          `${adminMode ? '/api/admin/token' : '/api/token'}/${id}/`,
+        );
         break;
       case 'enable':
         data.status = 1;
-        res = await API.put('/api/token/?status_only=true', data);
+        res = await API.put(
+          `${adminMode ? '/api/admin/token' : '/api/token'}/?status_only=true`,
+          data,
+        );
         break;
       case 'disable':
         data.status = 2;
-        res = await API.put('/api/token/?status_only=true', data);
+        res = await API.put(
+          `${adminMode ? '/api/admin/token' : '/api/token'}/?status_only=true`,
+          data,
+        );
         break;
     }
     const { success, message } = res.data;
@@ -296,18 +310,18 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Search tokens function
   const searchTokens = async (page = 1, size = pageSize) => {
     const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
-    const normalizedSize =
-      Number.isInteger(size) && size > 0 ? size : pageSize;
+    const normalizedSize = Number.isInteger(size) && size > 0 ? size : pageSize;
 
-    const { searchKeyword, searchToken } = getFormValues();
-    if (searchKeyword === '' && searchToken === '') {
+    const { searchKeyword, searchToken, searchUsername } = getFormValues();
+    if (searchKeyword === '' && searchToken === '' && searchUsername === '') {
       setSearchMode(false);
       await loadTokens(1);
       return;
     }
     setSearching(true);
+    const base = adminMode ? '/api/admin/token/' : '/api/token/search';
     const res = await API.get(
-      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
+      `${base}?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&username=${encodeURIComponent(searchUsername)}&p=${normalizedPage}&size=${normalizedSize}`,
     );
     const { success, message, data } = res.data;
     if (success) {
@@ -383,7 +397,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setLoading(true);
     try {
       const ids = selectedKeys.map((token) => token.id);
-      const res = await API.post('/api/token/batch', { ids });
+      const res = await API.post(
+        `${adminMode ? '/api/admin/token' : '/api/token'}/batch`,
+        { ids },
+      );
       if (res?.data?.success) {
         const count = res.data.data || 0;
         showSuccess(t('已删除 {{count}} 个令牌！', { count }));
@@ -411,7 +428,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     }
     try {
       const ids = selectedKeys.map((token) => token.id);
-      const keysMap = await fetchTokenKeysBatch(ids);
+      const keysMap = await fetchTokenKeysBatch(ids, adminMode);
 
       setResolvedTokenKeys((prev) => ({ ...prev, ...keysMap }));
 
@@ -449,7 +466,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         }
       })
       .catch(() => {});
-  }, [pageSize]);
+  }, [pageSize, adminMode]);
 
   return {
     // Basic state
@@ -460,6 +477,9 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     pageSize,
     searching,
     groupRatios,
+    adminMode,
+    setAdminMode,
+    canManageAllTokens,
 
     // Selection state
     selectedKeys,
