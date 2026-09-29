@@ -409,17 +409,6 @@ const SystemSetting = () => {
     await updateOptions(options);
   };
 
-  const submitMClawDownloadLinks = async () => {
-    const links = {
-      windows: { url: inputs.MClawDownloadWindowsUrl || '' },
-      macos: { url: inputs.MClawDownloadMacosUrl || '' },
-      linux: { url: inputs.MClawDownloadLinuxUrl || '' },
-    };
-    await updateOptions([
-      { key: 'MClawDownloadLinks', value: JSON.stringify(links) },
-    ]);
-  };
-
   const submitClaudeCodeCliDownloadUrl = async () => {
     await updateOptions([
       {
@@ -1786,43 +1775,6 @@ const SystemSetting = () => {
                   </Row>
                   <Button onClick={submitLinuxDOOAuth}>
                     {t('保存 Linux DO OAuth 设置')}
-                  </Button>
-                </Form.Section>
-              </Card>
-
-              <Card>
-                <Form.Section text='MClaw 下载配置'>
-                  <Text>
-                    配置电信龙虾 MClaw 三个平台的安装包下载地址，mopc 前端会根据浏览器 User-Agent 自动选择平台。
-                  </Text>
-                  <Row
-                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-                    style={{ marginTop: 16 }}
-                  >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='MClawDownloadWindowsUrl'
-                        label='Windows 下载链接'
-                        placeholder='https://example.com/MClaw-windows.zip'
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='MClawDownloadMacosUrl'
-                        label='macOS 下载链接'
-                        placeholder='https://example.com/MClaw-macos.zip'
-                      />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input
-                        field='MClawDownloadLinuxUrl'
-                        label='Linux 下载链接'
-                        placeholder='https://example.com/MClaw-linux.zip'
-                      />
-                    </Col>
-                  </Row>
-                  <Button onClick={submitMClawDownloadLinks}>
-                    保存 MClaw 下载配置
                   </Button>
                 </Form.Section>
               </Card>
