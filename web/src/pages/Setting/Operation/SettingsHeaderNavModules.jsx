@@ -50,8 +50,8 @@ export default function SettingsHeaderNavModules(props) {
       enabled: true,
       requireAuth: false,
     },
-    docs: true,
-    about: true,
+    docs: false,
+    about: false,
   });
 
   // 处理顶栏模块配置变更
@@ -102,8 +102,8 @@ export default function SettingsHeaderNavModules(props) {
         enabled: true,
         requireAuth: false,
       },
-      docs: true,
-      about: true,
+      docs: false,
+      about: false,
     };
     setHeaderNavModules(defaultModules);
     showSuccess(t('已重置为默认配置'));
@@ -170,7 +170,7 @@ export default function SettingsHeaderNavModules(props) {
           };
         }
 
-        setHeaderNavModules(modules);
+        setHeaderNavModules({ ...modules, docs: false, about: false });
       } catch (error) {
         // 使用默认配置
         const defaultModules = {
@@ -184,8 +184,8 @@ export default function SettingsHeaderNavModules(props) {
             enabled: true,
             requireAuth: false,
           },
-          docs: true,
-          about: true,
+          docs: false,
+          about: false,
         };
         setHeaderNavModules(defaultModules);
       }
@@ -215,16 +215,6 @@ export default function SettingsHeaderNavModules(props) {
       title: t('需求市场'),
       description: t('创作需求市场，可设置是否登录可见'),
       hasSubConfig: true,
-    },
-    {
-      key: 'docs',
-      title: t('文档'),
-      description: t('系统文档和帮助信息'),
-    },
-    {
-      key: 'about',
-      title: t('关于'),
-      description: t('关于系统的详细信息'),
     },
   ];
 

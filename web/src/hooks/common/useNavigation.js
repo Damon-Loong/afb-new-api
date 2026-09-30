@@ -81,6 +81,10 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       },
     ];
 
+    // tianyue does not expose the upstream documentation/about navigation.
+    modules.docs = false;
+    modules.about = false;
+
     // 根据配置过滤导航链接
     return allLinks.filter((link) => {
       if (link.itemKey === 'docs') {
