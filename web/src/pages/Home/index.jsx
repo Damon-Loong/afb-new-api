@@ -18,13 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
-import {
-  Button,
-  Typography,
-  Input,
-  ScrollList,
-  ScrollItem,
-} from '@douyinfe/semi-ui';
+import { Button, ScrollList, ScrollItem } from '@douyinfe/semi-ui';
 import { API, showError, copy, showSuccess } from '../../helpers';
 import { useIsMobile } from '../../hooks/common/useIsMobile';
 import { API_ENDPOINTS } from '../../constants/common.constant';
@@ -32,36 +26,12 @@ import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import {
-  IconPlay,
-  IconCopy,
-} from '@douyinfe/semi-icons';
+import { IconPlay, IconCopy, IconFile } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
-import {
-  Moonshot,
-  OpenAI,
-  XAI,
-  Zhipu,
-  Volcengine,
-  Cohere,
-  Claude,
-  Gemini,
-  Suno,
-  Minimax,
-  Wenxin,
-  Spark,
-  Qingyan,
-  DeepSeek,
-  Qwen,
-  Midjourney,
-  Grok,
-  AzureAI,
-  Hunyuan,
-  Xinference,
-} from '@lobehub/icons';
+import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
 
-const { Text } = Typography;
+import './aperture.css';
 
 const Home = () => {
   const { t, i18n } = useTranslation();
@@ -72,9 +42,10 @@ const Home = () => {
   const [noticeVisible, setNoticeVisible] = useState(false);
   const isMobile = useIsMobile();
   const rawServerAddress = statusState?.status?.server_address || '';
-  const isLocalServerAddress = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.test(
-    rawServerAddress,
-  );
+  const isLocalServerAddress =
+    /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i.test(
+      rawServerAddress,
+    );
   const serverAddress =
     rawServerAddress && !isLocalServerAddress
       ? rawServerAddress
@@ -158,179 +129,111 @@ const Home = () => {
         isMobile={isMobile}
       />
       {homePageContentLoaded && homePageContent === '' ? (
-        <div className='w-full overflow-x-hidden'>
-          <section className='home-hero'>
-            <div className='home-hero__grid'>
-              <div>
-                <div className='home-hero__eyebrow'>
-                  <span>tianyue API</span>
-                  <span>AI Gateway</span>
-                </div>
-                <h1
-                  className={`home-hero__title ${isChinese ? 'tracking-wide md:tracking-wider' : ''}`}
-                >
+        <div className='aperture-home' data-theme={actualTheme}>
+          <div className='aperture-scene' aria-hidden='true' />
+          <section className='aperture-hero' aria-labelledby='aperture-title'>
+            <h1 id='aperture-title' className='aperture-title'>
+              {isChinese ? (
+                <>
                   <span className='shine-text'>
-                    {t('企业级大模型接口网关')}
+                    {i18n.language === 'zh-TW'
+                      ? '企業級大模型'
+                      : '企业级大模型'}
                   </span>
-                </h1>
-                <p className='home-hero__lead'>
-                  {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
-                </p>
-                <div className='home-hero__chips mt-6'>
-                  <span className='home-hero__chip'>OpenAI Compatible</span>
-                  <span className='home-hero__chip'>Claude / Gemini / MJ</span>
-                  <span className='home-hero__chip'>Routing & Billing</span>
-                </div>
-                <div className='home-hero__input-card mt-6 max-w-2xl'>
-                  <Text type='tertiary' className='mb-3 block'>
-                    {t('统一入口')}
-                  </Text>
-                  <Input
-                    readonly
-                    value={serverAddress}
-                    className='flex-1 !rounded-[16px]'
-                    size={isMobile ? 'default' : 'large'}
-                    suffix={
-                      <div className='flex items-center gap-2'>
-                        <ScrollList
-                          bodyHeight={32}
-                          style={{ border: 'unset', boxShadow: 'unset' }}
-                        >
-                          <ScrollItem
-                            mode='wheel'
-                            cycled={true}
-                            list={endpointItems}
-                            selectedIndex={endpointIndex}
-                            onSelect={({ index }) => setEndpointIndex(index)}
-                          />
-                        </ScrollList>
-                        <Button
-                          type='primary'
-                          onClick={handleCopyBaseURL}
-                          icon={<IconCopy />}
-                          className='!rounded-[14px]'
-                        />
-                      </div>
-                    }
+                  <span className='shine-text'>
+                    {i18n.language === 'zh-TW' ? '介面' : '接口'}
+                    <em className='shine-text'>
+                      {i18n.language === 'zh-TW' ? '閘道' : '网关'}
+                    </em>
+                  </span>
+                </>
+              ) : (
+                <span className='shine-text'>{t('企业级大模型接口网关')}</span>
+              )}
+            </h1>
+            <p className='aperture-lead'>
+              {t('更好的价格，更好的稳定性，只需要将模型基址替换为：')}
+            </p>
+            <div className='aperture-endpoint'>
+              <input
+                readOnly
+                value={serverAddress}
+                aria-label={t('统一入口')}
+              />
+              <div className='aperture-endpoint__path'>
+                <ScrollList
+                  bodyHeight={32}
+                  style={{ border: 'unset', boxShadow: 'unset' }}
+                >
+                  <ScrollItem
+                    mode='wheel'
+                    cycled={true}
+                    list={endpointItems}
+                    selectedIndex={endpointIndex}
+                    onSelect={({ index }) => setEndpointIndex(index)}
                   />
-                </div>
-                <div className='flex flex-row gap-4 justify-start items-center mt-6 flex-wrap'>
-                  <Link to='/console'>
-                    <Button
-                      theme='solid'
-                      type='primary'
-                      size={isMobile ? 'default' : 'large'}
-                      className='!rounded-[16px] px-8 py-2'
-                      icon={<IconPlay />}
-                    >
-                      {t('获取密钥')}
-                    </Button>
-                  </Link>
-                </div>
+                </ScrollList>
               </div>
-
-              <div className='home-hero__stats-card'>
-                <div>
-                  <Text type='tertiary'>{t('运行概览')}</Text>
-                  <div className='home-hero__provider-strip mt-4'>
-                    <span className='home-hero__provider-pill'>OpenAI</span>
-                    <span className='home-hero__provider-pill'>Claude</span>
-                    <span className='home-hero__provider-pill'>Gemini</span>
-                    <span className='home-hero__provider-pill'>DeepSeek</span>
-                  </div>
-                </div>
-                <div className='home-hero__stats-row'>
-                  <span>{t('接入能力')}</span>
-                  <strong>Chat / Image / Audio / Realtime</strong>
-                </div>
-                <div className='home-hero__stats-row'>
-                  <span>{t('支持供应商')}</span>
-                  <strong>30+</strong>
-                </div>
-                <div className='home-hero__stats-row'>
-                  <span>{t('适用场景')}</span>
-                  <strong>{t('聚合、鉴权、计费、控制台')}</strong>
-                </div>
-              </div>
+              <Button
+                aria-label={t('复制')}
+                onClick={handleCopyBaseURL}
+                icon={<IconCopy />}
+                theme='borderless'
+              />
+            </div>
+            <div className='aperture-actions'>
+              <Link
+                className='aperture-button aperture-button--primary'
+                to='/console'
+              >
+                <IconPlay />
+                {t('获取密钥')}
+              </Link>
+              <Link className='aperture-button' to='/interface-docs'>
+                <IconFile />
+                {t('接口文档')}
+              </Link>
             </div>
           </section>
-
-          <section className='home-section-card'>
-            <div className='flex items-center mb-6 md:mb-8 justify-between gap-4 flex-wrap'>
-              <Text
-                type='tertiary'
-                className='text-lg md:text-xl lg:text-2xl font-light'
-              >
-                {t('支持众多的大模型供应商')}
-              </Text>
-              <div className='home-hero__provider-pill'>{t('统一网关 / 更稳定')}</div>
+          <section className='aperture-summary' aria-label={t('运行概览')}>
+            <div
+              className='aperture-providers'
+              aria-label={t('支持众多的大模型供应商')}
+            >
+              <div>
+                <OpenAI size={30} />
+                <span>OpenAI</span>
+              </div>
+              <div>
+                <Claude.Color size={30} />
+                <span>Claude</span>
+              </div>
+              <div>
+                <Gemini.Color size={30} />
+                <span>Gemini</span>
+              </div>
+              <div>
+                <DeepSeek.Color size={34} />
+                <span>DeepSeek</span>
+              </div>
+              <div>
+                <Qwen.Color size={30} />
+                <span>Qwen</span>
+              </div>
+              <div className='aperture-provider-count'>
+                <strong>30+</strong>
+                <span>{t('支持供应商')}</span>
+              </div>
             </div>
-            <div className='flex flex-wrap items-center justify-center gap-3 sm:gap-4 md:gap-6 lg:gap-8 max-w-5xl mx-auto px-4'>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Moonshot size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <OpenAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <XAI size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Zhipu.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Volcengine.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Cohere.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Claude.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Gemini.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Suno size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Minimax.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Wenxin.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Spark.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qingyan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <DeepSeek.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Qwen.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Midjourney size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Grok size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <AzureAI.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Hunyuan.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Xinference.Color size={40} />
-                    </div>
-                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 flex items-center justify-center'>
-                      <Typography.Text className='!text-lg sm:!text-xl md:!text-2xl lg:!text-3xl font-bold'>
-                        30+
-                      </Typography.Text>
-                    </div>
+            <div className='aperture-capabilities'>
+              <div>
+                <span>{t('接入能力')}</span>
+                <strong>Chat / Image / Audio / Realtime</strong>
+              </div>
+              <div>
+                <span>{t('适用场景')}</span>
+                <strong>{t('聚合、鉴权、计费、控制台')}</strong>
+              </div>
             </div>
           </section>
         </div>
