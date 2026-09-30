@@ -182,6 +182,33 @@ func TestCompleteWeChatPaySubscriptionOrder_ValidatesAmountAndIsIdempotent(t *te
 	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 203))
 }
 
+func TestCompleteWeChatPaySubscriptionOrder_UsesConvertedOrderAmount(t *testing.T) {
+	truncateTables(t)
+
+	insertUserForPaymentGuardTest(t, 203, 0)
+	plan := insertSubscriptionPlanForPaymentGuardTest(t, 302)
+	order := &SubscriptionOrder{
+		UserId:          203,
+		PlanId:          plan.Id,
+		Money:           1050,
+		TradeNo:         "wechat-subscription-converted",
+		PaymentMethod:   PaymentMethodWeChatPay,
+		PaymentProvider: PaymentProviderWeChatPay,
+		Status:          common.TopUpStatusPending,
+		CreateTime:      time.Now().Unix(),
+	}
+	require.NoError(t, order.Insert())
+	require.ErrorIs(t, CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{}", 999), ErrPaymentAmountMismatch)
+
+	require.NoError(t, CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{\"provider\":\"wechatpay\"}", 105000))
+	assert.Equal(t, common.TopUpStatusSuccess, GetSubscriptionOrderByTradeNo(order.TradeNo).Status)
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 203))
+
+	require.NoError(t, CompleteWeChatPaySubscriptionOrder(order.TradeNo, "{\"duplicate\":true}", 105000))
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 203))
+}
+
+
 func TestCompleteWeChatPaySubscriptionOrder_RejectsAmountMismatch(t *testing.T) {
 	truncateTables(t)
 

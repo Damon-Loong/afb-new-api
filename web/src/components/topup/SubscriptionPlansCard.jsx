@@ -103,6 +103,7 @@ const SubscriptionPlansCard = ({
   const [subWechatOpen, setSubWechatOpen] = useState(false);
   const [subWechatCodeUrl, setSubWechatCodeUrl] = useState('');
   const [subWechatOrderId, setSubWechatOrderId] = useState('');
+  const [subWechatPayMoney, setSubWechatPayMoney] = useState(null);
 
   const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
 
@@ -223,6 +224,7 @@ const SubscriptionPlansCard = ({
       if (res.data?.message === 'success' && res.data?.data?.code_url) {
         setSubWechatCodeUrl(res.data.data.code_url);
         setSubWechatOrderId(res.data.data.order_id || '');
+        setSubWechatPayMoney(res.data.data.pay_money ?? null);
         setSubWechatOpen(true);
         showSuccess(t('请使用微信扫码完成支付'));
         closeBuy();
@@ -786,6 +788,9 @@ const SubscriptionPlansCard = ({
               {t('订单号')}：{subWechatOrderId}
             </Text>
           ) : null}
+          {subWechatPayMoney !== null && (
+            <div>{t('实付金额')}：¥{Number(subWechatPayMoney).toFixed(2)}</div>
+          )}
           {subWechatCodeUrl ? (
             <div className='flex justify-center'>
               <div

@@ -240,6 +240,7 @@ export default function SettingsPaymentGatewayWeChatPay(props) {
                 field='WeChatPayUnitPrice'
                 precision={2}
                 label={t('充值价格（x元/美金）')}
+                extraText={t('余额充值和订阅微信支付均使用此汇率，将美元金额换算为人民币实付金额。')}
                 placeholder={t('例如：7.3')}
                 min={0}
               />
