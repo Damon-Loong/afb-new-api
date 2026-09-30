@@ -26,7 +26,7 @@ import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import { IconPlay, IconCopy, IconFile } from '@douyinfe/semi-icons';
+import { IconPlay, IconCopy, IconFile, IconGithubLogo } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
 import { OpenAI, Claude, Gemini, DeepSeek, Qwen } from '@lobehub/icons';
@@ -193,6 +193,12 @@ const Home = () => {
                 <IconFile />
                 {t('接口文档')}
               </Link>
+              {statusState?.status?.demo_site_enabled && statusState?.status?.version ? (
+                <a className='aperture-button' href='https://github.com/QuantumNous/new-api' target='_blank' rel='noopener noreferrer'>
+                  <IconGithubLogo />
+                  {statusState.status.version}
+                </a>
+              ) : null}
             </div>
           </section>
           <section className='aperture-summary' aria-label={t('运行概览')}>
