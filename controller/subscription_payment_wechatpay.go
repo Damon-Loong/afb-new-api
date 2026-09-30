@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -61,6 +60,13 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 		return
 	}
 
+	totalFen, err := service.SubscriptionWeChatPayTotalFen(plan.PriceAmount, setting.WeChatPayUnitPrice)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "套餐金额或微信支付充值价格配置无效"})
+		return
+	}
+	payMoney := float64(totalFen) / 100
+
 	userId := c.GetInt("id")
 	if plan.MaxPurchasePerUser > 0 {
 		count, err := model.CountUserSubscriptionsByPlan(userId, plan.Id)
@@ -84,7 +90,7 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 	order := &model.SubscriptionOrder{
 		UserId:          userId,
 		PlanId:          plan.Id,
-		Money:           plan.PriceAmount,
+		Money:           payMoney,
 		TradeNo:         tradeNo,
 		PaymentMethod:   model.PaymentMethodWeChatPay,
 		PaymentProvider: model.PaymentProviderWeChatPay,
@@ -96,10 +102,6 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 		return
 	}
 
-	totalFen := int64(math.Round(plan.PriceAmount * 100))
-	if totalFen < 1 {
-		totalFen = 1
-	}
 
 	notifyURL := strings.TrimSpace(setting.WeChatPayNotifyURL)
 	if notifyURL == "" {
@@ -152,11 +154,13 @@ func SubscriptionRequestWeChatPay(c *gin.Context) {
 		return
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf("订阅微信支付 订单创建成功 trade_no=%s plan_id=%d money=%.2f fen=%d", tradeNo, plan.Id, plan.PriceAmount, totalFen))
+	logger.LogInfo(c.Request.Context(), fmt.Sprintf("订阅微信支付 订单创建成功 trade_no=%s plan_id=%d money=%.2f fen=%d", tradeNo, plan.Id, payMoney, totalFen))
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
 			"code_url":   codeURL,
+			"pay_money":  payMoney,
+			"currency":   "CNY",
 			"order_id":   tradeNo,
 			"return_url": returnURL,
 		},
