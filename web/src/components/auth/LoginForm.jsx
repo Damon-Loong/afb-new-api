@@ -304,8 +304,8 @@ const LoginForm = () => {
           showSuccess('登录成功！');
           if (username === 'root' && password === '123456') {
             Modal.error({
-              title: '您正在使用默认密码！',
-              content: '请立刻修改默认密码！',
+              title: t('您正在使用默认密码！'),
+              content: t('请立刻修改默认密码！'),
               centered: true,
             });
           }
@@ -374,7 +374,9 @@ const LoginForm = () => {
       const res = await API.post('/api/auth/sms/login', {
         phone,
         code,
-        aff_code: smsIsNewUser ? String(inputs.sms_aff_code || '').trim() : undefined,
+        aff_code: smsIsNewUser
+          ? String(inputs.sms_aff_code || '').trim()
+          : undefined,
       });
       const { success, message, data } = res.data || {};
       if (success) {
@@ -934,7 +936,9 @@ const LoginForm = () => {
                         label={t('邀请码')}
                         placeholder={t('邀请码，可选')}
                         name='sms_aff_code'
-                        onChange={(value) => handleChange('sms_aff_code', value)}
+                        onChange={(value) =>
+                          handleChange('sms_aff_code', value)
+                        }
                         prefix={<IconTick />}
                       />
                     )}
@@ -1006,8 +1010,16 @@ const LoginForm = () => {
                     className='w-full !rounded-full'
                     type='primary'
                     htmlType='submit'
-                    onClick={showSMSLogin && status.sms_login ? handleSMSLogin : handleSubmit}
-                    loading={showSMSLogin && status.sms_login ? smsLoginLoading : loginLoading}
+                    onClick={
+                      showSMSLogin && status.sms_login
+                        ? handleSMSLogin
+                        : handleSubmit
+                    }
+                    loading={
+                      showSMSLogin && status.sms_login
+                        ? smsLoginLoading
+                        : loginLoading
+                    }
                     disabled={
                       (hasUserAgreement || hasPrivacyPolicy) && !agreedToTerms
                     }
@@ -1083,7 +1095,11 @@ const LoginForm = () => {
         }}
       >
         <div className='flex flex-col items-center'>
-          <img src={status.wechat_qrcode} alt='微信二维码' className='mb-4' />
+          <img
+            src={status.wechat_qrcode}
+            alt={t('微信二维码')}
+            className='mb-4'
+          />
         </div>
 
         <div className='text-center mb-4'>
@@ -1126,7 +1142,7 @@ const LoginForm = () => {
                 />
               </svg>
             </div>
-            两步验证
+            {t('两步验证')}
           </div>
         }
         visible={showTwoFA}
@@ -1150,9 +1166,7 @@ const LoginForm = () => {
       systemName={systemName}
       eyebrow='Secure Access'
       title={t('登录 tianyue API 工作台')}
-      description={t(
-        '统一访问供应商网关、令牌管理、订阅计费和运行分析能力。',
-      )}
+      description={t('统一访问供应商网关、令牌管理、订阅计费和运行分析能力。')}
       footer={
         turnstileEnabled ? (
           <div className='flex justify-center mt-2'>

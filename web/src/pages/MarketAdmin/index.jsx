@@ -1,3 +1,5 @@
+import { useTranslation } from 'react-i18next';
+import i18n from '../../i18n/i18n';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
@@ -65,27 +67,27 @@ function fromDate(value) {
 
 function statusText(status) {
   const map = {
-    draft: '草稿',
-    published: '已发布',
-    ended: '已结束',
-    archived: '已下架',
-    pending: '待审核',
-    approved: '已通过',
-    rejected: '已驳回',
+    draft: i18n.t('草稿'),
+    published: i18n.t('已发布'),
+    ended: i18n.t('已结束'),
+    archived: i18n.t('已下架'),
+    pending: i18n.t('待审核'),
+    approved: i18n.t('已通过'),
+    rejected: i18n.t('已驳回'),
   };
   return map[status] || status;
 }
 
 function categoryText(category) {
   const map = {
-    music: '音乐',
-    video: '视频',
-    text: '文档(文本)',
-    document: '文档(文本)',
-    image: '图片',
-    mixed: '综合',
+    music: i18n.t('音乐'),
+    video: i18n.t('视频'),
+    text: i18n.t('文档(文本)'),
+    document: i18n.t('文档(文本)'),
+    image: i18n.t('图片'),
+    mixed: i18n.t('综合'),
   };
-  return map[category] || '作品';
+  return map[category] || i18n.t('作品');
 }
 
 function parsePolicies(lines) {
@@ -124,12 +126,13 @@ async function uploadMarketFile(file, usageType) {
   formData.append('usage_type', usageType);
   const res = await API.post('/api/market/uploads', formData);
   if (!res.data?.success) {
-    throw new Error(res.data?.message || '上传失败');
+    throw new Error(res.data?.message || i18n.t('上传失败'));
   }
   return res.data.data;
 }
 
 export default function MarketAdmin() {
+  const { t } = useTranslation();
   const [activeKey, setActiveKey] = useState('activities');
   const [activityLoading, setActivityLoading] = useState(false);
   const [submissionLoading, setSubmissionLoading] = useState(false);
@@ -225,7 +228,7 @@ export default function MarketAdmin() {
       policies: parsePolicies(form.policy_lines),
     };
     if (!payload.title.trim()) {
-      showError('活动标题不能为空');
+      showError(t('活动标题不能为空'));
       return;
     }
     setSaving(true);
@@ -234,7 +237,7 @@ export default function MarketAdmin() {
         ? await API.put(`/api/market/admin/activities/${editing.id}`, payload)
         : await API.post('/api/market/admin/activities', payload);
       if (res.data.success) {
-        showSuccess('保存成功');
+        showSuccess(t('保存成功'));
         setVisible(false);
         fetchActivities();
       } else {
@@ -249,11 +252,14 @@ export default function MarketAdmin() {
 
   const updateActivityStatus = async (record, status) => {
     try {
-      const res = await API.patch(`/api/market/admin/activities/${record.id}/status`, {
-        status,
-      });
+      const res = await API.patch(
+        `/api/market/admin/activities/${record.id}/status`,
+        {
+          status,
+        },
+      );
       if (res.data.success) {
-        showSuccess('状态已更新');
+        showSuccess(t('状态已更新'));
         fetchActivities();
       } else {
         showError(res.data.message);
@@ -267,7 +273,7 @@ export default function MarketAdmin() {
     try {
       const res = await API.delete(`/api/market/admin/activities/${record.id}`);
       if (res.data.success) {
-        showSuccess('已删除');
+        showSuccess(t('已删除'));
         fetchActivities();
       } else {
         showError(res.data.message);
@@ -278,14 +284,20 @@ export default function MarketAdmin() {
   };
 
   const updateSubmissionStatus = async (record, status) => {
-    const rejectReason = status === 'rejected' ? window.prompt('请输入驳回原因', record.reject_reason || '') || '' : '';
+    const rejectReason =
+      status === 'rejected'
+        ? window.prompt(t('请输入驳回原因'), record.reject_reason || '') || ''
+        : '';
     try {
-      const res = await API.patch(`/api/market/admin/submissions/${record.id}/status`, {
-        status,
-        reject_reason: rejectReason,
-      });
+      const res = await API.patch(
+        `/api/market/admin/submissions/${record.id}/status`,
+        {
+          status,
+          reject_reason: rejectReason,
+        },
+      );
       if (res.data.success) {
-        showSuccess('投稿状态已更新');
+        showSuccess(t('投稿状态已更新'));
         fetchSubmissions();
       } else {
         showError(res.data.message);
@@ -297,12 +309,15 @@ export default function MarketAdmin() {
 
   const updateSubmissionFeature = async (record) => {
     try {
-      const res = await API.patch(`/api/market/admin/submissions/${record.id}/feature`, {
-        is_featured: !record.is_featured,
-        sort_weight: record.sort_weight || 0,
-      });
+      const res = await API.patch(
+        `/api/market/admin/submissions/${record.id}/feature`,
+        {
+          is_featured: !record.is_featured,
+          sort_weight: record.sort_weight || 0,
+        },
+      );
       if (res.data.success) {
-        showSuccess(record.is_featured ? '已取消精选' : '已设为精选');
+        showSuccess(record.is_featured ? t('已取消精选') : t('已设为精选'));
         fetchSubmissions();
       } else {
         showError(res.data.message);
@@ -314,9 +329,11 @@ export default function MarketAdmin() {
 
   const removeSubmission = async (record) => {
     try {
-      const res = await API.delete(`/api/market/admin/submissions/${record.id}`);
+      const res = await API.delete(
+        `/api/market/admin/submissions/${record.id}`,
+      );
       if (res.data.success) {
-        showSuccess('投稿已删除');
+        showSuccess(t('投稿已删除'));
         fetchSubmissions();
       } else {
         showError(res.data.message);
@@ -329,46 +346,46 @@ export default function MarketAdmin() {
   const activityColumns = useMemo(
     () => [
       {
-        title: '活动',
+        title: t('活动'),
         dataIndex: 'title',
         render: (text, record) => (
           <Space vertical align='start' spacing={2}>
             <Text strong>{text}</Text>
             <Text type='secondary' size='small'>
-              {record.subtitle || '未填写副标题'}
+              {record.subtitle || t('未填写副标题')}
             </Text>
           </Space>
         ),
       },
       {
-        title: '状态',
+        title: t('状态'),
         dataIndex: 'status',
         width: 110,
         render: (status) => <Tag>{statusText(status)}</Tag>,
       },
       {
-        title: '类型',
+        title: t('类型'),
         dataIndex: 'category',
         width: 120,
         render: (category) => <Tag>{categoryText(category)}</Tag>,
       },
       {
-        title: '投稿',
+        title: t('投稿'),
         dataIndex: 'submission_count',
         width: 90,
       },
       {
-        title: '排序',
+        title: t('排序'),
         dataIndex: 'sort_weight',
         width: 90,
       },
       {
-        title: '操作',
+        title: t('操作'),
         width: 300,
         render: (_, record) => (
           <Space>
             <Button size='small' onClick={() => openEdit(record)}>
-              编辑
+              {t('编辑')}
             </Button>
             <Button
               size='small'
@@ -379,154 +396,215 @@ export default function MarketAdmin() {
                 )
               }
             >
-              {record.status === 'published' ? '下架' : '发布'}
+              {record.status === 'published' ? t('下架') : t('发布')}
             </Button>
-            <Button size='small' onClick={() => updateActivityStatus(record, 'ended')}>
-              结束
+            <Button
+              size='small'
+              onClick={() => updateActivityStatus(record, 'ended')}
+            >
+              {t('结束')}
             </Button>
-            <Popconfirm title='确认删除该活动？投稿也会删除。' onConfirm={() => removeActivity(record)}>
+            <Popconfirm
+              title={t('确认删除该活动？投稿也会删除。')}
+              onConfirm={() => removeActivity(record)}
+            >
               <Button size='small' type='danger'>
-                删除
+                {t('删除')}
               </Button>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [],
+    [t],
   );
 
   const submissionColumns = useMemo(
     () => [
       {
-        title: '作品',
+        title: t('作品'),
         dataIndex: 'title',
         render: (text, record) => (
           <Space vertical align='start' spacing={2}>
             <Text strong>{text}</Text>
             <Text type='secondary' size='small'>
-              {record.activity?.title || `活动 #${record.activity_id}`}
+              {record.activity?.title ||
+                t('活动 #{{id}}', { id: record.activity_id })}
             </Text>
           </Space>
         ),
       },
       {
-        title: '状态',
+        title: t('状态'),
         dataIndex: 'status',
         width: 110,
         render: (status) => <Tag>{statusText(status)}</Tag>,
       },
       {
-        title: '精选',
+        title: t('精选'),
         dataIndex: 'is_featured',
         width: 90,
-        render: (featured) => (featured ? <Tag color='amber'>精选</Tag> : '-'),
+        render: (featured) =>
+          featured ? <Tag color='amber'>{t('精选')}</Tag> : '-',
       },
       {
-        title: '链接',
+        title: t('链接'),
         dataIndex: 'work_url',
         render: (url) =>
           url ? (
             <a href={url} target='_blank' rel='noreferrer'>
-              查看作品
+              {t('查看作品')}
             </a>
           ) : (
             '-'
           ),
       },
       {
-        title: '提交时间',
+        title: t('提交时间'),
         dataIndex: 'created_at',
         width: 170,
-        render: (value) => (value ? new Date(value * 1000).toLocaleString() : '-'),
+        render: (value) =>
+          value ? new Date(value * 1000).toLocaleString() : '-',
       },
       {
-        title: '操作',
+        title: t('操作'),
         width: 320,
         render: (_, record) => (
           <Space>
-            <Button size='small' onClick={() => updateSubmissionStatus(record, 'approved')}>
-              通过
+            <Button
+              size='small'
+              onClick={() => updateSubmissionStatus(record, 'approved')}
+            >
+              {t('通过')}
             </Button>
-            <Button size='small' type='warning' onClick={() => updateSubmissionStatus(record, 'rejected')}>
-              驳回
+            <Button
+              size='small'
+              type='warning'
+              onClick={() => updateSubmissionStatus(record, 'rejected')}
+            >
+              {t('驳回')}
             </Button>
-            <Button size='small' onClick={() => updateSubmissionFeature(record)}>
-              {record.is_featured ? '取消精选' : '设为精选'}
+            <Button
+              size='small'
+              onClick={() => updateSubmissionFeature(record)}
+            >
+              {record.is_featured ? t('取消精选') : t('设为精选')}
             </Button>
-            <Popconfirm title='确认删除该投稿？' onConfirm={() => removeSubmission(record)}>
+            <Popconfirm
+              title={t('确认删除该投稿？')}
+              onConfirm={() => removeSubmission(record)}
+            >
               <Button size='small' type='danger'>
-                删除
+                {t('删除')}
               </Button>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [submissions],
+    [submissions, t],
   );
 
   return (
     <div className='px-2'>
       <Card style={{ borderRadius: 8 }}>
         <Tabs activeKey={activeKey} onChange={setActiveKey} size='medium'>
-          <Tabs.TabPane tab='活动管理' itemKey='activities'>
-            <Space vertical align='start' spacing='loose' style={{ width: '100%' }}>
+          <Tabs.TabPane tab={t('活动管理')} itemKey='activities'>
+            <Space
+              vertical
+              align='start'
+              spacing='loose'
+              style={{ width: '100%' }}
+            >
               <Space style={{ width: '100%', justifyContent: 'space-between' }}>
                 <div>
                   <Title heading={3} style={{ margin: 0 }}>
-                    需求市场
+                    {t('需求市场')}
                   </Title>
-                  <Text type='secondary'>发布活动征稿，用户完成创作后提交作品。</Text>
+                  <Text type='secondary'>
+                    {t('发布活动征稿，用户完成创作后提交作品。')}
+                  </Text>
                 </div>
                 <Space>
-                  <Button icon={<RefreshCw size={16} />} onClick={fetchActivities}>
-                    刷新
+                  <Button
+                    icon={<RefreshCw size={16} />}
+                    onClick={fetchActivities}
+                  >
+                    {t('刷新')}
                   </Button>
-                  <Button theme='solid' icon={<Plus size={16} />} onClick={openCreate}>
-                    新增活动
+                  <Button
+                    theme='solid'
+                    icon={<Plus size={16} />}
+                    onClick={openCreate}
+                  >
+                    {t('新增活动')}
                   </Button>
                 </Space>
               </Space>
-              <Table rowKey='id' loading={activityLoading} columns={activityColumns} dataSource={activities} pagination={false} style={{ width: '100%' }} />
+              <Table
+                rowKey='id'
+                loading={activityLoading}
+                columns={activityColumns}
+                dataSource={activities}
+                pagination={false}
+                style={{ width: '100%' }}
+              />
             </Space>
           </Tabs.TabPane>
-          <Tabs.TabPane tab='投稿管理' itemKey='submissions'>
-            <Space vertical align='start' spacing='loose' style={{ width: '100%' }}>
+          <Tabs.TabPane tab={t('投稿管理')} itemKey='submissions'>
+            <Space
+              vertical
+              align='start'
+              spacing='loose'
+              style={{ width: '100%' }}
+            >
               <Space wrap>
                 <Select
                   style={{ width: 220 }}
-                  placeholder='按活动筛选'
+                  placeholder={t('按活动筛选')}
                   value={submissionActivityId}
                   onChange={setSubmissionActivityId}
                   optionList={[
-                    { label: '全部活动', value: '' },
-                    ...activities.map((item) => ({ label: item.title, value: String(item.id) })),
+                    { label: t('全部活动'), value: '' },
+                    ...activities.map((item) => ({
+                      label: item.title,
+                      value: String(item.id),
+                    })),
                   ]}
                 />
                 <Select
                   style={{ width: 160 }}
-                  placeholder='按状态筛选'
+                  placeholder={t('按状态筛选')}
                   value={submissionStatus}
                   onChange={setSubmissionStatus}
                   optionList={[
-                    { label: '全部状态', value: '' },
-                    { label: '待审核', value: 'pending' },
-                    { label: '已通过', value: 'approved' },
-                    { label: '已驳回', value: 'rejected' },
+                    { label: t('全部状态'), value: '' },
+                    { label: t('待审核'), value: 'pending' },
+                    { label: t('已通过'), value: 'approved' },
+                    { label: t('已驳回'), value: 'rejected' },
                   ]}
                 />
-                <Button icon={<RefreshCw size={16} />} onClick={fetchSubmissions}>
-                  刷新
+                <Button
+                  icon={<RefreshCw size={16} />}
+                  onClick={fetchSubmissions}
+                >
+                  {t('刷新')}
                 </Button>
               </Space>
-              <Table rowKey='id' loading={submissionLoading} columns={submissionColumns} dataSource={submissions} pagination={false} style={{ width: '100%' }} />
+              <Table
+                rowKey='id'
+                loading={submissionLoading}
+                columns={submissionColumns}
+                dataSource={submissions}
+                pagination={false}
+                style={{ width: '100%' }}
+              />
             </Space>
           </Tabs.TabPane>
         </Tabs>
       </Card>
       <Modal
-        title={editing ? '编辑活动' : '新增活动'}
+        title={editing ? t('编辑活动') : t('新增活动')}
         visible={visible}
         onCancel={() => setVisible(false)}
         onOk={save}
@@ -534,55 +612,108 @@ export default function MarketAdmin() {
         width={820}
       >
         <Space vertical spacing='medium' style={{ width: '100%' }}>
-          <FieldInput label='标题' value={form.title} onChange={(v) => updateField('title', v)} />
-          <FieldInput label='副标题' value={form.subtitle} onChange={(v) => updateField('subtitle', v)} />
           <FieldInput
-            label='奖池摘要'
+            label={t('标题')}
+            value={form.title}
+            onChange={(v) => updateField('title', v)}
+          />
+          <FieldInput
+            label={t('副标题')}
+            value={form.subtitle}
+            onChange={(v) => updateField('subtitle', v)}
+          />
+          <FieldInput
+            label={t('奖池摘要')}
             value={form.prize_summary}
             onChange={(v) => updateField('prize_summary', v)}
-            placeholder='例如：本期活动设置 20万 奖金池'
+            placeholder={t('例如：本期活动设置 20万 奖金池')}
           />
-          <UploadUrlField label='封面' value={form.cover_url} onChange={(v) => updateField('cover_url', v)} usageType='activity_cover' />
-          <FieldShell label='活动类型'>
-            <Select style={{ width: '100%' }} value={form.category} onChange={(v) => updateField('category', v)}>
-              <Select.Option value='image'>图片</Select.Option>
-              <Select.Option value='video'>视频</Select.Option>
-              <Select.Option value='music'>音乐</Select.Option>
-              <Select.Option value='text'>文档(文本)</Select.Option>
-              <Select.Option value='mixed'>综合</Select.Option>
+          <UploadUrlField
+            label={t('封面')}
+            value={form.cover_url}
+            onChange={(v) => updateField('cover_url', v)}
+            usageType='activity_cover'
+          />
+          <FieldShell label={t('活动类型')}>
+            <Select
+              style={{ width: '100%' }}
+              value={form.category}
+              onChange={(v) => updateField('category', v)}
+            >
+              <Select.Option value='image'>{t('图片')}</Select.Option>
+              <Select.Option value='video'>{t('视频')}</Select.Option>
+              <Select.Option value='music'>{t('音乐')}</Select.Option>
+              <Select.Option value='text'>{t('文档(文本)')}</Select.Option>
+              <Select.Option value='mixed'>{t('综合')}</Select.Option>
             </Select>
           </FieldShell>
-          <FieldShell label='状态'>
-            <Select style={{ width: '100%' }} value={form.status} onChange={(v) => updateField('status', v)}>
-              <Select.Option value='draft'>草稿</Select.Option>
-              <Select.Option value='published'>已发布</Select.Option>
-              <Select.Option value='ended'>已结束</Select.Option>
-              <Select.Option value='archived'>已下架</Select.Option>
+          <FieldShell label={t('状态')}>
+            <Select
+              style={{ width: '100%' }}
+              value={form.status}
+              onChange={(v) => updateField('status', v)}
+            >
+              <Select.Option value='draft'>{t('草稿')}</Select.Option>
+              <Select.Option value='published'>{t('已发布')}</Select.Option>
+              <Select.Option value='ended'>{t('已结束')}</Select.Option>
+              <Select.Option value='archived'>{t('已下架')}</Select.Option>
             </Select>
           </FieldShell>
-          <FieldShell label='活动时间'>
+          <FieldShell label={t('活动时间')}>
             <Space wrap style={{ width: '100%' }}>
-              <DatePicker type='dateTime' placeholder='开始时间' value={toDate(form.start_time)} onChange={(v) => updateField('start_time', fromDate(v))} />
-              <DatePicker type='dateTime' placeholder='结束时间' value={toDate(form.end_time)} onChange={(v) => updateField('end_time', fromDate(v))} />
-              <Input type='number' value={form.sort_weight} onChange={(v) => updateField('sort_weight', v)} placeholder='排序权重' style={{ width: 140 }} />
+              <DatePicker
+                type='dateTime'
+                placeholder={t('开始时间')}
+                value={toDate(form.start_time)}
+                onChange={(v) => updateField('start_time', fromDate(v))}
+              />
+              <DatePicker
+                type='dateTime'
+                placeholder={t('结束时间')}
+                value={toDate(form.end_time)}
+                onChange={(v) => updateField('end_time', fromDate(v))}
+              />
+              <Input
+                type='number'
+                value={form.sort_weight}
+                onChange={(v) => updateField('sort_weight', v)}
+                placeholder={t('排序权重')}
+                style={{ width: 140 }}
+              />
             </Space>
           </FieldShell>
-          <FieldShell label='投稿时间'>
+          <FieldShell label={t('投稿时间')}>
             <Space wrap style={{ width: '100%' }}>
-              <DatePicker type='dateTime' placeholder='投稿开始' value={toDate(form.submission_start_time)} onChange={(v) => updateField('submission_start_time', fromDate(v))} />
-              <DatePicker type='dateTime' placeholder='投稿结束' value={toDate(form.submission_end_time)} onChange={(v) => updateField('submission_end_time', fromDate(v))} />
+              <DatePicker
+                type='dateTime'
+                placeholder={t('投稿开始')}
+                value={toDate(form.submission_start_time)}
+                onChange={(v) =>
+                  updateField('submission_start_time', fromDate(v))
+                }
+              />
+              <DatePicker
+                type='dateTime'
+                placeholder={t('投稿结束')}
+                value={toDate(form.submission_end_time)}
+                onChange={(v) =>
+                  updateField('submission_end_time', fromDate(v))
+                }
+              />
             </Space>
           </FieldShell>
           <RichDetailField
-            label='活动详情'
+            label={t('活动详情')}
             value={form.detail_content}
             onChange={(v) => updateField('detail_content', v)}
           />
           <FieldTextArea
-            label='政策标签'
+            label={t('政策标签')}
             value={form.policy_lines}
             onChange={(v) => updateField('policy_lines', v)}
-            placeholder={'一行一个：区域|政策名|说明\n海淀区|OPC补贴|政策展示用'}
+            placeholder={t(
+              '一行一个：区域|政策名|说明\n海淀区|OPC补贴|政策展示用',
+            )}
           />
         </Space>
       </Modal>
@@ -593,7 +724,11 @@ export default function MarketAdmin() {
 function FieldShell({ label, children }) {
   return (
     <div style={{ display: 'flex', gap: 12, width: '100%' }}>
-      <div style={{ width: 100, paddingTop: 8, color: 'var(--semi-color-text-1)' }}>{label}</div>
+      <div
+        style={{ width: 100, paddingTop: 8, color: 'var(--semi-color-text-1)' }}
+      >
+        {label}
+      </div>
       <div style={{ flex: 1 }}>{children}</div>
     </div>
   );
@@ -610,12 +745,18 @@ function FieldInput({ label, value, onChange, placeholder }) {
 function FieldTextArea({ label, value, onChange, placeholder }) {
   return (
     <FieldShell label={label}>
-      <TextArea autosize={{ minRows: 3, maxRows: 8 }} value={value} onChange={onChange} placeholder={placeholder} />
+      <TextArea
+        autosize={{ minRows: 3, maxRows: 8 }}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+      />
     </FieldShell>
   );
 }
 
 function RichDetailField({ label, value, onChange }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const inputId = 'market-admin-detail-content-image';
 
@@ -625,9 +766,9 @@ function RichDetailField({ label, value, onChange }) {
     setUploading(true);
     try {
       const upload = await uploadMarketFile(file, 'activity_detail_image');
-      const imageMarkdown = `\n\n![${upload.file_name || '活动详情图'}](${upload.file_url})\n\n`;
+      const imageMarkdown = `\n\n![${upload.file_name || t('活动详情图')}](${upload.file_url})\n\n`;
       onChange(`${value || ''}${imageMarkdown}`);
-      showSuccess('图片已插入详情');
+      showSuccess(t('图片已插入详情'));
     } catch (error) {
       showError(error);
     } finally {
@@ -643,7 +784,7 @@ function RichDetailField({ label, value, onChange }) {
           autosize={{ minRows: 12, maxRows: 24 }}
           value={value}
           onChange={onChange}
-          placeholder={detailContentPlaceholder}
+          placeholder={t(detailContentPlaceholder)}
         />
         <Space wrap>
           <Button
@@ -651,17 +792,26 @@ function RichDetailField({ label, value, onChange }) {
             loading={uploading}
             onClick={() => document.getElementById(inputId)?.click()}
           >
-            上传并插入图片
+            {t('上传并插入图片')}
           </Button>
-          <Text type='tertiary'>支持 Markdown，详情图也建议插入到正文中。</Text>
+          <Text type='tertiary'>
+            {t('支持 Markdown，详情图也建议插入到正文中。')}
+          </Text>
         </Space>
-        <input id={inputId} type='file' accept='image/*' hidden onChange={handleFileChange} />
+        <input
+          id={inputId}
+          type='file'
+          accept='image/*'
+          hidden
+          onChange={handleFileChange}
+        />
       </Space>
     </FieldShell>
   );
 }
 
 function UploadUrlField({ label, value, onChange, usageType }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const inputId = `market-admin-${usageType}`;
 
@@ -672,7 +822,7 @@ function UploadUrlField({ label, value, onChange, usageType }) {
     try {
       const upload = await uploadMarketFile(file, usageType);
       onChange(upload.file_url);
-      showSuccess('上传成功');
+      showSuccess(t('上传成功'));
     } catch (error) {
       showError(error);
     } finally {
@@ -685,14 +835,38 @@ function UploadUrlField({ label, value, onChange, usageType }) {
     <FieldShell label={label}>
       <Space vertical align='start' spacing='medium' style={{ width: '100%' }}>
         <Space wrap>
-          <Input value={value} onChange={onChange} placeholder={`${label} URL，或上传本地文件`} style={{ width: 420 }} />
-          <Button loading={uploading} icon={<ImagePlus size={16} />} onClick={() => document.getElementById(inputId)?.click()}>
-            上传
+          <Input
+            value={value}
+            onChange={onChange}
+            placeholder={t('{{label}} URL，或上传本地文件', { label })}
+            style={{ width: 420 }}
+          />
+          <Button
+            loading={uploading}
+            icon={<ImagePlus size={16} />}
+            onClick={() => document.getElementById(inputId)?.click()}
+          >
+            {t('上传')}
           </Button>
-          {value ? <Button type='tertiary' onClick={() => onChange('')}>清除</Button> : null}
+          {value ? (
+            <Button type='tertiary' onClick={() => onChange('')}>
+              {t('清除')}
+            </Button>
+          ) : null}
         </Space>
         <input id={inputId} type='file' hidden onChange={handleFileChange} />
-        {value ? <img src={value} alt={label} style={{ width: 260, aspectRatio: '16 / 9', objectFit: 'cover', borderRadius: 8 }} /> : null}
+        {value ? (
+          <img
+            src={value}
+            alt={label}
+            style={{
+              width: 260,
+              aspectRatio: '16 / 9',
+              objectFit: 'cover',
+              borderRadius: 8,
+            }}
+          />
+        ) : null}
       </Space>
     </FieldShell>
   );

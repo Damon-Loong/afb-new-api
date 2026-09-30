@@ -925,14 +925,16 @@ const SystemSetting = () => {
                       <Form.Input
                         field='WorkerUrl'
                         label={t('Worker地址')}
-                        placeholder='例如：https://workername.yourdomain.workers.dev'
+                        placeholder={t(
+                          '例如：https://workername.yourdomain.workers.dev',
+                        )}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='WorkerValidKey'
                         label={t('Worker密钥')}
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                         type='password'
                       />
                     </Col>
@@ -1192,7 +1194,9 @@ const SystemSetting = () => {
                       <Form.Checkbox
                         field='SMSLoginEnabled'
                         noLabel
-                        onChange={(e) => handleCheckboxChange('SMSLoginEnabled', e)}
+                        onChange={(e) =>
+                          handleCheckboxChange('SMSLoginEnabled', e)
+                        }
                       >
                         {t('允许通过手机号验证码登录（仅 +86）')}
                       </Form.Checkbox>
@@ -1268,10 +1272,17 @@ const SystemSetting = () => {
 
               <Card>
                 <Form.Section text={t('短信登录（阿里云）')}>
-                  <Text type='secondary' style={{ display: 'block', marginBottom: 12 }}>
-                    {t('用于手机号验证码登录（仅 +86）。AccessKeySecret 为敏感字段，保存后不会回显；如无需修改可留空。')}
+                  <Text
+                    type='secondary'
+                    style={{ display: 'block', marginBottom: 12 }}
+                  >
+                    {t(
+                      '用于手机号验证码登录（仅 +86）。AccessKeySecret 为敏感字段，保存后不会回显；如无需修改可留空。',
+                    )}
                   </Text>
-                  <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='AliyunSMSAccessKeyId'
@@ -1289,28 +1300,57 @@ const SystemSetting = () => {
                     </Col>
                   </Row>
 
-                  <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                  >
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='AliyunSMSRegionId' label={t('RegionId')} placeholder='cn-hangzhou' />
+                      <Form.Input
+                        field='AliyunSMSRegionId'
+                        label={t('RegionId')}
+                        placeholder='cn-hangzhou'
+                      />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='AliyunSMSSignName' label={t('短信签名')} placeholder='短信签名' />
+                      <Form.Input
+                        field='AliyunSMSSignName'
+                        label={t('短信签名')}
+                        placeholder={t('短信签名')}
+                      />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='AliyunSMSTemplateCode' label={t('模板 Code')} placeholder='通用验证码模板 Code' />
+                      <Form.Input
+                        field='AliyunSMSTemplateCode'
+                        label={t('模板 Code')}
+                        placeholder={t('通用验证码模板 Code')}
+                      />
                     </Col>
                   </Row>
 
                   <Button
                     onClick={async () => {
                       const options = [
-                        { key: 'AliyunSMSAccessKeyId', value: inputs.AliyunSMSAccessKeyId || '' },
-                        { key: 'AliyunSMSRegionId', value: inputs.AliyunSMSRegionId || '' },
-                        { key: 'AliyunSMSSignName', value: inputs.AliyunSMSSignName || '' },
-                        { key: 'AliyunSMSTemplateCode', value: inputs.AliyunSMSTemplateCode || '' },
+                        {
+                          key: 'AliyunSMSAccessKeyId',
+                          value: inputs.AliyunSMSAccessKeyId || '',
+                        },
+                        {
+                          key: 'AliyunSMSRegionId',
+                          value: inputs.AliyunSMSRegionId || '',
+                        },
+                        {
+                          key: 'AliyunSMSSignName',
+                          value: inputs.AliyunSMSSignName || '',
+                        },
+                        {
+                          key: 'AliyunSMSTemplateCode',
+                          value: inputs.AliyunSMSTemplateCode || '',
+                        },
                       ];
                       if (inputs.AliyunSMSAccessKeySecret) {
-                        options.push({ key: 'AliyunSMSAccessKeySecret', value: inputs.AliyunSMSAccessKeySecret });
+                        options.push({
+                          key: 'AliyunSMSAccessKeySecret',
+                          value: inputs.AliyunSMSAccessKeySecret,
+                        });
                       }
                       await updateOptions(options);
                     }}
@@ -1375,7 +1415,8 @@ const SystemSetting = () => {
                     style={{ marginTop: 16 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select {...semiSelectPortalProps}
+                      <Form.Select
+                        {...semiSelectPortalProps}
                         field="['passkey.user_verification']"
                         label={t('安全验证级别')}
                         placeholder={t('是否要求指纹/面容等生物识别')}
@@ -1391,7 +1432,8 @@ const SystemSetting = () => {
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-                      <Form.Select {...semiSelectPortalProps}
+                      <Form.Select
+                        {...semiSelectPortalProps}
                         field="['passkey.attachment_preference']"
                         label={t('设备类型偏好')}
                         placeholder={t('选择支持的认证设备类型')}
@@ -1467,7 +1509,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱域名白名单
+                        {t('启用邮箱域名白名单')}
                       </Form.Checkbox>
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
@@ -1481,7 +1523,7 @@ const SystemSetting = () => {
                           )
                         }
                       >
-                        启用邮箱别名限制
+                        {t('启用邮箱别名限制')}
                       </Form.Checkbox>
                     </Col>
                   </Row>
@@ -1549,7 +1591,7 @@ const SystemSetting = () => {
                         field='SMTPToken'
                         label={t('SMTP 访问凭证')}
                         type='password'
-                        placeholder='敏感信息不会发送到前端显示'
+                        placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={8} lg={8} xl={8}>
@@ -1761,7 +1803,7 @@ const SystemSetting = () => {
                       <Form.Input
                         field='LinuxDOMinimumTrustLevel'
                         label='LinuxDO Minimum Trust Level'
-                        placeholder='允许注册的最低信任等级'
+                        placeholder={t('允许注册的最低信任等级')}
                       />
                     </Col>
                   </Row>
@@ -1774,8 +1816,9 @@ const SystemSetting = () => {
               <Card>
                 <Form.Section text='Claude Code CLI 下载配置'>
                   <Text>
-                    配置 Claude Code CLI
-                    安装包下载地址，前端可通过接口获取或跳转下载。
+                    {t(
+                      '配置 Claude Code CLI 安装包下载地址，前端可通过接口获取或跳转下载。',
+                    )}
                   </Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
@@ -1784,13 +1827,13 @@ const SystemSetting = () => {
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
                         field='ClaudeCodeCliDownloadUrl'
-                        label='CLI 下载链接'
+                        label={t('CLI 下载链接')}
                         placeholder='https://example.com/ClaudeCode.zip'
                       />
                     </Col>
                   </Row>
                   <Button onClick={submitClaudeCodeCliDownloadUrl}>
-                    保存 Claude Code CLI 下载配置
+                    {t('保存 Claude Code CLI 下载配置')}
                   </Button>
                 </Form.Section>
               </Card>

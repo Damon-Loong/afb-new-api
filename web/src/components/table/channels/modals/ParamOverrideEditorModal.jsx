@@ -241,13 +241,13 @@ const HEADER_VALUE_JSONC_EXAMPLE = `{
   "$append": ["context-1m-2025-08-07"]
 }`;
 
-const getModeValuePlaceholder = (mode) => {
+const getModeValuePlaceholder = (mode, t) => {
   if (mode === 'set_header') {
     return [
-      '纯字符串（整条覆盖）：',
+      t('纯字符串（整条覆盖）：'),
       'Bearer sk-xxx',
       '',
-      '或使用 JSON 规则：',
+      t('或使用 JSON 规则：'),
       '{',
       '  "files-api-2025-04-14": null,',
       '  "advanced-tool-use-2025-11-20": "tool-search-tool-2025-10-19",',
@@ -2135,7 +2135,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                               WebkitBoxOrient: 'vertical',
                                             }}
                                           >
-                                            {operation.description}
+                                            {t(operation.description)}
                                           </Text>
                                         ) : null}
                                       </div>
@@ -2864,7 +2864,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   <TextArea
                                     value={selectedOperation.value_text}
                                     autosize={{ minRows: 1, maxRows: 4 }}
-                                    placeholder={getModeValuePlaceholder(mode)}
+                                    placeholder={getModeValuePlaceholder(mode, t)}
                                     onChange={(nextValue) =>
                                       updateOperation(selectedOperation.id, {
                                         value_text: nextValue,
@@ -3429,7 +3429,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                 >
                   <div className='flex items-center justify-between mb-1'>
                     <Text strong style={{ fontSize: 18 }}>
-                      {section.title}
+                      {t(section.title)}
                     </Text>
                     <Tag color='grey'>{`${section.fields.length} ${t('项')}`}</Tag>
                   </div>
@@ -3454,7 +3454,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <Text strong>{field.label}</Text>
+                          <Text strong>{t(field.label)}</Text>
                           <Text
                             type='secondary'
                             size='small'
@@ -3475,7 +3475,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                             className='block mt-1'
                             style={{ lineHeight: '18px' }}
                           >
-                            {field.tip}
+                            {t(field.tip)}
                           </Text>
                         </div>
                         <Space spacing={6} align='center'>

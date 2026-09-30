@@ -77,7 +77,10 @@ const MessageContent = ({
           >
             <div className='flex items-center gap-2'>
               <AlertTriangle size={16} className='text-orange-500 shrink-0' />
-              <Typography.Text strong className='!text-[var(--semi-color-text-0)]'>
+              <Typography.Text
+                strong
+                className='!text-[var(--semi-color-text-0)]'
+              >
                 {t('模型价格未配置')}
               </Typography.Text>
             </div>
@@ -93,7 +96,9 @@ const MessageContent = ({
                 theme='light'
                 type='warning'
                 icon={<Settings size={14} />}
-                onClick={() => window.open('/console/setting?tab=ratio', '_blank')}
+                onClick={() =>
+                  window.open('/console/setting?tab=ratio', '_blank')
+                }
               >
                 {t('前往设置')}
               </Button>
@@ -323,7 +328,8 @@ const MessageContent = ({
                           className='text-red-500 text-sm p-2 bg-red-50 rounded-lg border border-red-200'
                           style={{ display: 'none' }}
                         >
-                          图片加载失败: {imgItem.image_url.url}
+                          {t('图片加载失败:')}
+                          {imgItem.image_url.url}
                         </div>
                       </div>
                     ))}

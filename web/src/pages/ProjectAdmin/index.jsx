@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Button,
@@ -37,6 +38,7 @@ function getOrigin(value) {
 }
 
 export default function ProjectAdmin() {
+  const { t } = useTranslation();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -49,11 +51,11 @@ export default function ProjectAdmin() {
     try {
       const res = await API.get('/api/admin/projects');
       if (!res.data?.success) {
-        throw new Error(res.data?.message || '加载项目失败');
+        throw new Error(res.data?.message || t('加载项目失败'));
       }
       setProjects(res.data.data || []);
     } catch (err) {
-      showError(err.message || '加载项目失败');
+      showError(err.message || t('加载项目失败'));
     } finally {
       setLoading(false);
     }
@@ -96,13 +98,13 @@ export default function ProjectAdmin() {
         ? await API.put(`/api/admin/projects/${editing.id}`, payload)
         : await API.post('/api/admin/projects', payload);
       if (!res.data?.success) {
-        throw new Error(res.data?.message || '保存项目失败');
+        throw new Error(res.data?.message || t('保存项目失败'));
       }
-      showSuccess('项目已保存');
+      showSuccess(t('项目已保存'));
       setModalOpen(false);
       loadProjects();
     } catch (err) {
-      showError(err.message || '保存项目失败');
+      showError(err.message || t('保存项目失败'));
     } finally {
       setSaving(false);
     }
@@ -112,19 +114,19 @@ export default function ProjectAdmin() {
     try {
       const res = await API.delete(`/api/admin/projects/${project.id}`);
       if (!res.data?.success) {
-        throw new Error(res.data?.message || '删除项目失败');
+        throw new Error(res.data?.message || t('删除项目失败'));
       }
-      showSuccess('项目已删除');
+      showSuccess(t('项目已删除'));
       loadProjects();
     } catch (err) {
-      showError(err.message || '删除项目失败');
+      showError(err.message || t('删除项目失败'));
     }
   };
 
   const columns = useMemo(
     () => [
       {
-        title: '项目',
+        title: t('项目'),
         dataIndex: 'name',
         render: (_, record) => (
           <Space vertical spacing={2} align='start'>
@@ -136,66 +138,68 @@ export default function ProjectAdmin() {
         ),
       },
       {
-        title: '官网 URL',
+        title: t('官网 URL'),
         dataIndex: 'official_url',
-        render: (value) => value ? (
-          <Space vertical spacing={2} align='start'>
-            <a href={value} target='_blank' rel='noreferrer'>
-              <Space spacing={4}>
-                {value}
-                <ExternalLink size={14} />
-              </Space>
-            </a>
-            <Text type='tertiary' size='small'>
-              白名单 origin：{getOrigin(value)}
-            </Text>
-          </Space>
-        ) : (
-          <Tag color='orange'>未限制回跳地址</Tag>
-        ),
+        render: (value) =>
+          value ? (
+            <Space vertical spacing={2} align='start'>
+              <a href={value} target='_blank' rel='noreferrer'>
+                <Space spacing={4}>
+                  {value}
+                  <ExternalLink size={14} />
+                </Space>
+              </a>
+              <Text type='tertiary' size='small'>
+                {t('白名单 origin：')}
+                {getOrigin(value)}
+              </Text>
+            </Space>
+          ) : (
+            <Tag color='orange'>{t('未限制回跳地址')}</Tag>
+          ),
       },
       {
-        title: '状态',
+        title: t('状态'),
         dataIndex: 'enabled',
         width: 160,
         render: (_, record) => (
           <Space>
             <Tag color={record.enabled ? 'green' : 'grey'}>
-              {record.enabled ? '已启用' : '已禁用'}
+              {record.enabled ? t('已启用') : t('已禁用')}
             </Tag>
             <Tag color={record.sso_enabled ? 'blue' : 'grey'}>
-              {record.sso_enabled ? 'SSO' : '无 SSO'}
+              {record.sso_enabled ? 'SSO' : t('无 SSO')}
             </Tag>
           </Space>
         ),
       },
       {
-        title: '排序',
+        title: t('排序'),
         dataIndex: 'sort',
         width: 90,
       },
       {
-        title: '操作',
+        title: t('操作'),
         width: 180,
         render: (_, record) => (
           <Space>
             <Button size='small' onClick={() => openEdit(record)}>
-              编辑
+              {t('编辑')}
             </Button>
             <Popconfirm
-              title='确定删除这个项目？'
-              content='删除后该项目不能再通过 SSO 跳转。'
+              title={t('确定删除这个项目？')}
+              content={t('删除后该项目不能再通过 SSO 跳转。')}
               onConfirm={() => deleteProject(record)}
             >
               <Button size='small' type='danger' theme='borderless'>
-                删除
+                {t('删除')}
               </Button>
             </Popconfirm>
           </Space>
         ),
       },
     ],
-    [],
+    [t],
   );
 
   return (
@@ -204,18 +208,24 @@ export default function ProjectAdmin() {
         <div className='flex items-center justify-between mb-4'>
           <div>
             <Title heading={4} style={{ margin: 0 }}>
-              项目管理
+              {t('项目管理')}
             </Title>
             <Text type='tertiary'>
-              建议填写官网 URL 作为 SSO 回跳和跨域白名单；留空将接受任意 HTTP(S) 地址，仅建议临时测试使用。
+              {t(
+                '建议填写官网 URL 作为 SSO 回跳和跨域白名单；留空将接受任意 HTTP(S) 地址，仅建议临时测试使用。',
+              )}
             </Text>
           </div>
           <Space>
             <Button icon={<RefreshCw size={16} />} onClick={loadProjects}>
-              刷新
+              {t('刷新')}
             </Button>
-            <Button theme='solid' icon={<Plus size={16} />} onClick={openCreate}>
-              新增项目
+            <Button
+              theme='solid'
+              icon={<Plus size={16} />}
+              onClick={openCreate}
+            >
+              {t('新增项目')}
             </Button>
           </Space>
         </div>
@@ -229,7 +239,7 @@ export default function ProjectAdmin() {
       </Card>
 
       <Modal
-        title={editing ? '编辑项目' : '新增项目'}
+        title={editing ? t('编辑项目') : t('新增项目')}
         visible={modalOpen}
         onCancel={() => setModalOpen(false)}
         onOk={saveProject}
@@ -239,62 +249,74 @@ export default function ProjectAdmin() {
         <Form labelPosition='top'>
           <Form.Input
             field='key'
-            label='项目标识'
+            label={t('项目标识')}
             placeholder='ota'
             initValue={form.key}
             onChange={(value) => setForm((prev) => ({ ...prev, key: value }))}
           />
           <Form.Input
             field='name'
-            label='项目名称'
-            placeholder='OTA 酒店价格工具'
+            label={t('项目名称')}
+            placeholder={t('OTA 酒店价格工具')}
             initValue={form.name}
             onChange={(value) => setForm((prev) => ({ ...prev, name: value }))}
           />
           <Form.Input
             field='official_url'
-            label='官网 URL'
-            placeholder='https://ota.xxx.com（留空则不限制地址）'
+            label={t('官网 URL')}
+            placeholder={t('https://ota.xxx.com（留空则不限制地址）')}
             initValue={form.official_url}
-            onChange={(value) => setForm((prev) => ({ ...prev, official_url: value }))}
+            onChange={(value) =>
+              setForm((prev) => ({ ...prev, official_url: value }))
+            }
           />
           <Form.Input
             field='icon_url'
-            label='图标 URL'
+            label={t('图标 URL')}
             placeholder='https://.../icon.png'
             initValue={form.icon_url}
-            onChange={(value) => setForm((prev) => ({ ...prev, icon_url: value }))}
+            onChange={(value) =>
+              setForm((prev) => ({ ...prev, icon_url: value }))
+            }
           />
           <Form.Input
             field='billing_secret'
-            label='扣费密钥'
-            placeholder='项目后端调用扣费接口用的共享密钥'
+            label={t('扣费密钥')}
+            placeholder={t('项目后端调用扣费接口用的共享密钥')}
             initValue={form.billing_secret}
-            onChange={(value) => setForm((prev) => ({ ...prev, billing_secret: value }))}
+            onChange={(value) =>
+              setForm((prev) => ({ ...prev, billing_secret: value }))
+            }
           />
           <Form.TextArea
             field='description'
-            label='简介'
-            placeholder='展示在项目入口的简短说明'
+            label={t('简介')}
+            placeholder={t('展示在项目入口的简短说明')}
             initValue={form.description}
-            onChange={(value) => setForm((prev) => ({ ...prev, description: value }))}
+            onChange={(value) =>
+              setForm((prev) => ({ ...prev, description: value }))
+            }
           />
           <Form.InputNumber
             field='sort'
-            label='排序'
+            label={t('排序')}
             initValue={form.sort}
             onChange={(value) => setForm((prev) => ({ ...prev, sort: value }))}
           />
           <Space>
-            <span>启用项目</span>
+            <span>{t('启用项目')}</span>
             <Switch
               checked={form.enabled}
-              onChange={(checked) => setForm((prev) => ({ ...prev, enabled: checked }))}
+              onChange={(checked) =>
+                setForm((prev) => ({ ...prev, enabled: checked }))
+              }
             />
-            <span>允许 SSO</span>
+            <span>{t('允许 SSO')}</span>
             <Switch
               checked={form.sso_enabled}
-              onChange={(checked) => setForm((prev) => ({ ...prev, sso_enabled: checked }))}
+              onChange={(checked) =>
+                setForm((prev) => ({ ...prev, sso_enabled: checked }))
+              }
             />
           </Space>
         </Form>
