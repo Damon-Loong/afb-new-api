@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { useTranslation } from 'react-i18next';
 import React from 'react';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
@@ -32,6 +33,7 @@ const AuthShell = ({
   sidebar,
   maxWidth = 'max-w-6xl',
 }) => {
+  const { t } = useTranslation();
   return (
     <div className='auth-shell'>
       <div className='auth-shell__grid'>
@@ -79,26 +81,28 @@ const AuthShell = ({
             <>
               <div className='auth-shell__sidebar-chip'>AI Gateway Control</div>
               <Title heading={4} className='auth-shell__sidebar-title'>
-                更成熟的 AI 网关工作台
+                {t('更成熟的 AI 网关工作台')}
               </Title>
               <Text className='auth-shell__sidebar-text'>
-                统一管理供应商、密钥、路由、订阅与使用情况。保持原有逻辑与能力，只升级界面的秩序、质感和操作节奏。
+                {t(
+                  '统一管理供应商、密钥、路由、订阅与使用情况。保持原有逻辑与能力，只升级界面的秩序、质感和操作节奏。',
+                )}
               </Text>
               <div className='auth-shell__sidebar-grid'>
                 <div className='auth-shell__sidebar-card'>
-                  <span>多模型</span>
+                  <span>{t('多模型')}</span>
                   <strong>30+</strong>
                 </div>
                 <div className='auth-shell__sidebar-card'>
-                  <span>统一鉴权</span>
+                  <span>{t('统一鉴权')}</span>
                   <strong>OAuth / 2FA</strong>
                 </div>
                 <div className='auth-shell__sidebar-card'>
-                  <span>可观测性</span>
+                  <span>{t('可观测性')}</span>
                   <strong>Charts & Logs</strong>
                 </div>
                 <div className='auth-shell__sidebar-card'>
-                  <span>部署模式</span>
+                  <span>{t('部署模式')}</span>
                   <strong>Self / External</strong>
                 </div>
               </div>

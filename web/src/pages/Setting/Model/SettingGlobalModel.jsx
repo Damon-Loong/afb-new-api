@@ -81,21 +81,30 @@ const endpointIncludes = (endpoints, keyword) => {
   if (!endpoints) return false;
   const lowerKeyword = String(keyword || '').toLowerCase();
   try {
-    const parsed = typeof endpoints === 'string' ? JSON.parse(endpoints) : endpoints;
+    const parsed =
+      typeof endpoints === 'string' ? JSON.parse(endpoints) : endpoints;
     if (Array.isArray(parsed)) {
       return parsed.some((endpoint) =>
-        String(endpoint || '').toLowerCase().includes(lowerKeyword),
+        String(endpoint || '')
+          .toLowerCase()
+          .includes(lowerKeyword),
       );
     }
     if (parsed && typeof parsed === 'object') {
       return Object.keys(parsed).some((endpoint) =>
-        String(endpoint || '').toLowerCase().includes(lowerKeyword),
+        String(endpoint || '')
+          .toLowerCase()
+          .includes(lowerKeyword),
       );
     }
   } catch (error) {
-    return String(endpoints || '').toLowerCase().includes(lowerKeyword);
+    return String(endpoints || '')
+      .toLowerCase()
+      .includes(lowerKeyword);
   }
-  return String(endpoints || '').toLowerCase().includes(lowerKeyword);
+  return String(endpoints || '')
+    .toLowerCase()
+    .includes(lowerKeyword);
 };
 
 const endpointIncludesOpenAI = (endpoints) => {
@@ -339,7 +348,9 @@ export default function SettingGlobalModel(props) {
                   rules={[
                     {
                       validator: (rule, value) => {
-                        const text = String(value || '').trim().toLowerCase();
+                        const text = String(value || '')
+                          .trim()
+                          .toLowerCase();
                         return text === '' || text !== 'afb-auto';
                       },
                       message: t('不能填写 afb-auto，避免递归路由'),
@@ -369,7 +380,9 @@ export default function SettingGlobalModel(props) {
                   rules={[
                     {
                       validator: (rule, value) => {
-                        const text = String(value || '').trim().toLowerCase();
+                        const text = String(value || '')
+                          .trim()
+                          .toLowerCase();
                         return text === '' || text !== 'afb-auto';
                       },
                       message: t('不能填写 afb-auto，避免递归路由'),
@@ -432,7 +445,7 @@ export default function SettingGlobalModel(props) {
                 >
                   {t('ChatCompletions→Responses 兼容配置')}
                   <Tag color='orange' size='small'>
-                    测试版
+                    {t('测试版')}
                   </Tag>
                 </span>
               }

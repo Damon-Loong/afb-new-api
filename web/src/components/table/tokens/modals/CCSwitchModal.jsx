@@ -152,7 +152,7 @@ export default function CCSwitchModal({
           >
             {Object.entries(APP_CONFIGS).map(([key, cfg]) => (
               <Radio key={key} value={key}>
-                {cfg.label}
+                {t(cfg.label)}
               </Radio>
             ))}
           </RadioGroup>
