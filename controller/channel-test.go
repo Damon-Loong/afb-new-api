@@ -675,6 +675,10 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				},
 				MaxTokens: lo.ToPtr(maxTokens),
 			}
+			if constant.EndpointType(endpointType) == constant.EndpointTypeOpenAI && common.UsesMaxCompletionTokens(model) {
+				req.MaxCompletionTokens = req.MaxTokens
+				req.MaxTokens = nil
+			}
 			if isStream {
 				req.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 			}
@@ -735,7 +739,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		testRequest.StreamOptions = &dto.StreamOptions{IncludeUsage: true}
 	}
 
-	if strings.HasPrefix(model, "o") {
+	if common.UsesMaxCompletionTokens(model) {
 		testRequest.MaxCompletionTokens = lo.ToPtr(uint(16))
 	} else if strings.Contains(model, "thinking") {
 		if !strings.Contains(model, "claude") {
