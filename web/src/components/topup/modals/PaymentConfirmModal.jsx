@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { renderNumber } from '../../../helpers';
 
 const { Text } = Typography;
 
@@ -40,6 +41,11 @@ const PaymentConfirmModal = ({
   amountNumber,
   discountRate,
 }) => {
+  const isTokenDisplay = localStorage.getItem('quota_display_type') === 'TOKENS';
+  const rechargeQuantity = isTokenDisplay
+    ? renderNumber(Number(topUpCount))
+    : renderQuotaWithAmount(topUpCount);
+
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
   const originalAmount = hasDiscount ? amountNumber / discountRate : 0;
@@ -68,7 +74,7 @@ const PaymentConfirmModal = ({
                 {t('充值数量')}：
               </Text>
               <Text className='text-slate-900 dark:text-slate-100'>
-                {renderQuotaWithAmount(topUpCount)}
+                {rechargeQuantity}
               </Text>
             </div>
             <div className='flex justify-between items-center'>
