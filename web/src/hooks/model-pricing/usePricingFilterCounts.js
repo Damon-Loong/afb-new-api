@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { pricingType } from '../../helpers/dynamicPricing';
+
 import { useMemo } from 'react';
 
 // 工具函数：将 tags 字符串转为小写去重数组
@@ -57,7 +59,7 @@ export const usePricingFilterCounts = ({
 
     // 计费类型
     if (!ignore.includes('quota') && filterQuotaType !== 'all') {
-      if (model.quota_type !== filterQuotaType) return false;
+      if (pricingType(model) !== filterQuotaType) return false;
     }
 
     // 端点类型

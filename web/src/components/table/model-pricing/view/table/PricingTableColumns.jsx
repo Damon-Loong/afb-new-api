@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { pricingType } from '../../../../../helpers/dynamicPricing';
+
 import React from 'react';
 import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
 import { IconHelpCircle } from '@douyinfe/semi-icons';
@@ -35,6 +37,12 @@ import { useIsMobile } from '../../../../../hooks/common/useIsMobile';
 
 function renderQuotaType(type, t) {
   switch (type) {
+    case 2:
+      return (
+        <Tag color='amber' shape='circle'>
+          {t('动态计费')}
+        </Tag>
+      );
     case 1:
       return (
         <Tag color='teal' shape='circle'>
@@ -160,9 +168,9 @@ export const getPricingTableColumns = ({
     title: t('计费类型'),
     dataIndex: 'quota_type',
     render: (text, record, index) => {
-      return renderQuotaType(parseInt(text), t);
+      return renderQuotaType(pricingType(record), t);
     },
-    sorter: (a, b) => a.quota_type - b.quota_type,
+    sorter: (a, b) => pricingType(a) - pricingType(b),
   };
 
   const descriptionColumn = {
@@ -214,11 +222,11 @@ export const getPricingTableColumns = ({
       return (
         <div className='space-y-1'>
           <div className='text-gray-700'>
-            {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
+            {t('模型倍率')}：{pricingType(record) === 0 ? text : t('无')}
           </div>
           <div className='text-gray-700'>
             {t('补全倍率')}：
-            {record.quota_type === 0 ? completionRatio : t('无')}
+            {pricingType(record) === 0 ? completionRatio : t('无')}
           </div>
           <div className='text-gray-700'>
             {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}

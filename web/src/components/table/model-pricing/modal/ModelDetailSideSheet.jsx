@@ -35,6 +35,7 @@ const ModelDetailSideSheet = ({
   onClose,
   modelData,
   groupRatio,
+  selectedGroup,
   currency,
   siteDisplayType,
   tokenUnit,
@@ -93,6 +94,11 @@ const ModelDetailSideSheet = ({
             {modelData.billing_mode === 'tiered_expr' ? (
               <DynamicPricingBreakdown
                 billingExpr={modelData.billing_expr}
+                modelData={modelData}
+                groupRatio={groupRatio}
+                selectedGroup={selectedGroup}
+                tokenUnit={tokenUnit}
+                displayPrice={displayPrice}
                 t={t}
               />
             ) : (
