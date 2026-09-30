@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { dynamicPriceData } from './dynamicPricing';
+
 import { Toast, Pagination } from '@douyinfe/semi-ui';
 import { toastConstants } from '../constants';
 import React from 'react';
@@ -657,6 +659,19 @@ export const calculateModelPrice = ({
     }
   }
 
+  if (record.billing_mode === 'tiered_expr') {
+    return {
+      ...dynamicPriceData(
+        record.billing_expr,
+        usedGroupRatio,
+        tokenUnit,
+        displayPrice,
+      ),
+      usedGroup,
+      usedGroupRatio,
+    };
+  }
+
   // 2. 根据计费类型计算价格
   if (record.quota_type === 0) {
     // 按量计费
@@ -728,7 +743,9 @@ export const calculateModelPrice = ({
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(
+            inputRatioPriceUSD * Number(record.create_cache_ratio),
+          )
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
         ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
@@ -774,11 +791,24 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
+  if (priceData.isDynamic) {
+    return [
+      {
+        key: 'dynamic',
+        label: t('动态计费'),
+        value: t(
+          priceData.supported
+            ? priceData.rules.length
+              ? '基础阶梯价格（条件乘数另计）'
+              : '阶梯价格'
+            : '按规则计算',
+        ),
+        suffix: '',
+      },
+      ...priceData.items.map((item) => ({ ...item, label: t(item.label) })),
+    ];
+  }
   if (priceData.isPerToken) {
     if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
       return [
@@ -874,7 +904,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ].filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return [
@@ -884,7 +917,10 @@ export const getModelPriceItems = (
       value: priceData.price,
       suffix: ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ].filter(
+    (item) =>
+      item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化价格信息（用于卡片视图）

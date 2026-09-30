@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { pricingType } from '../../../../helpers/dynamicPricing';
+
 import React from 'react';
 import SelectableButtonGroup from '../../../common/ui/SelectableButtonGroup';
 
@@ -36,12 +38,13 @@ const PricingQuotaTypes = ({
   t,
 }) => {
   const qtyCount = (type) =>
-    models.filter((m) => (type === 'all' ? true : m.quota_type === type))
+    models.filter((m) => (type === 'all' ? true : pricingType(m) === type))
       .length;
 
   const items = [
     { value: 'all', label: t('全部类型'), tagCount: qtyCount('all') },
     { value: 0, label: t('按量计费'), tagCount: qtyCount(0) },
+    { value: 2, label: t('动态计费'), tagCount: qtyCount(2) },
     { value: 1, label: t('按次计费'), tagCount: qtyCount(1) },
   ];
 

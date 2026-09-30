@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { pricingType } from '../../helpers/dynamicPricing';
+
 import { useState, useEffect, useContext, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { API, copy, showError, showInfo, showSuccess } from '../../helpers';
@@ -107,7 +109,7 @@ export const useModelPricingData = () => {
 
     // 计费类型筛选
     if (filterQuotaType !== 'all') {
-      result = result.filter((model) => model.quota_type === filterQuotaType);
+      result = result.filter((model) => pricingType(model) === filterQuotaType);
     }
 
     // 端点类型筛选
@@ -178,18 +180,18 @@ export const useModelPricingData = () => {
     [selectedRowKeys],
   );
 
-  const displayPrice = (usdPrice) => {
+  const displayPrice = (usdPrice, precision = 3) => {
     let priceInUSD = usdPrice;
     if (showWithRecharge) {
       priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
     }
 
     if (currency === 'CNY') {
-      return `¥${(priceInUSD * usdExchangeRate).toFixed(3)}`;
+      return `¥${(priceInUSD * usdExchangeRate).toFixed(precision)}`;
     } else if (currency === 'CUSTOM') {
-      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(3)}`;
+      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(precision)}`;
     }
-    return `$${priceInUSD.toFixed(3)}`;
+    return `$${priceInUSD.toFixed(precision)}`;
   };
 
   const setModelsFormat = (models, groupRatio, vendorMap) => {
@@ -206,7 +208,7 @@ export const useModelPricingData = () => {
       }
     }
     models.sort((a, b) => {
-      return a.quota_type - b.quota_type;
+      return pricingType(a) - pricingType(b);
     });
 
     models.sort((a, b) => {

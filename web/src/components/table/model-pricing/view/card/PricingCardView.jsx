@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
+import { pricingType } from '../../../../../helpers/dynamicPricing';
+
 import React from 'react';
 import {
   Card,
@@ -50,7 +52,8 @@ const CARD_STYLES = {
     'pricing-model-card__icon flex items-center justify-center relative',
   icon: 'w-8 h-8 flex items-center justify-center',
   selected: 'border-[rgba(79,124,255,0.34)] bg-[rgba(79,124,255,0.08)]',
-  default: 'border-[rgba(122,151,255,0.14)] hover:border-[rgba(79,124,255,0.24)]',
+  default:
+    'border-[rgba(122,151,255,0.14)] hover:border-[rgba(79,124,255,0.24)]',
 };
 
 const PricingCardView = ({
@@ -159,13 +162,19 @@ const PricingCardView = ({
         -
       </Tag>
     );
-    if (record.quota_type === 1) {
+    if (pricingType(record) === 2) {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='amber' size='small'>
+          {t('动态计费')}
+        </Tag>
+      );
+    } else if (pricingType(record) === 1) {
       billingTag = (
         <Tag key='billing' shape='circle' color='teal' size='small'>
           {t('按次计费')}
         </Tag>
       );
-    } else if (record.quota_type === 0) {
+    } else if (pricingType(record) === 0) {
       billingTag = (
         <Tag key='billing' shape='circle' color='violet' size='small'>
           {t('按量计费')}
@@ -301,9 +310,7 @@ const PricingCardView = ({
 
                 {/* 模型描述 - 占据剩余空间 */}
                 <div className='flex-1 mb-4'>
-                  <p
-                    className='pricing-model-card__desc text-xs line-clamp-2 leading-relaxed'
-                  >
+                  <p className='pricing-model-card__desc text-xs line-clamp-2 leading-relaxed'>
                     {getModelDescription(model)}
                   </p>
                 </div>
@@ -334,14 +341,16 @@ const PricingCardView = ({
                           />
                         </Tooltip>
                       </div>
-                    <div className='pricing-model-card__footer grid grid-cols-3 gap-2 text-xs'>
+                      <div className='pricing-model-card__footer grid grid-cols-3 gap-2 text-xs'>
                         <div>
                           {t('模型')}:{' '}
-                          {model.quota_type === 0 ? model.model_ratio : t('无')}
+                          {pricingType(model) === 0
+                            ? model.model_ratio
+                            : t('无')}
                         </div>
                         <div>
                           {t('补全')}:{' '}
-                          {model.quota_type === 0
+                          {pricingType(model) === 0
                             ? parseFloat(model.completion_ratio.toFixed(3))
                             : t('无')}
                         </div>

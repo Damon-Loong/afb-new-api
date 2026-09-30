@@ -17,18 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Avatar, Tag, Table, Typography } from '@douyinfe/semi-ui';
+import React, { useState, useEffect } from 'react';
+import { Avatar, Tag, Table, Typography, Select } from '@douyinfe/semi-ui';
 import { IconPriceTag } from '@douyinfe/semi-icons';
-import { getCurrencyConfig } from '../../../../../helpers';
+import { calculateModelPrice } from '../../../../../helpers';
+import { BILLING_PRICING_VARS } from '../../../../../constants';
 import {
-  BILLING_PRICING_VARS,
-  BILLING_VAR_KEY_TO_FIELD,
-  BILLING_VAR_REGEX,
-} from '../../../../../constants';
-import {
-  splitBillingExprAndRequestRules,
-  tryParseRequestRuleExpr,
   SOURCE_TIME,
   MATCH_RANGE,
   MATCH_EQ,
@@ -40,8 +34,6 @@ import {
 
 const { Text } = Typography;
 
-const VAR_LABELS = { p: '输入', c: '输出' };
-const OP_LABELS = { '<': '<', '<=': '≤', '>': '>', '>=': '≥' };
 const TIME_FUNC_LABELS = {
   hour: '小时',
   minute: '分钟',
@@ -49,70 +41,6 @@ const TIME_FUNC_LABELS = {
   month: '月份',
   day: '日期',
 };
-
-function parseTierBody(body) {
-  const coefficients = {};
-  const matcher = new RegExp(BILLING_VAR_REGEX.source, 'g');
-  let match;
-  while ((match = matcher.exec(body)) !== null) {
-    if (!(match[1] in coefficients)) coefficients[match[1]] = Number(match[2]);
-  }
-  return Object.fromEntries(
-    Object.entries(BILLING_VAR_KEY_TO_FIELD).map(([key, field]) => [
-      field,
-      coefficients[key] || 0,
-    ]),
-  );
-}
-
-function parseTiersFromExpr(value) {
-  if (!value) return [];
-  const body = value.replace(/^v\d+:/, '');
-  const condition =
-    '((?:(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)(?:\\s*&&\\s*(?:p|c|len)\\s*(?:<|<=|>|>=)\\s*[\\d.eE+]+)*)';
-  const matcher = new RegExp(
-    `(?:${condition}\\s*\\?\\s*)?tier\\("([^"]*)",\\s*([^)]+)\\)`,
-    'g',
-  );
-  const tiers = [];
-  let match;
-  while ((match = matcher.exec(body)) !== null) {
-    const conditions = (match[1] || '')
-      .split(/\s*&&\s*/)
-      .map((part) => part.match(/^(p|c|len)\s*(<|<=|>|>=)\s*([\d.eE+]+)$/))
-      .filter(Boolean)
-      .map((item) => ({ var: item[1], op: item[2], value: Number(item[3]) }));
-    tiers.push({
-      ...parseTierBody(match[3]),
-      label: match[2],
-      conditions,
-    });
-  }
-  return tiers;
-}
-
-function formatTokenHint(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n) || n === 0) return '';
-  if (n >= 1000000)
-    return `${(n / 1000000).toFixed(n % 1000000 === 0 ? 0 : 1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K`;
-  return String(n);
-}
-
-function formatConditionSummary(conditions, t) {
-  return conditions
-    .map((c) => {
-      if (c.var && c.op) {
-        const varLabel = t(VAR_LABELS[c.var] || c.var);
-        const hint = formatTokenHint(c.value);
-        return `${varLabel} ${OP_LABELS[c.op] || c.op} ${hint || c.value}`;
-      }
-      return '';
-    })
-    .filter(Boolean)
-    .join(' && ');
-}
 
 function describeCondition(cond, t) {
   if (cond.source === SOURCE_TIME) {
@@ -138,14 +66,28 @@ function describeGroup(group, t) {
   return parts.join(' && ');
 }
 
-export default function DynamicPricingBreakdown({ billingExpr, t }) {
-  const { symbol, rate } = getCurrencyConfig();
-  const { billingExpr: baseExpr, requestRuleExpr: ruleExpr } =
-    splitBillingExprAndRequestRules(billingExpr || '');
-
-  const tiers = parseTiersFromExpr(baseExpr);
-  const ruleGroups = tryParseRequestRuleExpr(ruleExpr || '');
-
+export default function DynamicPricingBreakdown({
+  billingExpr,
+  modelData,
+  groupRatio,
+  selectedGroup,
+  tokenUnit,
+  displayPrice,
+  t,
+}) {
+  const [detailGroup, setDetailGroup] = useState(selectedGroup || 'all');
+  useEffect(() => {
+    setDetailGroup(selectedGroup || 'all');
+  }, [selectedGroup, modelData.model_name]);
+  const priceData = calculateModelPrice({
+    record: modelData,
+    selectedGroup: detailGroup,
+    groupRatio,
+    tokenUnit,
+    displayPrice,
+  });
+  const tiers = priceData.tiers;
+  const ruleGroups = priceData.rules;
   const hasTiers = tiers && tiers.length > 0;
   const hasRules = ruleGroups && ruleGroups.length > 0;
 
@@ -160,7 +102,7 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         </div>
         <div className='text-sm text-gray-500'>
           <code style={{ fontSize: 12, wordBreak: 'break-all' }}>
-            {billingExpr}
+            {t('按规则计算')}：{billingExpr}
           </code>
         </div>
       </div>
@@ -187,16 +129,15 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
       ),
     },
     ...priceFields
-      .filter(([field]) => hasTiers && tiers.some((tier) => tier[field] > 0))
+      .filter(
+        ([field]) =>
+          hasTiers && tiers.some((tier) => tier[field] !== undefined),
+      )
       .map(([field, label]) => ({
-        title: `${t(label)} (${symbol}/1M tokens)`,
+        title: `${t(label)} / 1${priceData.unitLabel} tokens`,
         dataIndex: field,
         render: (v) =>
-          v > 0 ? (
-            <Text strong>{`${symbol}${(v * rate).toFixed(4)}`}</Text>
-          ) : (
-            '-'
-          ),
+          v !== undefined ? <Text strong>{priceData.format(v)}</Text> : '-',
       })),
   ];
 
@@ -204,9 +145,13 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
     ? tiers.map((tier, i) => ({
         key: `tier-${i}`,
         label: tier.label,
-        condSummary: formatConditionSummary(tier.conditions, t),
+        condSummary: tier.conditions
+          .join(' && ')
+          .replace(/\blen\b/g, t('上下文长度'))
+          .replace(/\bp\b/g, t('输入'))
+          .replace(/\bc\b/g, t('输出')),
         ...Object.fromEntries(
-          priceFields.map(([field]) => [field, tier[field] || 0]),
+          priceFields.map(([field]) => [field, tier[field] ?? 0]),
         ),
       }))
     : [];
@@ -225,6 +170,23 @@ export default function DynamicPricingBreakdown({ billingExpr, t }) {
         </div>
       </div>
 
+      <div className='flex items-center gap-2 mb-4'>
+        <Text>{t('分组')}</Text>
+        <Select
+          value={detailGroup}
+          onChange={setDetailGroup}
+          style={{ minWidth: 180 }}
+          optionList={[
+            { label: t('全部（最低价格）'), value: 'all' },
+            ...(modelData.enable_groups || [])
+              .filter((g) => groupRatio[g] !== undefined)
+              .map((g) => ({ label: g, value: g })),
+          ]}
+        />
+        <Text>
+          {priceData.usedGroup} · {t('分组倍率')} {priceData.usedGroupRatio}x
+        </Text>
+      </div>
       {hasTiers && (
         <div style={{ marginBottom: 16 }}>
           <Text
