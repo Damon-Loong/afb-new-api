@@ -57,14 +57,10 @@ export const useModelPricingData = () => {
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
 
-  // 充值汇率（price）与美元兑人民币汇率（usd_exchange_rate）
-  const priceRate = useMemo(
-    () => statusState?.status?.price ?? 1,
-    [statusState],
-  );
+  // 展示汇率只读取通用设置，与支付渠道的充值价格无关。
   const usdExchangeRate = useMemo(
-    () => statusState?.status?.usd_exchange_rate ?? priceRate,
-    [statusState, priceRate],
+    () => statusState?.status?.usd_exchange_rate ?? 7.3,
+    [statusState],
   );
   const customExchangeRate = useMemo(
     () => statusState?.status?.custom_currency_exchange_rate ?? 1,
@@ -180,18 +176,15 @@ export const useModelPricingData = () => {
     [selectedRowKeys],
   );
 
-  const displayPrice = (usdPrice, precision = 3) => {
-    let priceInUSD = usdPrice;
-    if (showWithRecharge) {
-      priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
-    }
-
+  const displayPrice = (usdPrice, precision = 6) => {
+    const formatPrice = (value) =>
+      value.toFixed(precision).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1');
     if (currency === 'CNY') {
-      return `¥${(priceInUSD * usdExchangeRate).toFixed(precision)}`;
+      return `¥${formatPrice(usdPrice * usdExchangeRate)}`;
     } else if (currency === 'CUSTOM') {
-      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(precision)}`;
+      return `${customCurrencySymbol}${formatPrice(usdPrice * customExchangeRate)}`;
     }
-    return `$${priceInUSD.toFixed(precision)}`;
+    return `$${formatPrice(usdPrice)}`;
   };
 
   const setModelsFormat = (models, groupRatio, vendorMap) => {
@@ -378,7 +371,6 @@ export const useModelPricingData = () => {
     autoGroups,
 
     // 计算属性
-    priceRate,
     usdExchangeRate,
     filteredModels,
     rowSelection,
