@@ -29,7 +29,7 @@ import ActionButtons from './ActionButtons';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
-  const compactHeader = useIsMobile(1024);
+  const compactHeader = useIsMobile(768);
   const {
     userState,
     statusState,
