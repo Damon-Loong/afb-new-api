@@ -630,7 +630,7 @@ export const calculateModelPrice = ({
   displayPrice,
   currency,
   quotaDisplayType = 'USD',
-  precision = 4,
+  precision = 6,
 }) => {
   // 1. 选择实际使用的分组
   let usedGroup = selectedGroup;
@@ -705,29 +705,8 @@ export const calculateModelPrice = ({
       };
     }
 
-    let symbol = '$';
-    if (currency === 'CNY') {
-      symbol = '¥';
-    } else if (currency === 'CUSTOM') {
-      try {
-        const statusStr = localStorage.getItem('status');
-        if (statusStr) {
-          const s = JSON.parse(statusStr);
-          symbol = s?.custom_currency_symbol || '¤';
-        } else {
-          symbol = '¤';
-        }
-      } catch (e) {
-        symbol = '¤';
-      }
-    }
-
-    const formatTokenPrice = (priceUSD) => {
-      const rawDisplayPrice = displayPrice(priceUSD);
-      const numericPrice =
-        parseFloat(rawDisplayPrice.replace(/[^0-9.]/g, '')) / unitDivisor;
-      return `${symbol}${numericPrice.toFixed(precision)}`;
-    };
+    const formatTokenPrice = (priceUSD) =>
+      displayPrice(priceUSD / unitDivisor, precision);
 
     const inputPrice = formatTokenPrice(inputRatioPriceUSD);
     const audioInputPrice = hasRatioValue(record.audio_ratio)
@@ -770,7 +749,7 @@ export const calculateModelPrice = ({
   if (record.quota_type === 1) {
     // 按次计费
     const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
-    const displayVal = displayPrice(priceUSD);
+    const displayVal = displayPrice(priceUSD, precision);
 
     return {
       price: displayVal,
