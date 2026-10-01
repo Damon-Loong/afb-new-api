@@ -20,7 +20,7 @@ For commercial licensing, please contact support@quantumnous.com
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@douyinfe/semi-ui';
-import { Menu, X, ExternalLink } from 'lucide-react';
+import { ChevronRight, X, ExternalLink } from 'lucide-react';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
@@ -80,11 +80,15 @@ const Navigation = ({
             onClick={() => setMenuOpen((open) => !open)}
             className='!text-current !px-1.5 !bg-transparent flex-shrink-0'
           >
-            {menuOpen ? <X size={18} /> : <Menu size={18} />}
-            {!menuOpen && (
-              <span className='truncate ml-1 max-w-[calc(100vw-250px)]'>
-                {currentLink?.text || t('展开')}
-              </span>
+            {menuOpen ? (
+              <X size={18} />
+            ) : (
+              <>
+                <span className='truncate max-w-[calc(100vw-250px)]'>
+                  {currentLink?.text || t('展开')}
+                </span>
+                <ChevronRight size={18} className='ml-1 flex-shrink-0' />
+              </>
             )}
           </Button>
           {menuOpen && (
