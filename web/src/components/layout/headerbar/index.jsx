@@ -26,8 +26,10 @@ import MobileMenuButton from './MobileMenuButton';
 import HeaderLogo from './HeaderLogo';
 import Navigation from './Navigation';
 import ActionButtons from './ActionButtons';
+import { useIsMobile } from '../../../hooks/common/useIsMobile';
 
 const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
+  const compactHeader = useIsMobile(1024);
   const {
     userState,
     statusState,
@@ -75,9 +77,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       />
 
       <div className='headerbar-shell w-full px-3 pt-3'>
-        <div
-          className='app-shell-content flex items-center justify-between h-16 rounded-[22px] border border-[rgba(122,151,255,0.14)] bg-[var(--app-panel)] px-3 md:px-5 shadow-[var(--app-panel-shadow-soft)] backdrop-blur-[18px]'
-        >
+        <div className='app-shell-content flex items-center justify-between h-16 rounded-[22px] border border-[rgba(122,151,255,0.14)] bg-[var(--app-panel)] px-3 md:px-5 shadow-[var(--app-panel-shadow-soft)] backdrop-blur-[18px]'>
           <div className='flex items-center'>
             <MobileMenuButton
               isConsoleRoute={isConsoleRoute}
@@ -103,10 +103,11 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
           <Navigation
             mainNavLinks={mainNavLinks}
-            isMobile={isMobile}
+            isMobile={compactHeader}
             isLoading={isLoading}
             userState={userState}
             pricingRequireAuth={pricingRequireAuth}
+            t={t}
           />
 
           <ActionButtons
@@ -119,7 +120,7 @@ const HeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
             onLanguageChange={handleLanguageChange}
             userState={userState}
             isLoading={isLoading}
-            isMobile={isMobile}
+            isMobile={compactHeader}
             isSelfUseMode={isSelfUseMode}
             logout={logout}
             navigate={navigate}

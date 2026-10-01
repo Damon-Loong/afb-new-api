@@ -122,7 +122,10 @@ const Home = () => {
   }, [endpointItems.length]);
 
   return (
-    <div className='w-full overflow-x-hidden'>
+    <div
+      className='w-full overflow-x-hidden'
+      data-route-ready={homePageContentLoaded ? 'true' : 'false'}
+    >
       <NoticeModal
         visible={noticeVisible}
         onClose={() => setNoticeVisible(false)}

@@ -3246,3 +3246,34 @@ html.dark .pricing-model-card__icon {
     grid-template-columns: 1fr;
   }
 }
+
+/* Each resolved route root animates when it enters the DOM, including lazy
+   pages that mount after their Suspense fallback. Keep fixed overlays stable. */
+.route-page-content > :not([data-route-ready='false']):not([data-route-loading]) {
+  animation: route-content-reveal 550ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes route-content-reveal {
+  from { opacity: 0.02; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-page-content > :not([data-route-ready='false']):not([data-route-loading]) { animation: none; }
+}
+
+.compact-header-links {
+  background: transparent;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+  animation: compact-nav-expand 180ms ease-out;
+}
+
+@keyframes compact-nav-expand {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-header-links { animation: none; }
+}

@@ -49,7 +49,6 @@ const PageLayout = () => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const { i18n } = useTranslation();
   const location = useLocation();
-
   const cardProPages = [
     '/console/channel',
     '/console/log',
@@ -85,14 +84,14 @@ const PageLayout = () => {
       : `${consoleTopInset} 0 0`
     : isMarketRoute
       ? `${consoleTopInset} 0 0`
-    : '0';
+      : '0';
   const contentShellClassName = isPricingRoute
     ? 'app-shell-content app-shell-content--wide'
     : isMarketRoute
       ? 'app-shell-content app-shell-content--wide'
-    : isConsoleRoute
-      ? 'app-shell-content app-shell-content--console'
-      : 'app-shell-content';
+      : isConsoleRoute
+        ? 'app-shell-content app-shell-content--console'
+        : 'app-shell-content';
 
   useEffect(() => {
     if (isMobile && drawerOpen && collapsed) {
@@ -244,7 +243,9 @@ const PageLayout = () => {
             }}
           >
             <div className={contentShellClassName}>
-              <div className={shouldInnerPadding ? 'console-page-shell' : ''}>
+              <div
+                className={`route-page-content${shouldInnerPadding ? ' console-page-shell' : ''}`}
+              >
                 <ErrorBoundary>
                   <App />
                 </ErrorBoundary>
