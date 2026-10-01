@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Link, useLocation } from 'react-router-dom';
+import { Button } from '@douyinfe/semi-ui';
+import { Menu, X, ExternalLink } from 'lucide-react';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
 const Navigation = ({
@@ -27,7 +29,104 @@ const Navigation = ({
   isLoading,
   userState,
   pricingRequireAuth,
+  t,
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const { pathname } = useLocation();
+  const navRef = useRef(null);
+  useEffect(() => setMenuOpen(false), [pathname, isMobile]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOutside = (event) => {
+      if (!navRef.current?.contains(event.target)) setMenuOpen(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [menuOpen]);
+  const targetFor = (link) => {
+    if (link.itemKey === 'console' && !userState.user) return '/login';
+    if (link.itemKey === 'pricing' && pricingRequireAuth && !userState.user)
+      return '/login';
+    return link.to;
+  };
+  const currentLink = mainNavLinks.find(
+    (link) =>
+      !link.isExternal &&
+      (link.to === '/'
+        ? pathname === '/'
+        : pathname === link.to || pathname.startsWith(link.to + '/')),
+  );
+
+  if (isMobile) {
+    return (
+      <nav
+        ref={navRef}
+        className='compact-header-nav relative flex-1 min-w-0 mx-2 h-10'
+      >
+        <div className='absolute inset-0 flex items-center min-w-0'>
+          <Button
+            theme='borderless'
+            type='tertiary'
+            aria-label={menuOpen ? t('收起') : t('展开')}
+            aria-expanded={menuOpen}
+            aria-controls='compact-header-links'
+            onClick={() => setMenuOpen((open) => !open)}
+            className='!text-current !px-1.5 !bg-transparent flex-shrink-0'
+          >
+            {menuOpen ? <X size={18} /> : <Menu size={18} />}
+            {!menuOpen && (
+              <span className='truncate ml-1 max-w-[calc(100vw-250px)]'>
+                {currentLink?.text || t('展开')}
+              </span>
+            )}
+          </Button>
+          {menuOpen && (
+            <div
+              id='compact-header-links'
+              className='compact-header-links flex items-center min-w-0 flex-1 overflow-x-auto whitespace-nowrap scrollbar-hide'
+            >
+              {mainNavLinks.map((link) => {
+                const className = `flex-shrink-0 flex items-center gap-1 px-2 py-2 text-sm font-semibold ${currentLink?.itemKey === link.itemKey ? 'text-semi-color-primary' : 'text-current'}`;
+                return link.isExternal ? (
+                  <a
+                    key={link.itemKey}
+                    href={link.externalLink}
+                    target='_blank'
+                    rel='noopener noreferrer'
+                    className={className}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {link.text}
+                    <ExternalLink size={12} />
+                  </a>
+                ) : (
+                  <Link
+                    key={link.itemKey}
+                    to={targetFor(link)}
+                    aria-current={
+                      currentLink?.itemKey === link.itemKey ? 'page' : undefined
+                    }
+                    className={className}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    {link.text}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </nav>
+    );
+  }
+
   const renderNavLinks = () => {
     const baseClasses =
       'flex-shrink-0 flex items-center gap-1 font-semibold rounded-md transition-all duration-200 ease-in-out';
