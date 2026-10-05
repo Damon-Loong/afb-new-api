@@ -17,9 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, processModelsData, processGroupsData } from '../../helpers';
+import {
+  API,
+  processModelsData,
+  processGroupsData,
+  showError,
+} from '../../helpers';
 import { API_ENDPOINTS } from '../../constants/playground.constants';
 
 export const useDataLoader = (
@@ -30,29 +35,43 @@ export const useDataLoader = (
   setGroups,
 ) => {
   const { t } = useTranslation();
+  const latestInputs = useRef(inputs);
+  latestInputs.current = inputs;
+  const modelRequestId = useRef(0);
 
   const loadModels = useCallback(async () => {
+    const requestId = ++modelRequestId.current;
+    const group = inputs.group;
+    setModels([]);
+    if (!group) return;
+    const isCurrentRequest = () =>
+      requestId === modelRequestId.current &&
+      group === latestInputs.current.group;
     try {
-      const res = await API.get(API_ENDPOINTS.USER_MODELS);
+      const res = await API.get(API_ENDPOINTS.USER_MODELS, {
+        params: { group },
+      });
+      if (!isCurrentRequest()) return;
       const { success, message, data } = res.data;
 
       if (success) {
         const { modelOptions, selectedModel } = processModelsData(
           data,
-          inputs.model,
+          latestInputs.current.model,
         );
         setModels(modelOptions);
 
-        if (selectedModel !== inputs.model) {
+        if (selectedModel !== latestInputs.current.model) {
           handleInputChange('model', selectedModel);
         }
       } else {
         showError(t(message));
       }
     } catch (error) {
+      if (!isCurrentRequest()) return;
       showError(t('加载模型失败'));
     }
-  }, [inputs.model, handleInputChange, setModels, t]);
+  }, [inputs.group, handleInputChange, setModels, t]);
 
   const loadGroups = useCallback(async () => {
     try {
@@ -84,9 +103,15 @@ export const useDataLoader = (
   useEffect(() => {
     if (userState?.user) {
       loadModels();
-      loadGroups();
     }
-  }, [userState?.user, loadModels, loadGroups]);
+    return () => {
+      modelRequestId.current += 1;
+    };
+  }, [userState?.user, loadModels]);
+
+  useEffect(() => {
+    if (userState?.user) loadGroups();
+  }, [userState?.user, loadGroups]);
 
   return {
     loadModels,
