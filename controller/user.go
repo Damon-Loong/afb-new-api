@@ -567,7 +567,20 @@ func GetUserModels(c *gin.Context) {
 		return
 	}
 	groups := service.GetUserUsableGroups(user.Group)
-	var models []string
+	if selectedGroup := strings.TrimSpace(c.Query("group")); selectedGroup != "" {
+		if _, allowed := groups[selectedGroup]; !allowed {
+			common.ApiErrorI18n(c, i18n.MsgDistributorGroupAccessDenied)
+			return
+		}
+		groups = map[string]string{selectedGroup: ""}
+		if selectedGroup == "auto" {
+			groups = make(map[string]string)
+			for _, group := range service.GetUserAutoGroup(user.Group) {
+				groups[group] = ""
+			}
+		}
+	}
+	models := make([]string, 0)
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {
 			if !common.StringsContains(models, g) {

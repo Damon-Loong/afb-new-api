@@ -204,7 +204,7 @@ export const processModelsData = (data, currentModel) => {
   const selectedModel =
     hasCurrentModel && modelOptions.length > 0
       ? currentModel
-      : modelOptions[0]?.value;
+      : modelOptions[0]?.value || '';
 
   return { modelOptions, selectedModel };
 };
