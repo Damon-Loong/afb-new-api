@@ -950,9 +950,9 @@ export const renderGroupOption = (item) => {
     },
   };
 
-  const handleClick = () => {
+  const handleClick = (event) => {
     if (!disabled && onClick) {
-      onClick();
+      onClick(event);
     }
   };
 
@@ -964,7 +964,11 @@ export const renderGroupOption = (item) => {
 
   return (
     <div
-      style={baseStyle}
+      className={className}
+      style={{ ...baseStyle, ...style }}
+      role='option'
+      aria-selected={selected}
+      aria-disabled={disabled}
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
     >
