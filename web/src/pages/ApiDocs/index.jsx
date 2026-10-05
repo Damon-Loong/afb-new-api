@@ -3086,28 +3086,6 @@ data: [DONE]`,
         ],
       },
       {
-        key: 'market',
-        title: t('需求市场'),
-        description: t('活动浏览、文件上传和作品投稿'),
-        icon: <Sparkles size={18} />,
-        categories: [
-          {
-            key: 'market-public',
-            title: t('需求市场'),
-            description: t('用户侧活动浏览、作品展示和投稿记录'),
-            endpointKeys: [
-              'market-activities',
-              'market-activity-detail',
-              'market-activity-works',
-              'market-upload-file',
-              'market-download-file',
-              'market-submit-work',
-              'market-my-submissions',
-            ],
-          },
-        ],
-      },
-      {
         key: 'ai',
         title: t('AI 模型接口'),
         description: t('完全按官方文档侧边栏层级归类'),
