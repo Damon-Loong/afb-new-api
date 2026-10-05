@@ -213,7 +213,9 @@ export const processModelsData = (data, currentModel) => {
 export const processGroupsData = (data, userGroup) => {
   let groupOptions = Object.entries(data).map(([group, info]) => ({
     label:
-      info.desc.length > 20 ? info.desc.substring(0, 20) + '...' : info.desc,
+      (info.desc || '').trim().length > 20
+        ? info.desc.trim().substring(0, 20) + '...'
+        : (info.desc || '').trim() || group,
     value: group,
     ratio: info.ratio,
     fullLabel: info.desc,

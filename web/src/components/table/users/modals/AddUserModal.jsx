@@ -48,6 +48,7 @@ const AddUserModal = (props) => {
     username: '',
     display_name: '',
     password: '',
+    phone: '',
     remark: '',
   });
 
@@ -164,6 +165,16 @@ const AddUserModal = (props) => {
                       type='password'
                       placeholder={t('请输入密码')}
                       rules={[{ required: true, message: t('请输入密码') }]}
+                      showClear
+                    />
+                  </Col>
+                  <Col span={24}>
+                    <Form.Input
+                      field='phone'
+                      label={t('手机号')}
+                      placeholder={t('请输入手机号（仅 +86）')}
+                      type='tel'
+                      maxLength={32}
                       showClear
                     />
                   </Col>

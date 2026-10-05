@@ -866,12 +866,29 @@ func CreateUser(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgUserCannotCreateHigherLevel)
 		return
 	}
+	if user.Phone != nil {
+		if strings.TrimSpace(*user.Phone) == "" {
+			user.Phone = nil
+		} else {
+			phone, _, ok := normalizeCNPhone(*user.Phone)
+			if !ok {
+				c.JSON(http.StatusOK, gin.H{"success": false, "message": "请输入有效的手机号（仅支持 +86）"})
+				return
+			}
+			if model.IsPhoneAlreadyTaken(phone) {
+				c.JSON(http.StatusOK, gin.H{"success": false, "message": "手机号已被占用"})
+				return
+			}
+			user.Phone = &phone
+		}
+	}
 	// Even for admin users, we cannot fully trust them!
 	cleanUser := model.User{
 		Username:    user.Username,
 		Password:    user.Password,
 		DisplayName: user.DisplayName,
 		Role:        user.Role, // 保持管理员设置的角色
+		Phone:       user.Phone,
 	}
 	if err := cleanUser.Insert(0); err != nil {
 		common.ApiError(c, err)
