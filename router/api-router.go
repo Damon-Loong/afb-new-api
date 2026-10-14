@@ -400,6 +400,12 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
 		logRoute := apiRouter.Group("/log")
+		logRoute.POST("/export", middleware.AdminAuth(), middleware.CriticalRateLimit(), controller.CreateBillExport)
+		logRoute.GET("/export/:id", middleware.AdminAuth(), controller.GetBillExport)
+		logRoute.GET("/export/:id/file", middleware.AdminAuth(), controller.DownloadBillExport)
+		logRoute.POST("/self/export", middleware.UserAuth(), middleware.CriticalRateLimit(), controller.CreateSelfBillExport)
+		logRoute.GET("/self/export/:id", middleware.UserAuth(), controller.GetSelfBillExport)
+		logRoute.GET("/self/export/:id/file", middleware.UserAuth(), controller.DownloadSelfBillExport)
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.DELETE("/", middleware.AdminAuth(), controller.DeleteHistoryLogs)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
