@@ -17,11 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Tag, Space, Skeleton } from '@douyinfe/semi-ui';
+import React, { useState } from 'react';
+import { Button, Tag, Space, Skeleton } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
 import CompactModeToggle from '../../common/ui/CompactModeToggle';
 import { useMinimumLoadingTime } from '../../../hooks/common/useMinimumLoadingTime';
+import BillExportModal from './modals/BillExportModal';
 
 const LogsActions = ({
   stat,
@@ -29,8 +30,12 @@ const LogsActions = ({
   showStat,
   compactMode,
   setCompactMode,
+  getFormValues,
+  isAdminUser,
   t,
 }) => {
+  const [exportVisible, setExportVisible] = useState(false);
+  const [exportFilters, setExportFilters] = useState(null);
   const showSkeleton = useMinimumLoadingTime(loadingStat);
   const needSkeleton = !showStat || showSkeleton;
 
@@ -83,9 +88,26 @@ const LogsActions = ({
         </Space>
       </Skeleton>
 
-      <CompactModeToggle
-        compactMode={compactMode}
-        setCompactMode={setCompactMode}
+      <Space>
+        <Button
+          onClick={() => {
+            setExportFilters(getFormValues());
+            setExportVisible(true);
+          }}
+        >
+          {t('导出消费账单')}
+        </Button>
+        <CompactModeToggle
+          compactMode={compactMode}
+          setCompactMode={setCompactMode}
+          t={t}
+        />
+      </Space>
+      <BillExportModal
+        visible={exportVisible}
+        onClose={() => setExportVisible(false)}
+        initialFilters={exportFilters}
+        isAdminUser={isAdminUser}
         t={t}
       />
     </div>
