@@ -67,6 +67,33 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, 1488, chatSummary.Quota)
 }
 
+func TestOpenAICacheWriteBillingDoesNotDoubleCharge(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	usage := &dto.Usage{
+		PromptTokens: 1000, CompletionTokens: 10,
+		PromptTokensDetails: dto.InputTokenDetails{CachedTokens: 200, CachedCreationTokens: 300},
+	}
+	info := &relaycommon.RelayInfo{
+		OriginModelName:         "gpt-5.6-sol",
+		RelayFormat:             types.RelayFormatOpenAI,
+		FinalRequestRelayFormat: types.RelayFormatOpenAI,
+		PriceData: types.PriceData{
+			ModelRatio: 1, CompletionRatio: 2, CacheRatio: 0.1,
+			CacheCreationRatio: 1.25, CacheCreation1hRatio: 100,
+			GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+	// 500 ordinary input + 200*0.1 cache read + 300*1.25 write + 10*2 output.
+	summary := calculateTextQuotaSummary(ctx, info, usage)
+	require.Equal(t, 915, summary.Quota)
+	require.Zero(t, summary.CacheCreationTokens1h)
+	params := BuildTieredTokenParams(usage, false, map[string]bool{"cr": true, "cc": true, "cc1h": true})
+	require.Equal(t, float64(500), params.P)
+	require.Equal(t, float64(300), params.CC)
+	require.Zero(t, params.CC1h)
+}
+
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
