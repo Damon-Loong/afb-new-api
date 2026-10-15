@@ -37,6 +37,11 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo) {
 	}
 	other := make(map[string]interface{})
 	other["is_task"] = true
+	if info.TaskRelayInfo != nil && info.VideoBilling != nil {
+		other["billing_mode"] = "video_tokens"
+		other["video_pricing_snapshot"] = info.VideoBilling
+		logContent = "视频任务预扣额度，成功后按上游 completion_tokens 结算；失败退还"
+	}
 	appendBillingInfo(info, other)
 	if info.TaskRelayInfo != nil && info.PublicTaskID != "" {
 		other["task_id"] = info.PublicTaskID

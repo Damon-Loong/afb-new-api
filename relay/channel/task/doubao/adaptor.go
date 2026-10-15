@@ -41,6 +41,9 @@ type MediaURL struct {
 }
 
 type requestPayload struct {
+	OmniReferenceTaskType string         `json:"omni_reference_task_type,omitempty"`
+	OutputFormat          string         `json:"output_format,omitempty"`
+	SafetyIdentifier      string         `json:"safety_identifier,omitempty"`
 	Model                 string         `json:"model"`
 	Content               []ContentItem  `json:"content,omitempty"`
 	CallbackURL           string         `json:"callback_url,omitempty"`
@@ -72,12 +75,12 @@ type responseTask struct {
 	Content struct {
 		VideoURL string `json:"video_url"`
 	} `json:"content"`
-	Seed            int    `json:"seed"`
-	Resolution      string `json:"resolution"`
-	Duration        int    `json:"duration"`
-	Ratio           string `json:"ratio"`
-	FramesPerSecond int    `json:"framespersecond"`
-	ServiceTier     string `json:"service_tier"`
+	Seed            int     `json:"seed"`
+	Resolution      string  `json:"resolution"`
+	Duration        float64 `json:"duration"`
+	Ratio           string  `json:"ratio"`
+	FramesPerSecond int     `json:"framespersecond"`
+	ServiceTier     string  `json:"service_tier"`
 	Tools           []struct {
 		Type string `json:"type"`
 	} `json:"tools"`
@@ -352,7 +355,9 @@ func (a *TaskAdaptor) ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, e
 		// 解析 usage 信息用于按倍率计费
 		taskResult.CompletionTokens = resTask.Usage.CompletionTokens
 		taskResult.TotalTokens = resTask.Usage.TotalTokens
-	case "failed":
+		taskResult.Resolution = resTask.Resolution
+		taskResult.Duration = resTask.Duration
+	case "failed", "cancelled", "expired":
 		taskResult.Status = model.TaskStatusFailure
 		taskResult.Progress = "100%"
 		taskResult.Reason = resTask.Error.Message

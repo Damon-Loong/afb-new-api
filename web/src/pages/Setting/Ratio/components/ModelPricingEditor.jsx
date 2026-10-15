@@ -50,6 +50,7 @@ import {
 } from '../hooks/useModelPricingEditorState';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import TieredPricingEditor from './TieredPricingEditor';
+import VideoPricingEditor from './VideoPricingEditor';
 
 const { Text } = Typography;
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
@@ -125,6 +126,7 @@ export default function ModelPricingEditor({
     handleNumericFieldChange,
     handleBillingModeChange,
     handleBillingExprChange,
+    handleVideoPricingChange,
     handleRequestRuleExprChange,
     handleSubmit,
     addModel,
@@ -187,11 +189,13 @@ export default function ModelPricingEditor({
                   : 'violet'
             }
           >
-            {record.billingMode === 'per-request'
-              ? t('按次计费')
-              : record.billingMode === 'tiered_expr'
-                ? t('动态计费')
-                : t('按量计费')}
+            {record.billingMode === 'video_tokens'
+              ? t('视频计费')
+              : record.billingMode === 'per-request'
+                ? t('按次计费')
+                : record.billingMode === 'tiered_expr'
+                  ? t('动态计费')
+                  : t('按量计费')}
           </Tag>
         ),
       },
@@ -369,11 +373,13 @@ export default function ModelPricingEditor({
             headerExtraContent={
               selectedModel ? (
                 <Tag color='blue'>
-                  {selectedModel.billingMode === 'per-request'
-                    ? t('按次计费')
-                    : selectedModel.billingMode === 'tiered_expr'
-                      ? t('动态计费')
-                      : t('按量计费')}
+                  {selectedModel.billingMode === 'video_tokens'
+                    ? t('视频计费')
+                    : selectedModel.billingMode === 'per-request'
+                      ? t('按次计费')
+                      : selectedModel.billingMode === 'tiered_expr'
+                        ? t('动态计费')
+                        : t('按量计费')}
                 </Tag>
               ) : null
             }
@@ -401,10 +407,13 @@ export default function ModelPricingEditor({
                     <Radio value='per-token'>{t('按量计费')}</Radio>
                     <Radio value='per-request'>{t('按次计费')}</Radio>
                     <Radio value='tiered_expr'>{t('动态计费')}</Radio>
+                    <Radio value='video_tokens'>{t('视频计费')}</Radio>
                   </RadioGroup>
                   <div className='mt-2 text-xs text-gray-500'>
                     {t(
-                      '这个界面默认按价格填写，保存时会自动换算回后端需要的倍率 JSON。',
+                      selectedModel.billingMode === 'video_tokens'
+                        ? '视频价格以人民币保存，提交任务时按计费汇率换算内部额度，不使用文本输入/输出倍率。'
+                        : '这个界面默认按价格填写，保存时会自动换算回后端需要的倍率 JSON。',
                     )}
                   </div>
                 </div>
@@ -426,7 +435,13 @@ export default function ModelPricingEditor({
                   </Card>
                 ) : null}
 
-                {selectedModel.billingMode === 'per-request' ? (
+                {selectedModel.billingMode === 'video_tokens' ? (
+                  <VideoPricingEditor
+                    value={selectedModel.videoPricing}
+                    onChange={handleVideoPricingChange}
+                    t={t}
+                  />
+                ) : selectedModel.billingMode === 'per-request' ? (
                   <PriceInput
                     label={t('固定价格')}
                     value={selectedModel.fixedPrice}

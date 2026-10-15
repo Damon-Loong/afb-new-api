@@ -9,6 +9,9 @@ import (
 // ApplyTaskBillingRatios merges provider-specific ratios and applies them to
 // per-call task quota. Both converted and native task endpoints use this path.
 func ApplyTaskBillingRatios(info *relaycommon.RelayInfo, ratios map[string]float64) {
+	if info != nil && info.TaskRelayInfo != nil && info.VideoBilling != nil {
+		return
+	}
 	if info == nil {
 		return
 	}

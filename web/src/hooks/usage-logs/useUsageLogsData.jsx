@@ -42,6 +42,7 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 import DynamicPricingLogDetail from '../../components/table/usage-logs/components/DynamicPricingLogDetail';
+import VideoPricingLogDetail from '../../components/table/usage-logs/components/VideoPricingLogDetail';
 
 export const useLogsData = () => {
   const { t } = useTranslation();
@@ -430,7 +431,15 @@ export const useLogsData = () => {
           value: other.cache_creation_tokens,
         });
       }
-      if (logs[i].type === 2 && other?.billing_mode !== 'tiered_expr') {
+      if (other?.billing_mode === 'video_tokens')
+        expandDataLocal.push({
+          key: t('视频计费过程'),
+          value: <VideoPricingLogDetail other={other} t={t} />,
+        });
+      if (
+        logs[i].type === 2 &&
+        !['tiered_expr', 'video_tokens'].includes(other?.billing_mode)
+      ) {
         expandDataLocal.push({
           key: t('日志详情'),
           value: other?.claude
@@ -503,7 +512,10 @@ export const useLogsData = () => {
           Boolean(other?.violation_fee_marker);
 
         let content = '';
-        if (!isViolationFeeLog && other?.billing_mode !== 'tiered_expr') {
+        if (
+          !isViolationFeeLog &&
+          !['tiered_expr', 'video_tokens'].includes(other?.billing_mode)
+        ) {
           const isTaskLog = other?.is_task === true || other?.task_id != null;
           if (isTaskLog && other?.model_price === -1) {
             content = renderTaskBillingProcess(other, logs[i].content);

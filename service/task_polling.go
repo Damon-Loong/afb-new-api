@@ -55,6 +55,11 @@ func sweepTimedOutTasks(ctx context.Context) {
 	timedOutCount := 0
 
 	for _, task := range tasks {
+		// Provider completion/usage is authoritative. A local timeout must not
+		// turn a completed-but-not-yet-accounted video into a free generation.
+		if bc := task.PrivateData.BillingContext; bc != nil && bc.VideoBilling != nil {
+			continue
+		}
 		isLegacy := task.SubmitTime > 0 && task.SubmitTime < legacyTaskCutoff
 
 		oldStatus := task.Status
@@ -477,6 +482,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	isDone := task.Status == model.TaskStatusSuccess || task.Status == model.TaskStatusFailure
+	if bc := task.PrivateData.BillingContext; isDone && bc != nil && bc.VideoBilling != nil {
+		return completeVideoBilling(ctx, task, snap.Status, taskResult)
+	}
 	if isDone && snap.Status != task.Status {
 		won, err := task.UpdateWithStatus(snap.Status)
 		if err != nil {

@@ -5,26 +5,30 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/samber/lo"
 )
 
 const (
-	BillingModeRatio      = "ratio"
-	BillingModeTieredExpr = "tiered_expr"
-	BillingModeField      = "billing_mode"
-	BillingExprField      = "billing_expr"
+	BillingModeRatio       = "ratio"
+	BillingModeTieredExpr  = "tiered_expr"
+	BillingModeVideoTokens = "video_tokens"
+	BillingModeField       = "billing_mode"
+	BillingExprField       = "billing_expr"
 )
 
 // BillingSetting is managed by config.GlobalConfig.Register.
 // DB keys: billing_setting.billing_mode, billing_setting.billing_expr
 type BillingSetting struct {
-	BillingMode map[string]string `json:"billing_mode"`
-	BillingExpr map[string]string `json:"billing_expr"`
+	BillingMode  map[string]string                  `json:"billing_mode"`
+	BillingExpr  map[string]string                  `json:"billing_expr"`
+	VideoPricing map[string]types.VideoTokenPricing `json:"video_pricing"`
 }
 
 var billingSetting = BillingSetting{
-	BillingMode: make(map[string]string),
-	BillingExpr: make(map[string]string),
+	BillingMode:  make(map[string]string),
+	BillingExpr:  make(map[string]string),
+	VideoPricing: make(map[string]types.VideoTokenPricing),
 }
 
 func init() {
@@ -47,6 +51,11 @@ func GetBillingExpr(model string) (string, bool) {
 	return expr, ok
 }
 
+func GetVideoPricing(model string) (types.VideoTokenPricing, bool) {
+	p, ok := billingSetting.VideoPricing[model]
+	return p, ok
+}
+
 func GetBillingModeCopy() map[string]string {
 	return lo.Assign(billingSetting.BillingMode)
 }
@@ -58,6 +67,13 @@ func GetBillingExprCopy() map[string]string {
 func GetPricingSyncData(base map[string]any) map[string]any {
 	extra := make(map[string]any, 2)
 	if modes := GetBillingModeCopy(); len(modes) > 0 {
+		// Legacy ratio sync does not carry structured video prices. Configure
+		// these explicitly instead of exporting an unusable mode-only entry.
+		for name, mode := range modes {
+			if mode == BillingModeVideoTokens {
+				delete(modes, name)
+			}
+		}
 		extra[BillingModeField] = modes
 	}
 	if exprs := GetBillingExprCopy(); len(exprs) > 0 {

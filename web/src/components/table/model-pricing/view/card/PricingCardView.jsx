@@ -162,7 +162,13 @@ const PricingCardView = ({
         -
       </Tag>
     );
-    if (pricingType(record) === 2) {
+    if (pricingType(record) === 3) {
+      billingTag = (
+        <Tag key='billing' shape='circle' color='blue' size='small'>
+          {t('视频计费')}
+        </Tag>
+      );
+    } else if (pricingType(record) === 2) {
       billingTag = (
         <Tag key='billing' shape='circle' color='amber' size='small'>
           {t('动态计费')}

@@ -19,6 +19,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 )
@@ -189,6 +190,22 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 
 	// 4. 价格计算：基础模型价格
 	info.OriginModelName = modelName
+	if billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeVideoTokens {
+		if adaptor.GetChannelName() != "doubao-video" {
+			return nil, service.TaskErrorWrapperLocal(fmt.Errorf("视频 Token 计费仅支持豆包视频渠道"), "video_billing_error", http.StatusBadRequest)
+		}
+		body, err := adaptor.BuildRequestBody(c, info)
+		if err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "invalid_request", http.StatusBadRequest)
+		}
+		raw, err := io.ReadAll(body)
+		if err == nil {
+			err = helper.PrepareVideoBilling(c, info, raw)
+		}
+		if err != nil {
+			return nil, service.TaskErrorWrapperLocal(err, "video_billing_error", http.StatusBadRequest)
+		}
+	}
 	priceData, err := helper.ModelPriceHelperPerCall(c, info)
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)

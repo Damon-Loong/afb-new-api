@@ -659,6 +659,30 @@ export const calculateModelPrice = ({
     }
   }
 
+  if (record.billing_mode === 'video_tokens') {
+    const p = record.video_pricing;
+    const divisor = tokenUnit === 'K' ? 1000 : 1;
+    return {
+      isVideo: true,
+      usedGroup,
+      usedGroupRatio,
+      videoPrices:
+        p && p.exchange_rate > 0
+          ? [
+              'low_no_video',
+              'low_with_video',
+              'high_no_video',
+              'high_with_video',
+            ].map((key) =>
+              displayPrice(
+                ((p[key] / p.exchange_rate) * usedGroupRatio) / divisor,
+                precision,
+              ),
+            )
+          : null,
+      unitLabel: tokenUnit === 'K' ? 'K' : 'M',
+    };
+  }
   if (record.billing_mode === 'tiered_expr') {
     return {
       ...dynamicPriceData(
@@ -771,6 +795,29 @@ export const calculateModelPrice = ({
 };
 
 export const getModelPriceItems = (priceData, t, quotaDisplayType = 'USD') => {
+  if (priceData.isVideo) {
+    const labels = [
+      '480p/720p 无视频输入',
+      '480p/720p 有视频输入',
+      '1080p 无视频输入',
+      '1080p 有视频输入',
+    ];
+    return priceData.videoPrices
+      ? labels.map((label, i) => ({
+          key: `video-${i}`,
+          label: t(label),
+          value: priceData.videoPrices[i],
+          suffix: ` / 1${priceData.unitLabel} video tokens`,
+        }))
+      : [
+          {
+            key: 'video',
+            label: t('视频计费'),
+            value: t('未配置'),
+            suffix: '',
+          },
+        ];
+  }
   if (priceData.isDynamic) {
     return [
       {

@@ -202,7 +202,7 @@ func main() {
 	common.LogStartupSuccess(startTime, port)
 
 	httpServer := &http.Server{
-		Addr:    ":" + port,
+		Addr:    *common.ListenHost + ":" + port,
 		Handler: server,
 	}
 
