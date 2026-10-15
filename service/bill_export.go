@@ -45,6 +45,21 @@ func (o *BillExportOptions) Validate(admin bool) error {
 	if o.Channel < 0 {
 		return errors.New("渠道 ID 无效")
 	}
+	if len(o.UserIDs) > 1000 || len(o.ModelNames) > 1000 {
+		return errors.New("筛选项过多")
+	}
+	if admin {
+		for _, id := range o.UserIDs {
+			if id <= 0 {
+				return errors.New("用户 ID 无效")
+			}
+		}
+	}
+	for _, name := range o.ModelNames {
+		if strings.TrimSpace(name) == "" || len(name) > 512 {
+			return errors.New("模型名称无效")
+		}
+	}
 	if o.Format != "xlsx" && o.Format != "csv" {
 		return errors.New("请选择 Excel 或 CSV 格式")
 	}
@@ -69,6 +84,7 @@ func (o *BillExportOptions) Validate(admin bool) error {
 	}
 	if !admin {
 		o.Username = ""
+		o.UserIDs = nil
 		o.Channel = 0
 	}
 	return nil

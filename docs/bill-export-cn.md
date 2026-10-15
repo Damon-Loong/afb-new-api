@@ -4,6 +4,8 @@
 
 导出范围为筛选条件下的全部记录，与日志分页和列设置无关。支持 API/任务消费、市场消耗、项目消耗和额度退回；不包含充值、市场奖励、管理、系统和错误日志。支付账单导出不在本次范围内。
 
+面板只保留时间范围、用户多选（管理员）和模型多选。用户与模型下拉可搜索，选项来自所选时间范围内的消费和额度退回日志，包含已有日志的历史用户和模型；不选表示全部。用户按 ID 匹配，模型按完整名称匹配；多个用户之间、多个模型之间分别取并集，用户与模型条件取交集。个人导出始终限制为当前用户。面板只继承日志页的时间范围，不继承令牌、渠道、分组、Request ID 或日志类型过滤。
+
 ## 文件与统计口径
 
 - Excel：默认包含账单概览、用户汇总、模型汇总、每日汇总和消费明细。可选择令牌、分组和渠道汇总；渠道仅管理员可选。概览和明细始终保留。
@@ -33,6 +35,7 @@
 | 操作 | 管理员 | 当前用户 |
 | --- | --- | --- |
 | 创建 | `POST /api/log/export` | `POST /api/log/self/export` |
+| 下拉选项 | `GET /api/log/export/options` | `GET /api/log/self/export/options` |
 | 查询 | `GET /api/log/export/:id` | `GET /api/log/self/export/:id` |
 | 下载 | `GET /api/log/export/:id/file` | `GET /api/log/self/export/:id/file` |
 
@@ -46,15 +49,13 @@
   "format": "xlsx",
   "dimensions": ["user", "model", "day"],
   "log_type": 0,
-  "username": "",
-  "token_name": "",
-  "model_name": "",
-  "channel": 0,
-  "group": "",
-  "request_id": ""
+  "user_ids": [1, 2],
+  "model_names": ["gpt-5.5", "claude-sonnet-4-5"]
 }
 ```
 
-`format` 为 `xlsx` 或 `csv`；`dimensions` 为 `user`、`model`、`day`、`token`、`group`、`channel` 的无重复列表。空列表只生成概览和明细。`log_type` 支持 0（全部消费及额度退回）、2（API/任务消费）、6（额度退回）、7（市场消耗）、9（项目消耗）。模型筛选匹配行为与对应的管理员/个人日志接口一致。
+`format` 为 `xlsx` 或 `csv`；`dimensions` 为 `user`、`model`、`day`、`token`、`group`、`channel` 的无重复列表。空列表只生成概览和明细。`log_type` 支持 0（全部消费及额度退回）、2（API/任务消费）、6（额度退回）、7（市场消耗）、9（项目消耗）。旧的单值模型筛选匹配行为与对应的管理员/个人日志接口一致。
+
+下拉选项接口接收 `start_timestamp`、`end_timestamp` 查询参数，返回 `data.users`（`user_id`、`username`）和 `data.models`（模型名数组）；个人接口返回空用户列表，模型仅取自当前用户日志。新导出请求使用 `user_ids` 和 `model_names` 数组，分别最多 1000 项。旧的单值与其他过滤参数仍保留 API 兼容；提供非空多选数组时优先使用数组。个人请求提交的用户筛选会被忽略。
 
 创建与查询沿用 `success/message/data` 响应结构。任务包含 `id`、`status`（`running/ready/failed`）、`rows`、`filename`、`expires_at`，失败时包含 `message`。任务过期或不可访问返回 404；下载响应为附件且禁止缓存。

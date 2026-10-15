@@ -4761,6 +4761,12 @@
     "钱包、订阅及来源未记录额度分栏；USD 仅按导出时额度单位折算，不代表实付。单次最多 10 万条、366 天，超过上限请缩小范围。": "Wallet, subscription, and unclassified quota are listed separately. USD equivalents use the quota unit at export time and do not represent actual payments. Limit: 100,000 records and 366 days per export.",
     "后台生成，可关闭面板后重新打开查看。文件保留 30 分钟，服务重启后需重新生成。": "Bills are generated in the background. Reopen this panel to check progress. Files are kept for 30 minutes; regenerate after a service restart.",
     "账单正在后台生成，请稍候。": "Your bill is being generated in the background.",
-    "账单已生成，共 {{count}} 条记录，文件保留 30 分钟。": "Bill generated with {{count}} records. The file is available for 30 minutes."
+    "账单已生成，共 {{count}} 条记录，文件保留 30 分钟。": "Bill generated with {{count}} records. The file is available for 30 minutes.",
+    "用户（可多选）": "Users (multiple)",
+    "模型名称（可多选）": "Models (multiple)",
+    "不选择则包含全部用户": "All users if none selected",
+    "不选择则包含全部模型": "All models if none selected",
+    "下拉选项来自所选时间范围内的消费和额度退回日志。": "Options come from consumption and quota refund logs within the selected period.",
+    "加载账单筛选项失败": "Failed to load bill filters"
   }
 }

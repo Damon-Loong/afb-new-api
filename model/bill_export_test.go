@@ -69,3 +69,50 @@ func TestBillExportDoesNotTruncate(t *testing.T) {
 	require.ErrorIs(t, err, ErrBillExportTooLarge)
 	require.Empty(t, result)
 }
+
+func TestBillExportMultiSelectAndOptions(t *testing.T) {
+	const start = 1700200000
+	const owner, other, excluded = 92001, 92002, 92003
+	t.Cleanup(func() { LOG_DB.Where("user_id IN ?", []int{owner, other, excluded}).Delete(&Log{}) })
+	logs := []Log{
+		{UserId: owner, Username: "multi_owner", CreatedAt: start, Type: LogTypeConsume, ModelName: "gpt-a"},
+		{UserId: owner, Username: "multi_owner", CreatedAt: start, Type: LogTypeRefund, ModelName: "gpt_b"},
+		{UserId: other, Username: "multi_other", CreatedAt: start, Type: LogTypeConsume, ModelName: "gpt_b"},
+		{UserId: other, Username: "multi_other", CreatedAt: start, Type: LogTypeConsume, ModelName: "gptXb"},
+		{UserId: excluded, Username: "multi_excluded", CreatedAt: start, Type: LogTypeConsume, ModelName: "private"},
+		{UserId: owner, CreatedAt: start - 1, Type: LogTypeConsume, ModelName: "outside_period"},
+		{UserId: owner, CreatedAt: start, Type: LogTypeTopup, ModelName: "not_billable"},
+	}
+	require.NoError(t, LOG_DB.Create(&logs).Error)
+	filter := BillExportFilter{StartTimestamp: start, EndTimestamp: start, UserIDs: []int{owner, other}, ModelNames: []string{"gpt-a", "gpt_b"}}
+	result, err := GetBillExportLogs(context.Background(), filter, owner, true)
+	require.NoError(t, err)
+	require.Len(t, result, 3)
+	// Selected values are exact matches, including '_' rather than LIKE patterns.
+	for _, log := range result {
+		require.Contains(t, []string{"gpt-a", "gpt_b"}, log.ModelName)
+	}
+	filter.UserIDs = []int{other}
+	result, err = GetBillExportLogs(context.Background(), filter, owner, false)
+	require.NoError(t, err)
+	require.Len(t, result, 2)
+	for _, log := range result {
+		require.Equal(t, owner, log.UserId)
+	}
+	options, err := GetBillExportFilterOptions(context.Background(), start, start, owner, true)
+	require.NoError(t, err)
+	require.Equal(t, []BillExportUserOption{{owner, "multi_owner"}, {other, "multi_other"}, {excluded, "multi_excluded"}}, options.Users)
+	require.ElementsMatch(t, []string{"gpt-a", "gpt_b", "gptXb", "private"}, options.Models)
+	options, err = GetBillExportFilterOptions(context.Background(), start, start, owner, false)
+	require.NoError(t, err)
+	require.Empty(t, options.Users)
+	require.ElementsMatch(t, []string{"gpt-a", "gpt_b"}, options.Models)
+	_, err = GetBillExportFilterOptions(context.Background(), start, start, 0, false)
+	require.Error(t, err)
+	options, err = GetBillExportFilterOptions(context.Background(), start+1, start+2, owner, true)
+	require.NoError(t, err)
+	require.NotNil(t, options.Users)
+	require.NotNil(t, options.Models)
+	require.Empty(t, options.Users)
+	require.Empty(t, options.Models)
+}

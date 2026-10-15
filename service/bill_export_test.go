@@ -152,6 +152,8 @@ func TestBillExportValidation(t *testing.T) {
 		func(o *BillExportOptions) { o.Timezone = "invalid/location" },
 		func(o *BillExportOptions) { o.Format = "pdf" },
 		func(o *BillExportOptions) { o.LogType = model.LogTypeTopup },
+		func(o *BillExportOptions) { o.ModelNames = []string{""} },
+		func(o *BillExportOptions) { o.ModelNames = make([]string, 1001) },
 		func(o *BillExportOptions) { o.Dimensions = []string{"channel"} },
 		func(o *BillExportOptions) { o.Dimensions = []string{"user", "user"} },
 		func(o *BillExportOptions) { o.Dimensions = []string{"bad"} },
@@ -162,9 +164,14 @@ func TestBillExportValidation(t *testing.T) {
 	}
 	options := billTestOptions()
 	options.Username, options.Channel = "someone_else", 123
+	options.UserIDs = []int{123}
 	require.NoError(t, options.Validate(false))
 	require.Empty(t, options.Username)
+	require.Empty(t, options.UserIDs)
 	require.Zero(t, options.Channel)
+	adminOptions := billTestOptions()
+	adminOptions.UserIDs = []int{-1}
+	require.Error(t, adminOptions.Validate(true))
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	require.ErrorIs(t, WriteBillExport(ctx, io.Discard, []model.Log{{Type: model.LogTypeConsume}}, options, false, 1000), context.Canceled)

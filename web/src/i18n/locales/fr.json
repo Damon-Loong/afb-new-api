@@ -4693,6 +4693,12 @@
     "适合灰度 / 调试开关判断": "Convient pour le jugement des commutateurs en niveaux de gris/débogage",
     "配合重试策略使用": "Utilisé avec la stratégie de nouvelle tentative",
     "阶梯计费": "Facturation échelonnée",
-    "{{count}} 件投稿": "Contributions : {{count}}"
+    "{{count}} 件投稿": "Contributions : {{count}}",
+    "用户（可多选）": "Utilisateurs (choix multiples)",
+    "模型名称（可多选）": "Modèles (choix multiples)",
+    "不选择则包含全部用户": "Tous les utilisateurs si aucun n’est sélectionné",
+    "不选择则包含全部模型": "Tous les modèles si aucun n’est sélectionné",
+    "下拉选项来自所选时间范围内的消费和额度退回日志。": "Les options proviennent des journaux de consommation et de restitution de quota de la période sélectionnée.",
+    "加载账单筛选项失败": "Échec du chargement des filtres de facture"
   }
 }
