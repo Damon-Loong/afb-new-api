@@ -6,7 +6,11 @@ import {
 } from '../pages/Setting/Ratio/components/requestRuleExpr.js';
 
 export const pricingType = (model) =>
-  model.billing_mode === 'tiered_expr' ? 2 : model.quota_type;
+  model.billing_mode === 'video_tokens'
+    ? 3
+    : model.billing_mode === 'tiered_expr'
+      ? 2
+      : model.quota_type;
 const number = '(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?';
 const term = new RegExp(
   `^(${BILLING_PRICING_VARS.map((v) => v.key).join('|')})\\s*\\*\\s*(${number})`,
@@ -108,11 +112,13 @@ export function dynamicPriceData(
         return {
           key: v.field,
           label: v.shortLabel,
-          value: format(min) === format(max) ? format(min) : `${format(min)} ~ ${format(max)}`,
+          value:
+            format(min) === format(max)
+              ? format(min)
+              : `${format(min)} ~ ${format(max)}`,
           suffix: ` / 1${unitLabel} tokens`,
         };
       })
     : [];
   return { ...parsed, isDynamic: true, unitLabel, format, items };
 }
-

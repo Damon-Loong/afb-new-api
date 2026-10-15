@@ -16,6 +16,7 @@ import (
 
 var (
 	Port         = flag.Int("port", 3000, "the listening port")
+	ListenHost   = flag.String("host", "", "listen host (use 127.0.0.1 for local-only preview)")
 	PrintVersion = flag.Bool("version", false, "print version and exit")
 	PrintHelp    = flag.Bool("help", false, "print help and exit")
 	LogDir       = flag.String("log-dir", "./logs", "specify the log directory")

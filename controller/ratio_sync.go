@@ -334,6 +334,11 @@ func FetchUpstreamRatios(c *gin.Context) {
 				if item.ModelName == "" {
 					continue
 				}
+				// A multidimensional video price must never be flattened to a
+				// zero text-token ratio by this legacy upstream ratio importer.
+				if item.BillingMode == billing_setting.BillingModeVideoTokens || item.QuotaType == 3 {
+					continue
+				}
 				if item.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(item.BillingExpr) != "" {
 					billingModeMap[item.ModelName] = billing_setting.BillingModeTieredExpr
 					billingExprMap[item.ModelName] = item.BillingExpr

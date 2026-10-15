@@ -69,6 +69,9 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.
 }
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (types.PriceData, error) {
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeVideoTokens {
+		return types.PriceData{}, fmt.Errorf("视频计费模型请使用豆包视频任务接口，不能通过文本接口计费")
+	}
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
@@ -172,6 +175,16 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeVideoTokens {
+		if info.TaskRelayInfo == nil || info.VideoBilling == nil {
+			return types.PriceData{}, fmt.Errorf("该视频计费方式只支持豆包视频任务接口")
+		}
+		quota, err := info.VideoBilling.Quota(info.VideoBilling.Pricing.ReserveTokens, info.VideoBilling.Resolution)
+		if err != nil {
+			return types.PriceData{}, err
+		}
+		return types.PriceData{Quota: quota, GroupRatioInfo: groupRatioInfo, FreeModel: quota == 0}, nil
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
@@ -236,6 +249,10 @@ func ContainPriceOrRatio(modelName string) bool {
 
 // HasModelBillingConfig checks all supported billing modes for a model.
 func HasModelBillingConfig(modelName string) bool {
+	if billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeVideoTokens {
+		p, ok := billing_setting.GetVideoPricing(modelName)
+		return ok && p.Validate() == nil
+	}
 	_, ok := ratio_setting.GetModelPrice(modelName, false)
 	if ok {
 		return true

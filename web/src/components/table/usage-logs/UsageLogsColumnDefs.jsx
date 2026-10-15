@@ -471,6 +471,33 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
+  if (other?.billing_mode === 'video_tokens') {
+    const snapshot = other.video_pricing_snapshot;
+    return {
+      segments: [
+        { text: t('视频计费'), tone: 'primary' },
+        {
+          text:
+            other.actual_quota === undefined
+              ? t('预扣，等待实际用量')
+              : `${t('最终总费用')}：${renderQuota(other.actual_quota, 6)}`,
+          tone: 'secondary',
+        },
+        {
+          text: `${other.resolution || snapshot?.resolution || ''} · ${snapshot?.has_video_input ? t('有视频输入') : t('无视频输入')}`,
+          tone: 'secondary',
+        },
+        {
+          text: `${other.completion_tokens ?? snapshot?.pricing?.reserve_tokens ?? '-'} video tokens`,
+          tone: 'secondary',
+        },
+        {
+          text: `1 USD = ${snapshot?.pricing?.exchange_rate ?? '-'} CNY · ${t('分组倍率')} ${snapshot?.group_ratio ?? '-'}`,
+          tone: 'secondary',
+        },
+      ],
+    };
+  }
   if (other?.billing_mode === 'tiered_expr') {
     const groupText = getUsageLogGroupSummary(
       other?.group_ratio,

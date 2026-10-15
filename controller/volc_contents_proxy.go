@@ -132,6 +132,10 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 		relayInfo.ChannelId = relayInfo.ChannelMeta.ChannelId
 	}
 
+	if err := helper.PrepareVideoBilling(c, relayInfo, rawBody); err != nil {
+		respondTaskError(c, service.TaskErrorWrapper(err, "video_billing_error", http.StatusBadRequest))
+		return
+	}
 	priceData, perr := helper.ModelPriceHelperPerCall(c, relayInfo)
 	if perr != nil {
 		respondTaskError(c, service.TaskErrorWrapper(perr, "model_price_error", http.StatusBadRequest))
@@ -229,6 +233,7 @@ func RelayVolcContentsGenerationsTaskCreate(c *gin.Context) {
 	task.PrivateData.SubscriptionId = relayInfo.SubscriptionId
 	task.PrivateData.TokenId = relayInfo.TokenId
 	task.PrivateData.BillingContext = &model.TaskBillingContext{
+		VideoBilling:    relayInfo.VideoBilling,
 		ModelPrice:      relayInfo.PriceData.ModelPrice,
 		GroupRatio:      relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 		ModelRatio:      relayInfo.PriceData.ModelRatio,
