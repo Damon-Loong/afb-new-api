@@ -3,20 +3,24 @@ package model
 import (
 	"context"
 	"errors"
+
+	"gorm.io/gorm"
 )
 
 // BillExportFilter intentionally excludes pagination: a bill covers all matching
 // consumption/refund records, not just the visible log page.
 type BillExportFilter struct {
-	StartTimestamp int64  `json:"start_timestamp"`
-	EndTimestamp   int64  `json:"end_timestamp"`
-	Username       string `json:"username"`
-	TokenName      string `json:"token_name"`
-	ModelName      string `json:"model_name"`
-	Channel        int    `json:"channel"`
-	Group          string `json:"group"`
-	RequestID      string `json:"request_id"`
-	LogType        int    `json:"log_type"`
+	StartTimestamp int64    `json:"start_timestamp"`
+	EndTimestamp   int64    `json:"end_timestamp"`
+	Username       string   `json:"username"`
+	TokenName      string   `json:"token_name"`
+	ModelName      string   `json:"model_name"`
+	UserIDs        []int    `json:"user_ids"`
+	ModelNames     []string `json:"model_names"`
+	Channel        int      `json:"channel"`
+	Group          string   `json:"group"`
+	RequestID      string   `json:"request_id"`
+	LogType        int      `json:"log_type"`
 }
 
 const MaxBillExportRows = 100000
@@ -45,7 +49,9 @@ func GetBillExportLogs(ctx context.Context, filter BillExportFilter, userID int,
 	if !admin {
 		query = query.Where("user_id = ?", userID)
 	} else {
-		if filter.Username != "" {
+		if len(filter.UserIDs) > 0 {
+			query = query.Where("user_id IN ?", filter.UserIDs)
+		} else if filter.Username != "" {
 			query = query.Where("username = ?", filter.Username)
 		}
 		if filter.Channel != 0 {
@@ -53,7 +59,9 @@ func GetBillExportLogs(ctx context.Context, filter BillExportFilter, userID int,
 		}
 	}
 	query = query.Where("created_at >= ? AND created_at <= ?", filter.StartTimestamp, filter.EndTimestamp)
-	if filter.ModelName != "" {
+	if len(filter.ModelNames) > 0 {
+		query = query.Where("model_name IN ?", filter.ModelNames)
+	} else if filter.ModelName != "" {
 		if admin {
 			query = query.Where("model_name LIKE ?", filter.ModelName)
 		} else {
@@ -82,4 +90,39 @@ func GetBillExportLogs(ctx context.Context, filter BillExportFilter, userID int,
 		return nil, ErrBillExportTooLarge
 	}
 	return logs, nil
+}
+
+type BillExportUserOption struct {
+	UserID   int    `json:"user_id"`
+	Username string `json:"username"`
+}
+
+type BillExportFilterOptions struct {
+	Users  []BillExportUserOption `json:"users"`
+	Models []string               `json:"models"`
+}
+
+// Options come from billable logs so retired models and deleted users remain
+// selectable. Self exports must never expose other users or their model names.
+func GetBillExportFilterOptions(ctx context.Context, start, end int64, userID int, admin bool) (BillExportFilterOptions, error) {
+	options := BillExportFilterOptions{Users: []BillExportUserOption{}, Models: []string{}}
+	if !admin && userID <= 0 {
+		return options, errors.New("无权导出账单")
+	}
+	query := func() *gorm.DB {
+		q := LOG_DB.WithContext(ctx).Model(&Log{}).
+			Where("type IN ?", []int{LogTypeConsume, LogTypeRefund, LogTypeMarketConsume, LogTypeProjectConsume}).
+			Where("created_at >= ? AND created_at <= ?", start, end)
+		if !admin {
+			q = q.Where("user_id = ?", userID)
+		}
+		return q
+	}
+	if admin {
+		if err := query().Select("user_id, MAX(username) AS username").Group("user_id").Order("user_id ASC").Scan(&options.Users).Error; err != nil {
+			return options, err
+		}
+	}
+	err := query().Where("model_name <> ?", "").Distinct("model_name").Order("model_name ASC").Pluck("model_name", &options.Models).Error
+	return options, err
 }

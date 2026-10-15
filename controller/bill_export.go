@@ -1,14 +1,44 @@
 package controller
 
 import (
+	"context"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
+
+func getBillExportFilterOptions(c *gin.Context, admin bool) {
+	start, startErr := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	end, endErr := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	options := service.BillExportOptions{BillExportFilter: model.BillExportFilter{StartTimestamp: start, EndTimestamp: end}, Format: "xlsx"}
+	if startErr != nil || endErr != nil {
+		common.ApiErrorMsg(c, "请选择有效的账单起止时间")
+		return
+	}
+	if err := options.Validate(admin); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Second)
+	defer cancel()
+	choices, err := model.GetBillExportFilterOptions(ctx, start, end, c.GetInt("id"), admin)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	common.ApiSuccess(c, choices)
+}
+
+func GetBillExportFilterOptions(c *gin.Context)     { getBillExportFilterOptions(c, true) }
+func GetSelfBillExportFilterOptions(c *gin.Context) { getBillExportFilterOptions(c, false) }
 
 func createBillExport(c *gin.Context, admin bool) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16*1024)

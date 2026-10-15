@@ -22,7 +22,6 @@ import {
   Button,
   Checkbox,
   DatePicker,
-  Input,
   Radio,
   RadioGroup,
   Select,
@@ -35,14 +34,6 @@ import { DATE_RANGE_PRESETS } from '../../../../constants/console.constants';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text } = Typography;
-const BILL_TYPES = [0, 2, 6, 7, 9];
-const TYPE_NAMES = {
-  0: '全部消费及额度退回',
-  2: 'API/任务消费',
-  6: '额度退回',
-  7: '市场消耗',
-  9: '项目消耗',
-};
 const DIMENSIONS = [
   ['user', '按用户'],
   ['model', '按模型'],
@@ -69,6 +60,10 @@ const BillExportModal = ({
   const [pollingError, setPollingError] = useState('');
   const [pollAttempt, setPollAttempt] = useState(0);
   const [template, setTemplate] = useState('standard');
+  const [filterChoices, setFilterChoices] = useState({ users: [], models: [] });
+  const [choicesLoading, setChoicesLoading] = useState(false);
+  const [choicesError, setChoicesError] = useState('');
+  const [choicesAttempt, setChoicesAttempt] = useState(0);
   const running = job?.status === 'running';
 
   useEffect(() => {
@@ -83,24 +78,21 @@ const BillExportModal = ({
   useEffect(() => {
     if (!visible || !initialFilters || (running && options)) return;
     setOptions({
-      ...initialFilters,
       start_timestamp: Math.floor(
         new Date(initialFilters.start_timestamp).getTime() / 1000,
       ),
       end_timestamp: Math.floor(
         new Date(initialFilters.end_timestamp).getTime() / 1000,
       ),
-      channel: Number(initialFilters.channel || 0),
-      log_type: BILL_TYPES.includes(initialFilters.logType)
-        ? initialFilters.logType
-        : 0,
+      user_ids: [],
+      model_names: [],
       format: 'xlsx',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       dimensions: ['user', 'model', 'day'],
     });
     setTemplate('standard');
     setError('');
-    // Snapshot the log filters when opening, rather than following page edits.
+    // Only inherit the date range; hidden page filters must not narrow the bill.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFilters]);
 
@@ -144,6 +136,56 @@ const BillExportModal = ({
     };
   }, [job?.id, running, endpoint, storageKey, pollAttempt, t]);
 
+  useEffect(() => {
+    if (!visible || !options) return;
+    const start = options.start_timestamp;
+    const end = options.end_timestamp;
+    if (
+      !Number.isFinite(start) ||
+      !Number.isFinite(end) ||
+      start <= 0 ||
+      end < start
+    ) {
+      setChoicesLoading(false);
+      return;
+    }
+    let active = true;
+    setChoicesLoading(true);
+    setChoicesError('');
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await API.get(`${endpoint}/options`, {
+          params: { start_timestamp: start, end_timestamp: end },
+          skipErrorHandler: true,
+        });
+        if (!active) return;
+        if (!data.success)
+          throw new Error(data.message || t('加载账单筛选项失败'));
+        setFilterChoices(data.data);
+      } catch (err) {
+        if (active)
+          setChoicesError(
+            err.response?.data?.message ||
+              err.message ||
+              t('加载账单筛选项失败'),
+          );
+      } finally {
+        if (active) setChoicesLoading(false);
+      }
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [
+    visible,
+    options?.start_timestamp,
+    options?.end_timestamp,
+    endpoint,
+    choicesAttempt,
+    t,
+  ]);
+
   const update = (key, value) =>
     setOptions((current) => ({ ...current, [key]: value }));
   const selectTemplate = (value) => {
@@ -169,10 +211,6 @@ const BillExportModal = ({
     }
     if (options.end_timestamp - options.start_timestamp > 366 * 86400) {
       setError(t('单次账单周期不能超过 366 天'));
-      return;
-    }
-    if (!Number.isInteger(options.channel) || options.channel < 0) {
-      setError(t('渠道 ID 无效'));
       return;
     }
     setBusy(true);
@@ -239,7 +277,9 @@ const BillExportModal = ({
             theme='solid'
             onClick={generate}
             loading={running || busy}
-            disabled={!options || running || busy}
+            disabled={
+              !options || running || busy || choicesLoading || !!choicesError
+            }
           >
             {running ? t('账单生成中') : t('生成账单')}
           </Button>
@@ -334,52 +374,68 @@ const BillExportModal = ({
                 ))}
               </Select>
             </label>
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-              {[
-                ...(isAdminUser
-                  ? [
-                      ['username', '用户名称'],
-                      ['channel', '渠道 ID'],
-                    ]
-                  : []),
-                ['model_name', '模型名称'],
-                ['token_name', '令牌名称'],
-                ['group', '分组'],
-                ['request_id', 'Request ID'],
-              ].map(([key, label]) => (
-                <label key={key} className='flex flex-col gap-1'>
-                  <Text>{t(label)}</Text>
-                  <Input
-                    value={String(options[key] || '')}
-                    onChange={(value) =>
-                      update(key, key === 'channel' ? Number(value) : value)
-                    }
+            <div className='grid grid-cols-1 gap-3'>
+              {isAdminUser && (
+                <label className='flex flex-col gap-2'>
+                  <Text strong>{t('用户（可多选）')}</Text>
+                  <Select
+                    {...semiSelectPortalProps}
+                    multiple
+                    filter
                     showClear
+                    maxTagCount={3}
+                    loading={choicesLoading}
+                    disabled={running || busy || choicesLoading}
+                    className='w-full'
+                    placeholder={t('不选择则包含全部用户')}
+                    value={options.user_ids}
+                    onChange={(values) => update('user_ids', values || [])}
+                    optionList={filterChoices.users.map((user) => ({
+                      value: user.user_id,
+                      label: `${user.username || t('用户')} (#${user.user_id})`,
+                    }))}
                   />
                 </label>
-              ))}
+              )}
+              <label className='flex flex-col gap-2'>
+                <Text strong>{t('模型名称（可多选）')}</Text>
+                <Select
+                  {...semiSelectPortalProps}
+                  multiple
+                  filter
+                  showClear
+                  maxTagCount={3}
+                  loading={choicesLoading}
+                  disabled={running || busy || choicesLoading}
+                  className='w-full'
+                  placeholder={t('不选择则包含全部模型')}
+                  value={options.model_names}
+                  onChange={(values) => update('model_names', values || [])}
+                  optionList={filterChoices.models.map((model) => ({
+                    value: model,
+                    label: model,
+                  }))}
+                />
+              </label>
+              <Text type='tertiary'>
+                {t('下拉选项来自所选时间范围内的消费和额度退回日志。')}
+              </Text>
+              {choicesError && (
+                <Banner
+                  type='danger'
+                  description={
+                    <Space>
+                      {choicesError}
+                      <Button
+                        onClick={() => setChoicesAttempt((value) => value + 1)}
+                      >
+                        {t('重试')}
+                      </Button>
+                    </Space>
+                  }
+                />
+              )}
             </div>
-            <label className='flex flex-col gap-2'>
-              <Text strong>{t('日志类型')}</Text>
-              <Select
-                {...semiSelectPortalProps}
-                value={options.log_type}
-                onChange={(value) => update('log_type', value)}
-                className='w-full'
-              >
-                {BILL_TYPES.map((type) => (
-                  <Select.Option key={type} value={type}>
-                    {t(TYPE_NAMES[type])}
-                  </Select.Option>
-                ))}
-              </Select>
-              {initialFilters?.logType &&
-              !BILL_TYPES.includes(initialFilters.logType) ? (
-                <Text type='tertiary'>
-                  {t('原日志类型不属于消费账单，已切换为全部消费及额度退回。')}
-                </Text>
-              ) : null}
-            </label>
             <div className='flex flex-col gap-2'>
               <Text strong>{t('导出模板')}</Text>
               <RadioGroup

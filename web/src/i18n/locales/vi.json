@@ -5211,6 +5211,12 @@
     "适合灰度 / 调试开关判断": "Thích hợp cho việc đánh giá chuyển đổi thang độ xám/gỡ lỗi",
     "配合重试策略使用": "Được sử dụng với chiến lược thử lại",
     "阶梯计费": "Thanh toán theo cấp độ",
-    "{{count}} 件投稿": "Bài dự thi: {{count}}"
+    "{{count}} 件投稿": "Bài dự thi: {{count}}",
+    "用户（可多选）": "Người dùng (chọn nhiều)",
+    "模型名称（可多选）": "Mô hình (chọn nhiều)",
+    "不选择则包含全部用户": "Không chọn nghĩa là tất cả người dùng",
+    "不选择则包含全部模型": "Không chọn nghĩa là tất cả mô hình",
+    "下拉选项来自所选时间范围内的消费和额度退回日志。": "Các lựa chọn lấy từ nhật ký tiêu dùng và hoàn hạn mức trong khoảng thời gian đã chọn.",
+    "加载账单筛选项失败": "Không thể tải bộ lọc hóa đơn"
   }
 }
