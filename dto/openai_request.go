@@ -848,6 +848,8 @@ type OpenAIResponsesRequest struct {
 	ParallelToolCalls  json.RawMessage `json:"parallel_tool_calls,omitempty"`
 	PreviousResponseID string          `json:"previous_response_id,omitempty"`
 	Reasoning          *Reasoning      `json:"reasoning,omitempty"`
+	// ReasoningPreference is an opt-in OPC control, consumed by the gateway before forwarding.
+	ReasoningPreference *string `json:"reasoning_preference,omitempty"`
 	// ServiceTier specifies upstream service level and may affect billing.
 	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`
