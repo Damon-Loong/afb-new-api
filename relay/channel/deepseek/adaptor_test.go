@@ -12,8 +12,8 @@ import (
 
 func TestGetRequestURLResponsesUsesNativeEndpoint(t *testing.T) {
 	url, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
-		ChannelBaseUrl: "https://api.deepseek.com",
-		RelayMode:      constant.RelayModeResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.deepseek.com"},
+		RelayMode:   constant.RelayModeResponses,
 	})
 
 	require.NoError(t, err)
@@ -22,8 +22,8 @@ func TestGetRequestURLResponsesUsesNativeEndpoint(t *testing.T) {
 
 func TestGetRequestURLChatCompletionsIsUnchanged(t *testing.T) {
 	url, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
-		ChannelBaseUrl: "https://api.deepseek.com",
-		RelayMode:      constant.RelayModeChatCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.deepseek.com"},
+		RelayMode:   constant.RelayModeChatCompletions,
 	})
 
 	require.NoError(t, err)
@@ -32,8 +32,8 @@ func TestGetRequestURLChatCompletionsIsUnchanged(t *testing.T) {
 
 func TestGetRequestURLFIMCompletionsIsUnchanged(t *testing.T) {
 	url, err := (&Adaptor{}).GetRequestURL(&relaycommon.RelayInfo{
-		ChannelBaseUrl: "https://api.deepseek.com",
-		RelayMode:      constant.RelayModeCompletions,
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.deepseek.com"},
+		RelayMode:   constant.RelayModeCompletions,
 	})
 
 	require.NoError(t, err)
