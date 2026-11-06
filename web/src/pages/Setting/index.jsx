@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 
 import SystemSetting from '../../components/settings/SystemSetting';
+import AccountSecuritySetting from '../../components/settings/AccountSecuritySetting';
 import { isRoot } from '../../helpers';
 import OtherSetting from '../../components/settings/OtherSetting';
 import OperationSetting from '../../components/settings/OperationSetting';
@@ -58,6 +59,7 @@ const Setting = () => {
   let panes = [];
 
   if (isRoot()) {
+    panes.push({ tab: '账户安全与告警', content: <AccountSecuritySetting />, itemKey: 'account-security' });
     panes.push({
       tab: (
         <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>

@@ -263,6 +263,7 @@ func migrateDB() error {
 	}
 
 	err := DB.AutoMigrate(
+		&AccountSecurity{}, &AccountLoginState{}, &AccountAlertState{}, &AccountSecurityEvent{},
 		&Channel{},
 		&Token{},
 		&User{},
@@ -342,6 +343,10 @@ func migrateDBFast() error {
 		{&TopUp{}, "TopUp"},
 		{&QuotaData{}, "QuotaData"},
 		{&Task{}, "Task"},
+		{&AccountSecurity{}, "AccountSecurity"},
+		{&AccountLoginState{}, "AccountLoginState"},
+		{&AccountAlertState{}, "AccountAlertState"},
+		{&AccountSecurityEvent{}, "AccountSecurityEvent"},
 		{&Model{}, "Model"},
 		{&Vendor{}, "Vendor"},
 		{&PrefillGroup{}, "PrefillGroup"},

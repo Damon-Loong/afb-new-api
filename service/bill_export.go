@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/shopspring/decimal"
 	"github.com/xuri/excelize/v2"
 )
@@ -91,12 +92,19 @@ func (o *BillExportOptions) Validate(admin bool) error {
 }
 
 type billMetadata struct {
-	BillingSource       string `json:"billing_source"`
-	PlanTitle           string `json:"subscription_plan_title"`
-	SubscriptionID      int64  `json:"subscription_id"`
-	TaskID              string `json:"task_id"`
-	CacheTokens         *int64 `json:"cache_tokens"`
-	CacheCreationTokens *int64 `json:"cache_creation_tokens"`
+	BillingMode         string                      `json:"billing_mode"`
+	VideoTokens         *int64                      `json:"completion_tokens"`
+	ActualQuota         *int64                      `json:"actual_quota"`
+	PreConsumedQuota    *int64                      `json:"pre_consumed_quota"`
+	Resolution          string                      `json:"resolution"`
+	Duration            float64                     `json:"duration_seconds"`
+	VideoPricing        *types.VideoBillingSnapshot `json:"video_pricing_snapshot"`
+	BillingSource       string                      `json:"billing_source"`
+	PlanTitle           string                      `json:"subscription_plan_title"`
+	SubscriptionID      int64                       `json:"subscription_id"`
+	TaskID              string                      `json:"task_id"`
+	CacheTokens         *int64                      `json:"cache_tokens"`
+	CacheCreationTokens *int64                      `json:"cache_creation_tokens"`
 }
 
 type billEntry struct {
@@ -133,6 +141,7 @@ func makeBillEntry(log model.Log) billEntry {
 }
 
 type billTotals struct {
+	video              decimal.Decimal
 	entries            int
 	consumeEntries     int
 	prompt, completion decimal.Decimal
@@ -140,6 +149,9 @@ type billTotals struct {
 }
 
 func (b *billTotals) add(e billEntry) {
+	if e.meta.BillingMode == "video_tokens" && e.meta.ActualQuota != nil && e.meta.VideoTokens != nil {
+		b.video = b.video.Add(decimal.NewFromInt(*e.meta.VideoTokens))
+	}
 	b.entries++
 	if model.IsConsumeLogType(e.log.Type) {
 		b.consumeEntries++
@@ -254,13 +266,30 @@ func buildBillSheets(ctx context.Context, logs []model.Log, options BillExportOp
 		}
 	}
 	sheets := []billSheet{{name: "账单概览", headers: []interface{}{"项目", "内容"}, rows: func(emit func([]interface{}) error) error {
-		filters, _ := json.Marshal(options.BillExportFilter)
+		var filters []string
+		for _, item := range [][2]string{{"用户", options.Username}, {"令牌", options.TokenName}, {"模型", options.ModelName}, {"分组", options.Group}, {"请求 ID", options.RequestID}} {
+			if item[1] != "" {
+				filters = append(filters, item[0]+"："+item[1])
+			}
+		}
+		if len(options.UserIDs) > 0 {
+			filters = append(filters, fmt.Sprintf("用户 ID：%v", options.UserIDs))
+		}
+		if len(options.ModelNames) > 0 {
+			filters = append(filters, "模型列表："+strings.Join(options.ModelNames, "、"))
+		}
+		if options.Channel > 0 {
+			filters = append(filters, fmt.Sprintf("渠道：%d", options.Channel))
+		}
+		if len(filters) == 0 {
+			filters = []string{"未额外限定用户、模型或渠道"}
+		}
 		rows := [][]interface{}{
 			{"账单类型", "消费账单（非支付凭证、非完整资金流水）"},
 			{"开始时间（含）", time.Unix(options.StartTimestamp, 0).In(location).Format(time.DateTime)},
 			{"结束时间（含）", time.Unix(options.EndTimestamp, 0).In(location).Format(time.DateTime)},
 			{"时区", options.Timezone}, {"生成时间", time.Now().In(location).Format(time.DateTime)},
-			{"筛选条件", string(filters)}, {"日志类型", billTypeName(options.LogType)},
+			{"筛选条件", strings.Join(filters, "；")}, {"日志类型", billTypeName(options.LogType)},
 			{"记录数", total.entries}, {"消费记录数（含任务预扣和补扣，非去重请求数）", total.consumeEntries},
 			{"额度换算单位（导出时配置）", quotaPerUnit},
 			{"金额口径", "钱包折算金额 = 原始额度 / 导出时额度单位；非历史支付金额，不使用当前汇率换算其他币种"},
@@ -268,7 +297,9 @@ func buildBillSheets(ctx context.Context, logs []model.Log, options BillExportOp
 			{"退款口径", "额度退回按退回发生时间入账；可能对应周期外消费，不代表支付退款"},
 			{"历史数据", "计费来源缺失单列为未记录；不推断钱包扣费。仅包含仍保留的日志，不提供期初/期末余额"},
 			{"统计范围", "API/任务消费、市场消耗、项目消耗、额度退回；不含充值、奖励、管理、系统和错误日志"},
-			{"用量说明", "Token 用量按原日志记录，缓存用量可能包含在输入中，不额外相加；空白表示未记录"},
+			{"用量说明", "文本Token按原日志记录，缓存可能包含在输入中，不额外相加；视频Token单列且仅结算记录统计。空白表示未记录"},
+			{"视频结算Token", billNumber(total.video)},
+			{"视频账单口径", "预扣与结算退差额/补扣均为流水；净扣=扣除-退回。最终总费用仅供核对，不能再次相加。跨期任务可能只有预扣或退款；仅导出退款时不是完整消费账单"},
 			{"精度说明", "原始额度为核对依据；钱包折算金额保留 10 位小数。超过 Excel 15 位有效数字的数值按文本保存"},
 		}
 		for i, value := range billAmountCells(total.amounts, unit) {
@@ -303,6 +334,7 @@ func buildBillSheets(ctx context.Context, logs []model.Log, options BillExportOp
 	}
 	headers := []interface{}{"发生时间", "记录编号", "请求ID", "任务ID", "用户ID", "用户名", "令牌ID", "令牌名称", "分组", "业务类型", "模型", "计费来源", "订阅ID", "套餐名称", "输入Token", "输出Token", "缓存读取Token", "缓存创建Token"}
 	headers = append(headers, billAmountHeaders...)
+	headers = append(headers, "计费阶段", "视频结算Token", "视频时长(秒)", "分辨率", "视频单价(CNY/百万Token)", "快照汇率(CNY/USD)", "快照分组倍率", "任务最终额度(仅核对不汇总)")
 	if admin {
 		headers = append(headers, "渠道ID")
 	}
@@ -322,6 +354,30 @@ func buildBillSheets(ctx context.Context, logs []model.Log, options BillExportOp
 			}
 			row := []interface{}{time.Unix(log.CreatedAt, 0).In(location).Format(time.DateTime), strconv.Itoa(log.Id), log.RequestId, e.meta.TaskID, strconv.Itoa(log.UserId), log.Username, strconv.Itoa(log.TokenId), log.TokenName, log.Group, billTypeName(log.Type), log.ModelName, e.source, subscriptionID, e.meta.PlanTitle, billNumber(decimal.NewFromInt(int64(log.PromptTokens))), billNumber(decimal.NewFromInt(int64(log.CompletionTokens))), cache, creation}
 			row = append(row, billAmountCells(e.amounts, unit)...)
+			stage := "消费/额度退回"
+			video, duration, resolution, price, rate, ratio, actual := interface{}(""), interface{}(""), interface{}(""), interface{}(""), interface{}(""), interface{}(""), interface{}("")
+			if e.meta.BillingMode == "video_tokens" {
+				stage = "视频预扣（非最终费用）"
+				if e.meta.ActualQuota != nil {
+					stage = "视频结算差额（退回/补扣）"
+					actual = billNumber(decimal.NewFromInt(*e.meta.ActualQuota))
+					if e.meta.VideoTokens != nil {
+						video = billNumber(decimal.NewFromInt(*e.meta.VideoTokens))
+					}
+					duration, resolution = e.meta.Duration, e.meta.Resolution
+				}
+				if s := e.meta.VideoPricing; s != nil {
+					res := e.meta.Resolution
+					if res == "" {
+						res = s.Resolution
+					}
+					if v, err := s.Pricing.Price(res, s.HasVideoInput); err == nil {
+						price = v
+					}
+					rate, ratio = s.Pricing.ExchangeRate, s.GroupRatio
+				}
+			}
+			row = append(row, stage, video, duration, resolution, price, rate, ratio, actual)
 			if admin {
 				row = append(row, strconv.Itoa(log.ChannelId))
 			}
@@ -399,12 +455,41 @@ func WriteBillExport(ctx context.Context, writer io.Writer, logs []model.Log, op
 	}
 	book := excelize.NewFile()
 	defer book.Close()
-	headerStyle, err := book.NewStyle(&excelize.Style{Font: &excelize.Font{Bold: true, Color: "FFFFFF"}, Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"2457A7"}}})
+	var edges []excelize.Border
+	for _, side := range []string{"left", "right", "top", "bottom"} {
+		edges = append(edges, excelize.Border{Type: side, Color: "B3C4D7", Style: 1})
+	}
+	headerStyle, err := book.NewStyle(&excelize.Style{Border: edges, Font: &excelize.Font{Bold: true, Color: "FFFFFF", Size: 11}, Fill: excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{"2457A7"}}, Alignment: &excelize.Alignment{Horizontal: "center", Vertical: "center", WrapText: true}})
 	if err != nil {
 		return err
 	}
-	numberFormat := "0.##########"
-	numberStyle, err := book.NewStyle(&excelize.Style{CustomNumFmt: &numberFormat})
+	cellStyle := func(align, fill, format string) (int, error) {
+		s := excelize.Style{Border: edges, Font: &excelize.Font{Size: 11}, Alignment: &excelize.Alignment{Horizontal: align, Vertical: "center", WrapText: true}}
+		if fill != "" {
+			s.Fill = excelize.Fill{Type: "pattern", Pattern: 1, Color: []string{fill}}
+		}
+		if format != "" {
+			s.CustomNumFmt = &format
+		}
+		return book.NewStyle(&s)
+	}
+	bodyStyle, err := cellStyle("center", "", "")
+	if err != nil {
+		return err
+	}
+	labelStyle, err := cellStyle("center", "EFF4FA", "")
+	if err != nil {
+		return err
+	}
+	noteStyle, err := cellStyle("left", "", "")
+	if err != nil {
+		return err
+	}
+	intStyle, err := cellStyle("center", "", "0")
+	if err != nil {
+		return err
+	}
+	numberStyle, err := cellStyle("center", "", "0.##########")
 	if err != nil {
 		return err
 	}
@@ -428,7 +513,10 @@ func WriteBillExport(ctx context.Context, writer io.Writer, logs []model.Log, op
 			return err
 		}
 		if i == 0 {
-			if err := stream.SetColWidth(2, 2, 100); err != nil {
+			if err := stream.SetColWidth(1, 1, 40); err != nil {
+				return err
+			}
+			if err := stream.SetColWidth(2, 2, 85); err != nil {
 				return err
 			}
 		}
@@ -436,7 +524,7 @@ func WriteBillExport(ctx context.Context, writer io.Writer, logs []model.Log, op
 		for j, value := range sheet.headers {
 			header[j] = excelize.Cell{StyleID: headerStyle, Value: value}
 		}
-		if err := stream.SetRow("A1", header); err != nil {
+		if err := stream.SetRow("A1", header, excelize.RowOpts{Height: 38}); err != nil {
 			return err
 		}
 		rowNumber := 1
@@ -445,12 +533,41 @@ func WriteBillExport(ctx context.Context, writer io.Writer, logs []model.Log, op
 				return err
 			}
 			rowNumber++
+			height := 24.0
 			for j, value := range row {
-				if _, ok := value.(float64); ok {
-					row[j] = excelize.Cell{StyleID: numberStyle, Value: value}
+				style := bodyStyle
+				width := 22
+				if i == 0 && j == 0 {
+					style = labelStyle
+					width = 40
 				}
+				if i == 0 && j == 1 {
+					width = 85
+				}
+				if s, ok := value.(string); ok {
+					n := 0
+					for _, c := range s {
+						if c > 127 {
+							n += 2
+						} else {
+							n++
+						}
+					}
+					if i == 0 && j == 1 && n > 40 {
+						style = noteStyle
+					}
+					h := float64(6 + 17*((n+width-3)/(width-2)))
+					height = math.Min(409, math.Max(height, h))
+				}
+				if n, ok := value.(float64); ok {
+					style = numberStyle
+					if n == math.Trunc(n) {
+						style = intStyle
+					}
+				}
+				row[j] = excelize.Cell{StyleID: style, Value: value}
 			}
-			return stream.SetRow(fmt.Sprintf("A%d", rowNumber), row)
+			return stream.SetRow(fmt.Sprintf("A%d", rowNumber), row, excelize.RowOpts{Height: height})
 		})
 		if err != nil {
 			return err

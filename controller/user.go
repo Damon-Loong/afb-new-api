@@ -150,6 +150,11 @@ func createDefaultApiTokenIfEnabled(userId int, tokenName string) error {
 
 // setup session & cookies and then return user info
 func setupLogin(user *model.User, c *gin.Context) {
+	nonce, loginIP, securityPolicy, securityErr := service.BeginAccountLogin(user.Id, c.Request.RemoteAddr, c.GetHeader("X-Forwarded-For"))
+	if securityErr != nil {
+		common.ApiError(c, securityErr)
+		return
+	}
 	accessToken, err := ensureUserAccessToken(user)
 	if err != nil {
 		common.ApiError(c, err)
@@ -162,11 +167,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 	session.Set("role", user.Role)
 	session.Set("status", user.Status)
 	session.Set("group", user.Group)
+	session.Set("account_session", nonce)
 	err = session.Save()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgUserSessionSaveFailed)
 		return
 	}
+	go service.NotifyAccountLogin(user, loginIP, c.Request.UserAgent(), securityPolicy)
 	c.JSON(http.StatusOK, gin.H{
 		"message": "",
 		"success": true,
@@ -185,6 +192,13 @@ func setupLogin(user *model.User, c *gin.Context) {
 
 func Logout(c *gin.Context) {
 	session := sessions.Default(c)
+	if id, ok := session.Get("id").(int); ok {
+		nonce, _ := session.Get("account_session").(string)
+		if err := service.EndAccountSession(id, nonce); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
 	session.Clear()
 	err := session.Save()
 	if err != nil {

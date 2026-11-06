@@ -58,6 +58,7 @@ import {
   IconEdit,
 } from '@douyinfe/semi-icons';
 import UserBindingManagementModal from './UserBindingManagementModal';
+import AccountSecuritySetting from '../../../settings/AccountSecuritySetting';
 
 const { Text, Title } = Typography;
 
@@ -452,6 +453,7 @@ const EditUserModal = (props) => {
               </div>
             )}
           </Form>
+          {userId && <AccountSecuritySetting userId={userId} />}
         </Spin>
       </SideSheet>
 

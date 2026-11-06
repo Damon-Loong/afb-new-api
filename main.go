@@ -117,6 +117,7 @@ func main() {
 
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
+	service.StartAccountSecurityMonitor()
 
 	// Third-party market activity sync task. Disabled unless MARKET_JIMENG_SYNC_ENABLED=true.
 	service.StartMarketSourceSyncTask()

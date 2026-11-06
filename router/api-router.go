@@ -63,6 +63,8 @@ func SetApiRouter(router *gin.Engine) {
 			wechatQRRoute.GET("/devices", controller.GetWechatQRDevices)
 		}
 		apiRouter.GET("/pricing", middleware.TryUserAuth(), controller.GetPricing)
+		apiRouter.GET("/account-security/:id", middleware.AdminAuth(), controller.GetAccountSecurity)
+		apiRouter.PUT("/account-security/:id", middleware.AdminAuth(), middleware.CriticalRateLimit(), controller.PutAccountSecurity)
 		marketRoute := apiRouter.Group("/market")
 		{
 			marketRoute.GET("/activities", middleware.TryUserAuth(), controller.GetMarketActivities)

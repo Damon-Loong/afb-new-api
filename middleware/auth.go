@@ -92,6 +92,9 @@ func authHelper(c *gin.Context, minRole int) {
 			return
 		}
 	}
+	if !checkBrowserAccountPolicy(c, id.(int)) {
+		return
+	}
 	// get header New-Api-User
 	apiUserIdStr := c.Request.Header.Get("New-Api-User")
 	if apiUserIdStr == "" {
@@ -161,12 +164,18 @@ func TryUserAuth() func(c *gin.Context) {
 		session := sessions.Default(c)
 		id := session.Get("id")
 		if id != nil {
+			if !checkBrowserAccountPolicy(c, id.(int)) {
+				return
+			}
 			c.Set("id", id)
 		} else if accessToken := c.Request.Header.Get("Authorization"); accessToken != "" {
 			if user, err := model.ValidateAccessToken(accessToken); err == nil && user != nil && user.Username != "" {
 				apiUserIdStr := c.Request.Header.Get("New-Api-User")
 				apiUserId, parseErr := strconv.Atoi(apiUserIdStr)
 				if parseErr == nil && apiUserId == user.Id && user.Status != common.UserStatusDisabled {
+					if !checkBrowserAccountPolicy(c, user.Id) {
+						return
+					}
 					c.Set("username", user.Username)
 					c.Set("role", user.Role)
 					c.Set("id", user.Id)
@@ -239,6 +248,9 @@ func TokenOrUserAuth() func(c *gin.Context) {
 		// Try session auth first (dashboard users)
 		session := sessions.Default(c)
 		if id := session.Get("id"); id != nil {
+			if !checkBrowserAccountPolicy(c, id.(int)) {
+				return
+			}
 			if status, ok := session.Get("status").(int); ok && status == common.UserStatusEnabled {
 				c.Set("id", id)
 				c.Next()
@@ -248,6 +260,15 @@ func TokenOrUserAuth() func(c *gin.Context) {
 		// Fall back to token auth (API clients)
 		TokenAuth()(c)
 	}
+}
+
+func checkBrowserAccountPolicy(c *gin.Context, userID int) bool {
+	nonce, _ := sessions.Default(c).Get("account_session").(string)
+	if err := service.CheckAccountSession(userID, nonce, c.Request.RemoteAddr, c.GetHeader("X-Forwarded-For")); err != nil {
+		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": err.Error()})
+		return false
+	}
+	return true
 }
 
 // TokenAuthReadOnly 宽松版本的令牌认证中间件，用于只读查询接口。

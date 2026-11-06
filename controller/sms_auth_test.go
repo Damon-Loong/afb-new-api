@@ -61,7 +61,7 @@ func setupSMSAuthTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	if err != nil {
 		t.Fatalf("open sqlite database: %v", err)
 	}
-	if err := db.AutoMigrate(&model.User{}, &model.Token{}); err != nil {
+	if err := db.AutoMigrate(&model.User{}, &model.Token{}, &model.AccountSecurity{}, &model.AccountLoginState{}, &model.AccountAlertState{}, &model.AccountSecurityEvent{}); err != nil {
 		t.Fatalf("migrate sms auth tables: %v", err)
 	}
 	model.DB = db

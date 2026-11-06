@@ -75,7 +75,7 @@ func TestBillExportAccountingAndExcelLayout(t *testing.T) {
 		require.NoError(t, reader.Close())
 		require.NotContains(t, string(data), "secret-admin")
 		if file.Name == "xl/worksheets/sheet5.xml" {
-			require.Contains(t, string(data), `<autoFilter ref="$A$1:$AC$9"`)
+			require.Contains(t, string(data), `<autoFilter ref="$A$1:$AK$9"`)
 		}
 	}
 }
