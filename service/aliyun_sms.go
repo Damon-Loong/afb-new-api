@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -97,3 +98,23 @@ func SendAliyunLoginSMS(ctx context.Context, phone11, code string) error {
 	return nil
 }
 
+// Dedicated notification template with ${user}; never fall back to login OTP.
+func sendAccountAlertSMS(phone, template, username string) error {
+	cfg, _ := LoadAliyunSMSConfig()
+	if template == "" || template == cfg.TemplateCode || cfg.AccessKeyId == "" || cfg.AccessKeySecret == "" || cfg.SignName == "" {
+		return fmt.Errorf("账户告警短信需要独立通知模板及短信服务配置")
+	}
+	client, err := newAliyunSMSClient(cfg)
+	if err != nil {
+		return err
+	}
+	param, _ := json.Marshal(map[string]string{"user": username})
+	resp, err := client.SendSms(&dysmsapi.SendSmsRequest{PhoneNumbers: tea.String(phone), SignName: tea.String(cfg.SignName), TemplateCode: tea.String(template), TemplateParam: tea.String(string(param))})
+	if err != nil {
+		return err
+	}
+	if resp == nil || resp.Body == nil || tea.StringValue(resp.Body.Code) != "OK" {
+		return fmt.Errorf("告警短信发送失败")
+	}
+	return nil
+}
