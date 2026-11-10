@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -190,14 +191,15 @@ func TestAccountMonitorUsageAndLoginNotifications(t *testing.T) {
 	require.Equal(t, 1, sent)
 	p.LoginNotify = true
 	u := &model.User{Id: 89, Username: "tester", Email: "user@example.test"}
+	require.True(t, claimAccountAlert(fmt.Sprintf("login:%d:%s", u.Id, securityHash("203.0.113.1|test-browser")), 1, time.Now().Unix(), 1440))
 	NotifyAccountLogin(u, "203.0.113.1", "test-browser", p)
 	NotifyAccountLogin(u, "203.0.113.1", "test-browser", p)
-	require.Equal(t, 2, sent)
-	NotifyAccountLogin(u, "203.0.113.2", "test-browser", p)
 	require.Equal(t, 3, sent)
+	NotifyAccountLogin(u, "203.0.113.2", "test-browser", p)
+	require.Equal(t, 4, sent)
 }
 
-func TestAccountNotificationFailureIsRecordedAndThrottled(t *testing.T) {
+func TestAccountNotificationFailureDoesNotSuppressNextLogin(t *testing.T) {
 	setupAccountSecurityTest(t)
 	oldEmail := accountEmailSender
 	t.Cleanup(func() { accountEmailSender = oldEmail })
@@ -211,7 +213,7 @@ func TestAccountNotificationFailureIsRecordedAndThrottled(t *testing.T) {
 	u := &model.User{Id: 90, Username: "tester", Email: "user@example.test"}
 	NotifyAccountLogin(u, "203.0.113.1", "test", p)
 	NotifyAccountLogin(u, "203.0.113.1", "test", p)
-	require.Equal(t, 1, sent)
+	require.Equal(t, 2, sent)
 	var event model.AccountSecurityEvent
 	require.NoError(t, model.DB.Where("user_id = ?", 90).First(&event).Error)
 	require.Equal(t, "failed", event.Delivery)

@@ -101,10 +101,6 @@ func NotifyAccountLogin(user *model.User, ip, agent string, p model.AccountSecur
 	if len(agent) > 256 {
 		agent = agent[:256]
 	}
-	key := fmt.Sprintf("login:%d:%s", user.Id, securityHash(ip+"|"+agent))
-	if !claimAccountAlert(key, 1, time.Now().Unix(), 1440) {
-		return
-	}
 	message := fmt.Sprintf("账号 %s 于 %s 登录。IP：%s；浏览器：%s。如非本人操作，请立即联系管理员。", user.Username, time.Now().UTC().Format(time.RFC3339), ip, agent)
 	status := "sent"
 	if err := accountEmailSender("账号登录提醒", user.Email, html.EscapeString(message)); err != nil {
