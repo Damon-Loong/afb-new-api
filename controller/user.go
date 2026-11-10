@@ -852,6 +852,48 @@ func DeleteUser(c *gin.Context) {
 	}
 }
 
+// PurgeCancelledUser removes an already cancelled account while retaining its billing history.
+func PurgeCancelledUser(c *gin.Context) {
+	id, err := strconv.Atoi(c.Param("id"))
+	if err != nil || id <= 0 {
+		common.ApiErrorMsg(c, "用户ID无效")
+		return
+	}
+	var user model.User
+	if err := model.DB.Unscoped().Omit("password", "access_token").First(&user, id).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	role := c.GetInt("role")
+	if role < common.RoleAdminUser || role <= user.Role || id == c.GetInt("id") {
+		common.ApiErrorMsg(c, "无权删除此用户")
+		return
+	}
+	if !user.DeletedAt.Valid {
+		common.ApiErrorMsg(c, "只能永久删除已注销的用户")
+		return
+	}
+	if err := model.InvalidateUserTokensCache(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.InvalidateUserCache(id); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	// Recheck status and role in the deletion to guard against concurrent changes.
+	result := model.DB.Unscoped().Where("id = ? AND deleted_at IS NOT NULL AND role < ?", id, role).Delete(&model.User{})
+	if result.Error != nil {
+		common.ApiError(c, result.Error)
+		return
+	}
+	if result.RowsAffected != 1 {
+		common.ApiErrorMsg(c, "用户状态已变化，请刷新列表后重试")
+		return
+	}
+	common.ApiSuccess(c, nil)
+}
+
 func DeleteSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	user, _ := model.GetUserById(id, false)

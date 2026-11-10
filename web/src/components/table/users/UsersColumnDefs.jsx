@@ -221,7 +221,15 @@ const renderOperations = (
   },
 ) => {
   if (record.DeletedAt !== null) {
-    return <></>;
+    return (
+      <Button
+        type='danger'
+        size='small'
+        onClick={() => showDeleteModal(record)}
+      >
+        {t('删除')}
+      </Button>
+    );
   }
 
   const moreMenu = [
