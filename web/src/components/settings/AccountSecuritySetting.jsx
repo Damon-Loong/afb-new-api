@@ -41,7 +41,7 @@ export default function AccountSecuritySetting({ userId = 0 }) {
     {!global && <>
       {field('仅保留一个网页登录会话', <Switch aria-label='单会话登录' checked={policy.single_session} onChange={(v) => update('single_session', v)} />, '新登录使旧会话失效；多标签页不受影响。开启后旧会话可能需要重新登录。不影响模型API令牌；管理访问令牌不能绕过此限制。')}
       {field('允许登录的IP / 网段', <TextArea aria-label='登录IP白名单' value={policy.login_ips} onChange={(v) => update('login_ips', v)} placeholder='每行一个IP或CIDR网段；留空不限制' />, '限制登录和后续后台访问。动态IP用户请谨慎开启；被锁定后由其他管理员解除。')}
-      {field('登录邮件通知用户', <Switch aria-label='登录邮件通知' checked={policy.login_notify} onChange={(v) => update('login_notify', v)} />, '发到用户绑定邮箱。同IP和浏览器24小时内最多一次；不包含令牌或密码。')}
+      {field('登录邮件通知用户', <Switch aria-label='登录邮件通知' checked={policy.login_notify} onChange={(v) => update('login_notify', v)} />, '每次成功登录都会发送提醒到用户绑定邮箱；不包含令牌或密码。')}
       {field('单独设置该用户的告警阈值', <Switch aria-label='独立告警阈值' checked={policy.override_alerts} onChange={(v) => update('override_alerts', v)} />, '关闭时继承全局告警策略。通知收件人统一由超级管理员设置。')}
     </>}
     {global && <>
