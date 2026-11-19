@@ -340,7 +340,9 @@ func ExchangeSSOTicket(c *gin.Context) {
 		return
 	}
 
-	user, err := model.GetUserById(payload.UserID, false)
+	// Include the existing access token: the public projection omits it, which
+	// would make ensureUserAccessToken rotate it and log the OPC session out.
+	user, err := model.GetUserById(payload.UserID, true)
 	if err != nil {
 		common.ApiError(c, err)
 		return
